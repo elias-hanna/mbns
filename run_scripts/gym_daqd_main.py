@@ -115,7 +115,7 @@ class WrappedEnv():
             action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
             act_traj.append(action)
-            obs, reward, done, info = env.step(action)
+            obs, reward, done, info = self._env.step(action)
             if done:
                 break
         if self._is_goal_env:
@@ -126,9 +126,61 @@ class WrappedEnv():
         fitness = env.compute_fitness(obs_traj, act_traj)
 
         if render:
-            print("Desc from simulation", desc) 
+            print("Desc from simulation", desc)
 
         return fitness, desc, obs_traj, act_traj
+
+    def evaluate_solution_model(self, ctrl, mean=False, det=True):
+        """
+        Input: ctrl (array of floats) the genome of the individual
+        Output: Trajectory and actions taken
+        """
+        ## Create a copy of the controller
+        controller = self.controller.copy()
+        ## Verify that x and controller parameterization have same size
+        # assert len(x) == len(self.controller.get_parameters())
+        ## Set controller parameters
+        controller.set_parameters(ctrl)
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+        act_traj = []
+        obs_traj = []
+        ## WARNING: need to get previous obs
+        for t in range(self._env_max_h):
+            action = controller(obs)
+            action[action>self._action_max] = self._action_max
+            action[action<self._action_min] = self._action_min
+            obs_traj.append(obs)
+            act_traj.append(action)
+
+            s = ptu.from_numpy(obs)
+            a = ptu.from_numpy(action)
+            s = s.view(1,-1)
+            a = a.view(1,-1)
+
+            if det:
+                # if deterministic dynamics model
+                pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
+            else:
+                # if probalistic dynamics model - choose output mean or sample
+                pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1), mean=mean)
+            obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
+            
+        obs_traj.append(obs)
+
+        desc = env.compute_bd(obs_traj)
+        fitness = env.compute_fitness(obs_traj, act_traj)
+
+        if render:
+            print("Desc from model", desc)
+
+        return fitness, desc, obs_traj, act_traj
+
+    def compute_bd(self, obs_traj):
+        pass
+
+    def compute_fitness(self, obs_traj, act_traj):
+        pass
 
 def main(args):
 
