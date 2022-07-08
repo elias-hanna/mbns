@@ -177,10 +177,22 @@ class WrappedEnv():
         return fitness, desc, obs_traj, act_traj
 
     def compute_bd(self, obs_traj):
-        pass
+        bd = None
+        last_obs = obs_traj[-1]
+        if env_name == 'ball_in_cup':
+            bd = last_obs[:3]
+        if env_name == 'fastsim_maze':
+            bd = last_obs[:2]
+        if env_name == 'fastsim_maze_traps':
+            bd = last_obs[:2]
+        if env_name == 'redundant_arm_no_walls_limited_angles':
+            bd = last_obs[-2:]
+        return bd
 
     def compute_fitness(self, obs_traj, act_traj):
-        pass
+        fit = None
+        
+        return fit
 
 def main(args):
 
