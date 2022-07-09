@@ -339,8 +339,8 @@ class ModelBasedQD:
                     true_pos = len(add_list)
                     false_pos = len(discard_list)
                     self.eval_time = time.time()-start
-                    #print("True positives - solutions added into real archive: ", true_pos)
-                    #print("False positives: ", false_pos)
+                    print("True positives - solutions added into real archive: ", true_pos)
+                    print("False positives: ", false_pos)
 
                 ## FOR STATISTICS - EVALUATE MODEL DISCARD PILE ##
                 if params["log_model_stats"]:
@@ -744,6 +744,5 @@ class ModelBasedQD:
             done = 0
             info = {}
             for i in range(len(s)):
-                replay_buffer.add_sample(s[i], a[i], reward, done, ns[i], info)
-
+                    replay_buffer.add_sample(s[i], a[i], reward, done, ns[i], info)
         return 1
