@@ -64,7 +64,7 @@ def evaluate_(t):
     fit, desc, obs_traj, act_traj = f(z) 
     
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
-    desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     disagr = 0 # no disagreement for real evalaution - but need to put to save archive
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj, model_dis=disagr)
@@ -77,7 +77,7 @@ def model_evaluate_(t):
     fit, desc, obs_traj, act_traj, disagr = f(z) 
     
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
-    desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj, model_dis=disagr)
@@ -283,6 +283,7 @@ class ModelBasedQD:
 
             # random initialization of archive - start up
             if len(self.archive) <= params['random_init']*self.n_niches:
+                print("Evaluation on real environment for initialization")
                 to_evaluate = self.random_archive_init(to_evaluate) # init real archive
                 #to_evaluate = self.random_archive_init_model(to_evaluate) # init synthetic archive 
 
@@ -292,8 +293,8 @@ class ModelBasedQD:
                 self.eval_time = time.time() - start 
                 self.archive, add_list, _ = self.addition_condition(s_list, self.archive, params)
 
-                
             else:
+                print("Evaluation on model")
                 # variation/selection loop - select ind from archive to evolve                
                 self.model_archive = self.archive.copy()
                 tmp_archive = self.archive.copy() # tmp archive for stats of negatives
@@ -327,7 +328,34 @@ class ModelBasedQD:
                     add_list_model, to_model_evaluate = self.model_disagr_emitter(to_model_evaluate, pool, params, gen)
 
                     
-                ### REAL EVALUATIONS ### 
+                ### REAL EVALUATIONS ###
+                if params['transfer_selection'] == 'disagr':
+                    ## Sort by mean disagr on all states
+                    sorted_by_disagr = sorted(add_list_model,
+                                              key=lambda x: np.mean(np.array(x.model_dis)))
+
+                    add_list_model = sorted_by_disagr[:1]
+                if params['transfer_selection'] == 'disagr_bd':
+                    ## Sort by mean disagr on bd states only
+                    if self._env_name == 'ball_in_cup':
+                        sorted_by_disagr_bd = sorted(add_list_model,
+                                                     key=lambda x:
+                                                     np.mean(np.array(x.model_dis)[:,0,:3)))
+                    if self._env_name == 'fastsim_maze':
+                        sorted_by_disagr_bd = sorted(add_list_model,
+                                                     key=lambda x:
+                                                     np.mean(np.array(x.model_dis)[:,0,:2)))
+                    if self._env_name == 'fastsim_maze_traps':
+                        sorted_by_disagr_bd = sorted(add_list_model,
+                                                     key=lambda x:
+                                                     np.mean(np.array(x.model_dis)[:,0,:2)))
+                    if self._env_name == 'redundant_arm_no_walls_limited_angles':
+                        sorted_by_disagr_bd = sorted(add_list_model,
+                                                     key=lambda x:
+                                                     np.mean(np.array(x.model_dis)[:,0,-2:)))
+
+                    add_list_model = sorted_by_disagr[:1]
+                    
                 # if model finds novel solutions - evalute in real setting
                 if len(add_list_model) > 0:
                     start = time.time()

@@ -2,6 +2,8 @@ import os, sys
 import argparse
 import numpy as np
 
+import src.torch.pytorch_util as ptu
+
 from src.map_elites.mbqd import ModelBasedQD
 
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
@@ -46,6 +48,8 @@ import redundant_arm ## contains redundant arm
 #----------Utils imports--------#
 from multiprocessing import cpu_count
 import copy
+import numpy as np
+import torch
 
 # added in get dynamics model section
 #from src.trainers.mbrl.mbrl_det import MBRLTrainer
@@ -125,6 +129,10 @@ class WrappedEnv():
         self._policy_param_init_max = params['policy_param_init_max']
         ## Get size of policy parameter vector
         self.policy_representation_dim = len(self.controller.get_parameters())
+        self.dynamics_model = None
+
+    def set_dynamics_model(self, dynamics_model):
+        self.dynamics_model = dynamics_model
         
     ## For each env, do a BD + Fitness based on traj
     ## mb best solution is to put it in the envs directly
@@ -168,7 +176,7 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj
 
-    def evaluate_solution_model(self, ctrl, mean=False, det=True):
+    def evaluate_solution_model(self, ctrl, mean=False, det=True, render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
         Output: Trajectory and actions taken
@@ -191,8 +199,8 @@ class WrappedEnv():
             obs_traj.append(obs)
             act_traj.append(action)
 
-            s = ptu.from_numpy(obs)
-            a = ptu.from_numpy(action)
+            s = ptu.from_numpy(np.array(obs))
+            a = ptu.from_numpy(np.array(action))
             s = s.view(1,-1)
             a = a.view(1,-1)
 
@@ -214,7 +222,7 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj
 
-    def evaluate_solution_model_ensemble(self, ctrl, mean=False, det=True):
+    def evaluate_solution_model_ensemble(self, ctrl, mean=True, disagr=True, render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
         Output: Trajectory and actions taken
@@ -229,53 +237,107 @@ class WrappedEnv():
         obs = self._init_obs
         act_traj = []
         obs_traj = []
+        disagr_traj = []
+        obs = np.tile(obs,(self.dynamics_model.ensemble_size, 1))
         ## WARNING: need to get previous obs
         for t in range(self._env_max_h):
+            ## Get mean obs to determine next action
+            # mean_obs = [np.mean(obs[:,i]) for i in range(len(obs[0]))]
             action = controller(obs)
             action[action>self._action_max] = self._action_max
             action[action<self._action_min] = self._action_min
+            # if t == 0:
+                # obs = np.tile(obs,(self.dynamics_model.ensemble_size, 1))
             obs_traj.append(obs)
             act_traj.append(action)
 
-            s = ptu.from_numpy(obs)
-            a = ptu.from_numpy(action)
+            s = ptu.from_numpy(np.array(obs))
+            a = ptu.from_numpy(np.array(action))
 
-            a = a.repeat(self.dynamics_model.ensemble_size,1)
-            #print("s shape: ", state.shape)
-            #print("a shape:", a.shape)
+            # if t ==0:
+                # a = a.repeat(self.dynamics_model.ensemble_size,1)
             
             # if probalistic dynamics model - choose output mean or sample
             if disagr:
-                pred_delta_ns, _ = self.dynamics_model.sample_with_disagreement(torch.cat((self.dynamics_model._expand_to_ts_form(s), self.dynamics_model._expand_to_ts_form(a)), dim=-1))
+                pred_delta_ns, _ = self.dynamics_model.sample_with_disagreement(torch.cat((
+                    self.dynamics_model._expand_to_ts_form(s),
+                    self.dynamics_model._expand_to_ts_form(a)), dim=-1))#,
+                    # disagreement_type="mean" if mean else "var")
                 pred_delta_ns = ptu.get_numpy(pred_delta_ns)
-                disagreement = self.compute_abs_disagreement(state, pred_delta_ns)
-                #print("Disagreement: ", disagreement.shape)
+                disagreement = self.compute_abs_disagreement(obs, pred_delta_ns)
+                # print("Disagreement: ", disagreement.shape)
+                # print("Disagreement: ", disagreement)
                 disagreement = ptu.get_numpy(disagreement) 
                 #disagreement = ptu.get_numpy(disagreement[0,3]) 
                 #disagreement = ptu.get_numpy(torch.mean(disagreement)) 
-                model_disagr.append(disagreement)
+                disagr_traj.append(disagreement)
                 
             else:
                 pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s,a, mean=mean)
 
-            mean_pred = [np.mean(next_step_pred[:,i]) for i in range(len(next_step_pred[0]))]
+            # mean_pred = [np.mean(pred_delta_ns[:,i]) for i in range(len(pred_delta_ns[0]))]
             
-            # obs = pred_delta_ns + obs # This keeps all model predictions separated
-            obs = mean_pred + obs # This uses mean prediction
-            
-        obs_traj.append(obs)
+            obs = pred_delta_ns + obs # This keeps all model predictions separated
+            # obs = mean_pred + obs # This uses mean prediction
 
-        desc = self.compute_bd(obs_traj)
-        fitness = self.compute_fitness(obs_traj, act_traj)
+        # obs_traj.append(obs)
+
+        obs_traj = np.array(obs_traj)
+        act_traj = np.array(act_traj)
+        
+        desc = self.compute_bd(obs_traj, ensemble=True)
+        fitness = self.compute_fitness(obs_traj, act_traj, ensemble=True)
 
         if render:
             print("Desc from model", desc)
 
-        return fitness, desc, obs_traj, act_traj
+        return fitness, desc, obs_traj, act_traj, disagr_traj
 
-    def compute_bd(self, obs_traj):
+    def compute_abs_disagreement(self, cur_state, pred_delta_ns):
+        '''
+        Computes absolute state dsiagreement between models in the ensemble
+        cur state is [4,48]
+        pred delta ns [4,48]
+        '''
+        next_state = pred_delta_ns + cur_state
+        next_state = ptu.from_numpy(next_state)
+        mean = next_state
+
+        sample=False
+        if sample: 
+            inds = torch.randint(0, mean.shape[0], next_state.shape[:1]) #[4]
+            inds_b = torch.randint(0, mean.shape[0], next_state.shape[:1]) #[4]
+            inds_b[inds == inds_b] = torch.fmod(inds_b[inds == inds_b] + 1, mean.shape[0]) 
+        else:
+            inds = torch.tensor(np.array([0,0,0,1,1,2]))
+            inds_b = torch.tensor(np.array([1,2,3,2,3,3]))
+
+        # Repeat for multiplication
+        inds = inds.unsqueeze(dim=-1).to(device=ptu.device)
+        inds = inds.repeat(1, mean.shape[1])
+        inds_b = inds_b.unsqueeze(dim=-1).to(device=ptu.device)
+        inds_b = inds_b.repeat(1, mean.shape[1])
+
+        means_a = (inds == 0).float() * mean[0]
+        means_b = (inds_b == 0).float() * mean[0]
+        for i in range(1, mean.shape[0]):
+            means_a += (inds == i).float() * mean[i]
+            means_b += (inds_b == i).float() * mean[i]
+            
+        disagreements = torch.mean(torch.sqrt((means_a - means_b)**2), dim=-2, keepdim=True)
+        #disagreements = torch.mean((means_a - means_b) ** 2, dim=-1, keepdim=True)
+
+        return disagreements
+
+    def compute_bd(self, obs_traj, ensemble=False, mean=True):
         bd = None
         last_obs = obs_traj[-1]
+        if ensemble:
+            if mean:
+                last_obs = np.mean(last_obs, axis=0)
+            else:
+                last_obs = last_obs[np.random.randint(self.dynamics_model.ensemble_size)]
+                
         if self._env_name == 'ball_in_cup':
             bd = last_obs[:3]
         if self._env_name == 'fastsim_maze':
@@ -286,7 +348,7 @@ class WrappedEnv():
             bd = last_obs[-2:]
         return bd
 
-    def compute_fitness(self, obs_traj, act_traj):
+    def compute_fitness(self, obs_traj, act_traj, ensemble=False):
         fit = 0
         if self._env_name == 'ball_in_cup':
             fit = 0
@@ -320,8 +382,10 @@ def main(args):
         # do we use several cores?
         "parallel": True,
         # min/max of genotype parameters - check mutation operators too
-        "min": 0.0,
-        "max": 1.0,
+        # "min": 0.0,
+        # "max": 1.0,
+        "min": -5,
+        "max": 5,
         
         #------------MUTATION PARAMS---------#
         # selector ["uniform", "random_search"]
@@ -367,6 +431,9 @@ def main(args):
         # 0 for random emiiter, 1 for optimizing emitter
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
+
+        "transfer_selection": args.transfer_selection,
+        'env_name': args.environment,
         
     }
 
@@ -546,13 +613,20 @@ def main(args):
                                                                 action_dim, obs_dim)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
 
+    ## Initialize model with wnb from previous run if an init method is to be used
+    if args.init_method != 'no-init':
+        path = f'data/{args.environment}_results/{args.rep}/'\
+               f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
+        dynamics_model.load_state_dict(torch.load(path))
+        dynamics_model.eval()
+        env.set_dynamics_model(dynamics_model)
     
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
 
     if dynamics_model_type == "det":
         f_model = env.evaluate_solution_model 
     elif dynamics_model_type == "prob":
-        f_model = env.evaluate_solution_model_ensemble 
+        f_model = env.evaluate_solution_model_ensemble
         
     # initialize replay buffer
     replay_buffer = SimpleReplayBuffer(
@@ -605,6 +679,8 @@ if __name__ == "__main__":
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
     parser.add_argument('--init-method', type=str, default='random-policies')
     parser.add_argument('--init-episodes', type=int, default='10')
+    parser.add_argument('--rep', type=int, default='1')
+    parser.add_argument('--transfer-selection', type=str, default='all')
 
     args = parser.parse_args()
 
