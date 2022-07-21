@@ -50,6 +50,7 @@ from multiprocessing import cpu_count
 import copy
 import numpy as np
 import torch
+import time
 
 # added in get dynamics model section
 #from src.trainers.mbrl.mbrl_det import MBRLTrainer
@@ -278,10 +279,9 @@ class WrappedEnv():
                 pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s,a, mean=mean)
 
             # mean_pred = [np.mean(pred_delta_ns[:,i]) for i in range(len(pred_delta_ns[0]))]
-            
             obs = pred_delta_ns + obs # This keeps all model predictions separated
             # obs = mean_pred + obs # This uses mean prediction
-
+            
         # obs_traj.append(obs)
 
         obs_traj = np.array(obs_traj)
@@ -373,7 +373,6 @@ class WrappedEnv():
             fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'redundant_arm_no_walls_limited_angles':
             fit = fit_func(act_traj, disagr_traj)
-            
         return fit
 
 def main(args):
@@ -449,8 +448,8 @@ def main(args):
         "emitter_selection": 0,
 
         "transfer_selection": args.transfer_selection,
+        "nb_transfer": 1,
         'env_name': args.environment,
-        
     }
 
     

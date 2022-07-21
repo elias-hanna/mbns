@@ -40,6 +40,7 @@
 import math
 import numpy as np
 import multiprocessing
+import tqdm
 from pathlib import Path
 import sys
 import random
@@ -260,9 +261,17 @@ def make_hashable(array):
 '''
 def parallel_eval(evaluate_function, to_evaluate, pool, params):
     if params['parallel'] == True:
-        s_list = pool.map(evaluate_function, to_evaluate)
+        # s_list = pool.map(evaluate_function, to_evaluate)
+        print("Starting parallel eval")
+        s_list = []
+        for result in tqdm.tqdm(pool.map(evaluate_function, to_evaluate), total=len(to_evaluate)):
+            s_list.append(result)
     else:
-        s_list = map(evaluate_function, to_evaluate)
+        # s_list = map(evaluate_function, to_evaluate)
+        print("Starting sequential eval")
+        s_list = []
+        for result in tqdm.tqdm(map(evaluate_function, to_evaluate), total=len(to_evaluate)):
+            s_list.append(result)
     return list(s_list)
 
 

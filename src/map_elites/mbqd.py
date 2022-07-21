@@ -334,27 +334,27 @@ class ModelBasedQD:
                     sorted_by_disagr = sorted(add_list_model,
                                               key=lambda x: np.mean(np.array(x.model_dis)))
 
-                    add_list_model = sorted_by_disagr[:1]
+                    add_list_model = sorted_by_disagr[:params['nb_transfer']]
                 if params['transfer_selection'] == 'disagr_bd':
                     ## Sort by mean disagr on bd states only
-                    if self._env_name == 'ball_in_cup':
+                    if params['env_name'] == 'ball_in_cup':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
                                                      np.mean(np.array(x.model_dis)[:,0,:3]))
-                    if self._env_name == 'fastsim_maze':
+                    if params['env_name'] == 'fastsim_maze':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
                                                      np.mean(np.array(x.model_dis)[:,0,:2]))
-                    if self._env_name == 'fastsim_maze_traps':
+                    if params['env_name'] == 'fastsim_maze_traps':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
                                                      np.mean(np.array(x.model_dis)[:,0,:2]))
-                    if self._env_name == 'redundant_arm_no_walls_limited_angles':
+                    if params['env_name'] == 'redundant_arm_no_walls_limited_angles':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
                                                      np.mean(np.array(x.model_dis)[:,0,-2:]))
 
-                    add_list_model = sorted_by_disagr[:1]
+                    add_list_model = sorted_by_disagr_bd[:params['nb_transfer']]
                 
                     
                 # if model finds novel solutions - evalute in real setting
@@ -508,13 +508,15 @@ class ModelBasedQD:
         add_list_model_final = []
         all_model_eval = []
         gen = 0
-        while len(add_list_model_final) < 100:
+        while len(add_list_model_final) < 5:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
             to_model_evaluate=[]
             to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive, self.f_model, params)
             if params["model_variant"]=="dynamics":
                 #s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+                print("Starting parallel evaluation of individuals")
                 s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
+                print("Finished parallel evaluation of individuals")
             elif params["model_variant"]=="direct":
                 s_list_model = self.serial_eval(evaluate_, to_model_evaluate, params)
             
@@ -534,7 +536,8 @@ class ModelBasedQD:
             #    print("Model archive size: ", len(self.model_archive))
             print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
             gen += 1
-        self.model_eval_time = time.time() - start         
+        self.model_eval_time = time.time() - start
+        print("Random model emitter ended in {self.model_eval_time} after {gen} gen")
         return add_list_model_final, all_model_eval
 
     def optimizing_emitter(self, to_model_evaluate, pool, params, gen):
@@ -586,7 +589,7 @@ class ModelBasedQD:
             gen += 1
                         
         self.model_eval_time = time.time() - start
-        
+        print("Optimizing model emitter ended in {self.model_eval_time} after {gen} gen")        
         return add_list_model_final, all_model_eval
 
     def random_walk_emitter(self, to_model_evaluate, pool, params, gen):
@@ -619,7 +622,9 @@ class ModelBasedQD:
             solutions = es.ask()
             for sol in solutions:
                 to_model_evaluate += [(sol, self.f_model)]
+            print("Starting parallel evaluation of individuals")
             s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
+            print("Finished parallel evaluation of individuals")
             #s_list_model = self.serial_eval(model_evaluate_, to_model_evaluate, params)
 
             #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
@@ -650,6 +655,8 @@ class ModelBasedQD:
             print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
             gen += 1
 
+        self.model_eval_time = time.time() - start
+        print("Random walk model emitter ended in {self.model_eval_time} after {gen} gen")        
         return add_list_model_final, all_model_eval
 
     def improvement_emitter():
@@ -712,6 +719,7 @@ class ModelBasedQD:
             gen += 1
 
         self.model_eval_time = time.time() - start    
+        print("Model disagr emitter ended in {self.model_eval_time} after {gen} gen")        
         return add_list_model_final, all_model_eval
 
     
