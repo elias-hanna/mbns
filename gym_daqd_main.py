@@ -447,6 +447,7 @@ def main(args):
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
 
+        "min_found_model": args.min_found_model,
         "transfer_selection": args.transfer_selection,
         "nb_transfer": 1,
         'env_name': args.environment,
@@ -710,6 +711,7 @@ if __name__ == "__main__":
     parser.add_argument('--rep', type=int, default='1')
     parser.add_argument('--transfer-selection', type=str, default='all')
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
+    parser.add_argument('--min-found-model', type=int, default=100)
 
     args = parser.parse_args()
 

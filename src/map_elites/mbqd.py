@@ -508,7 +508,7 @@ class ModelBasedQD:
         add_list_model_final = []
         all_model_eval = []
         gen = 0
-        while len(add_list_model_final) < 5:
+        while len(add_list_model_final) < params['min_found_model']:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
             to_model_evaluate=[]
             to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive, self.f_model, params)
