@@ -121,6 +121,7 @@ class WrappedEnv():
             self._init_obs = self._init_obs['observation']
         self._obs_dim = params['obs_dim']
         self._act_dim = params['action_dim']
+        self.fitness_func = params['fitness_func']
         self.nb_thread = cpu_count() - 1 or 1
         ## Get the controller and initialize it from params
         self.controller = params['controller_type'](params)
@@ -130,7 +131,8 @@ class WrappedEnv():
         ## Get size of policy parameter vector
         self.policy_representation_dim = len(self.controller.get_parameters())
         self.dynamics_model = None
-
+        
+        
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
         
@@ -286,7 +288,7 @@ class WrappedEnv():
         act_traj = np.array(act_traj)
         
         desc = self.compute_bd(obs_traj, ensemble=True)
-        fitness = self.compute_fitness(obs_traj, act_traj, ensemble=True)
+        fitness = self.compute_fitness(obs_traj, act_traj, disagr_traj=disagr_traj, ensemble=True)
 
         if render:
             print("Desc from model", desc)
@@ -348,16 +350,29 @@ class WrappedEnv():
             bd = last_obs[-2:]
         return bd
 
-    def compute_fitness(self, obs_traj, act_traj, ensemble=False):
+    def energy_minimization_fit(self, actions, disagrs):
+        return -np.sum(np.abs(actions))
+
+    def disagr_minimization_fit(self, actions, disagrs):
+        if disagrs is None: # was a real world eval
+            return 0
+        return -np.sum(disagrs)
+
+    def compute_fitness(self, obs_traj, act_traj, disagr_traj=None, ensemble=False):
         fit = 0
+        ## Energy minimization fitness
+        if self.fitness_func == 'energy_minimization':
+            fit_func = self.energy_minimization_fit
+        elif self.fitness_func == 'disagr_minimization':
+            fit_func = self.disagr_minimization_fit
         if self._env_name == 'ball_in_cup':
-            fit = 0
+            fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'fastsim_maze':
-            fit = 0
+            fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'fastsim_maze_traps':
-            fit = 0
+            fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'redundant_arm_no_walls_limited_angles':
-            fit = 0
+            fit = fit_func(act_traj, disagr_traj)
             
         return fit
 
@@ -370,6 +385,7 @@ def main(args):
         
         # more of this -> higher-quality CVT
         "cvt_samples": 25000,
+        "cvt_use_cache": True,
         # we evaluate in batches to parallelize
         "batch_size": args.b_size,
         # proportion of total number of niches to be filled before starting
@@ -473,36 +489,44 @@ def main(args):
         separator = BallInCupSeparator
         ss_min = -0.4
         ss_max = 0.4
+        dim_map = 3
     elif args.environment == 'redundant_arm':
         env_register_id = 'RedundantArmPos-v0'
         separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
+        dim_map = 2
     elif args.environment == 'redundant_arm_no_walls':
         env_register_id = 'RedundantArmPosNoWalls-v0'
         separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
+        dim_map = 2
     elif args.environment == 'redundant_arm_no_walls_no_collision':
         env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
         separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
+        dim_map = 2
     elif args.environment == 'redundant_arm_no_walls_limited_angles':
         env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
         separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
+        dim_map = 2
+        gym_args['dof'] = 100
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         separator = FastsimSeparator
         ss_min = -10
         ss_max = 10
+        dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         separator = FastsimSeparator
         ss_min = -10
         ss_max = 10
+        dim_map = 2
         gym_args['physical_traps'] = True
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
@@ -593,6 +617,7 @@ def main(args):
         'env': gym_env,
         'env_name': args.environment,
         'env_max_h': max_step,
+        'fitness_func': args.fitness_func,
     }
 
     #########################################################################
@@ -636,7 +661,7 @@ def main(args):
         env_info_sizes=dict(),
     )
     
-    mbqd = ModelBasedQD(args.dim_map, dim_x,
+    mbqd = ModelBasedQD(dim_map, dim_x,
                         f_real, f_model,
                         surrogate_model, surrogate_model_trainer,
                         dynamics_model, dynamics_model_trainer,
@@ -644,7 +669,9 @@ def main(args):
                         n_niches=args.n_niches,
                         params=px, log_dir=args.log_dir)
 
-    mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    from multiprocessing import cpu_count
+    
+    mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
         
 
 if __name__ == "__main__":
@@ -664,7 +691,6 @@ if __name__ == "__main__":
     
     #-----------QD params for cvt or GRID---------------#
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
-    parser.add_argument("--dim_map", default=2, type=int) # Dim of behaviour descriptor
     parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
     parser.add_argument("--n_niches", default=3000, type=int)
 
@@ -681,6 +707,7 @@ if __name__ == "__main__":
     parser.add_argument('--init-episodes', type=int, default='10')
     parser.add_argument('--rep', type=int, default='1')
     parser.add_argument('--transfer-selection', type=str, default='all')
+    parser.add_argument('--fitness-func', type=str, default='energy_minimization')
 
     args = parser.parse_args()
 

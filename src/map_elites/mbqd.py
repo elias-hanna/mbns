@@ -340,21 +340,22 @@ class ModelBasedQD:
                     if self._env_name == 'ball_in_cup':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
-                                                     np.mean(np.array(x.model_dis)[:,0,:3)))
+                                                     np.mean(np.array(x.model_dis)[:,0,:3]))
                     if self._env_name == 'fastsim_maze':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
-                                                     np.mean(np.array(x.model_dis)[:,0,:2)))
+                                                     np.mean(np.array(x.model_dis)[:,0,:2]))
                     if self._env_name == 'fastsim_maze_traps':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
-                                                     np.mean(np.array(x.model_dis)[:,0,:2)))
+                                                     np.mean(np.array(x.model_dis)[:,0,:2]))
                     if self._env_name == 'redundant_arm_no_walls_limited_angles':
                         sorted_by_disagr_bd = sorted(add_list_model,
                                                      key=lambda x:
-                                                     np.mean(np.array(x.model_dis)[:,0,-2:)))
+                                                     np.mean(np.array(x.model_dis)[:,0,-2:]))
 
                     add_list_model = sorted_by_disagr[:1]
+                
                     
                 # if model finds novel solutions - evalute in real setting
                 if len(add_list_model) > 0:
@@ -506,6 +507,7 @@ class ModelBasedQD:
         start = time.time()
         add_list_model_final = []
         all_model_eval = []
+        gen = 0
         while len(add_list_model_final) < 100:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
             to_model_evaluate=[]
@@ -530,7 +532,8 @@ class ModelBasedQD:
             #    cm.save_archive(self.model_archive, "model_gen_"+str(i), params, self.log_dir)
             #    print("Model gen: ", i)
             #    print("Model archive size: ", len(self.model_archive))
-            
+            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
+            gen += 1
         self.model_eval_time = time.time() - start         
         return add_list_model_final, all_model_eval
 
@@ -551,7 +554,7 @@ class ModelBasedQD:
                                       sigma_init,
                                       {'popsize': popsize,
                                        'bounds': [0,1]})
-        
+        gen = 0
         for i in range(max_iterations):
         #while not es.stop():    
             to_model_evaluate = []
@@ -579,7 +582,8 @@ class ModelBasedQD:
             #if i%10==0:
             #    cm.save_archive(self.model_archive, str(gen)+"_"+str(i), params, self.log_dir)
             #i +=1
-
+            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
+            gen += 1
                         
         self.model_eval_time = time.time() - start
         
@@ -607,7 +611,7 @@ class ModelBasedQD:
         desc_init = ind_init.desc
         target_dir = np.random.uniform(-1,1,size=2)
 
-        
+        gen = 0
         for i in range(max_iterations):
         #i = 0 
         #while not es.stop():
@@ -643,7 +647,9 @@ class ModelBasedQD:
             
             self.model_eval_time = time.time() - start
             #print("model_eval_time", self.model_eval_time)
-            
+            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
+            gen += 1
+
         return add_list_model_final, all_model_eval
 
     def improvement_emitter():
@@ -670,6 +676,7 @@ class ModelBasedQD:
                                       sigma_init,
                                       {'popsize': popsize,
                                        'bounds': [0,1]})
+        gen = 0
         for i in range(max_iterations):
         #i = 0 
         #while not es.stop():
@@ -701,7 +708,9 @@ class ModelBasedQD:
             if i%10==0:
                 cm.save_archive(self.model_archive, str(gen)+"_"+str(i), params, self.log_dir)
             #i +=1
-            
+            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
+            gen += 1
+
         self.model_eval_time = time.time() - start    
         return add_list_model_final, all_model_eval
 
