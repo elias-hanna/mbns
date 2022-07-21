@@ -639,7 +639,10 @@ def main(args):
 
     ## Initialize model with wnb from previous run if an init method is to be used
     if args.init_method != 'no-init':
-        path = f'data/{args.environment}_results/{args.rep}/'\
+        import src
+        path_to_src = src.__path__[0]
+        module_path = f'{path_to_src}/../'
+        path = f'{module_path}/data/{args.environment}_results/{args.rep}/'\
                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
         dynamics_model.load_state_dict(torch.load(path))
         dynamics_model.eval()

@@ -6,7 +6,8 @@ ep=20
 env_low_limit=-1
 env_high_limit=1
 
-env=redundant_arm_no_walls_limited_angles
+# env=redundant_arm_no_walls_limited_angles
+env=fastsim_maze
 method=brownian-motion
 transfer_selection=disagr_bd
 fitness_func=energy_minimization
