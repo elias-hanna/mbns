@@ -158,7 +158,97 @@ class ProbabilisticEnsemble(ParallelizedEnsemble):
         
         #print("Preds shape: ", preds.shape) # [4,48] = [ensemble_size, obs_dim]
         return preds
-    
+    def sample_with_disagreement_multiple(self, input, return_dist=False,
+                                          disagreement_type='mean'):
+        #print("input shape: ", input.shape[:-2])
+        all_preds, all_mean, all_logstd = self.forward(input, deterministic=False,
+                                                       return_dist=True)
+        #print("preds shape: ", preds.shape)
+        #print("mean shape: ", mean.shape)
+        nb_of_querys = input.shape[1]
+        
+        samples_list = []
+        disagreements_list = []
+        mean_list = []
+        logstd_list = []
+        
+        for i in range(nb_of_querys):
+            preds = all_preds[:, i:i+1] # we do : to keep 3D shape
+            mean = all_mean[:, i:i+1]
+            logstd = all_logstd[:, i:i+1]
+
+            preds = mean # to get a deterministic restuls for now hard coded 
+            # import pdb; pdb.set_trace()
+            # Standard uniformly from the ensemble - randomly sample model from ensembles
+            inds = torch.randint(0, preds.shape[0], input.shape[:1])
+            
+            # Ensure we don't use the same member to estimate disagreement
+            # if same int is sampled, mod it to ensure it wont be the same
+            inds_b = torch.randint(0, mean.shape[0], input.shape[:1])
+            inds_b[inds == inds_b] = torch.fmod(inds_b[inds == inds_b] + 1, mean.shape[0])
+            
+            # Repeat for multiplication
+            inds = inds.unsqueeze(dim=-1).to(device=ptu.device)
+            inds = inds.repeat(1, preds.shape[2])
+            inds_b = inds_b.unsqueeze(dim=-1).to(device=ptu.device)
+            inds_b = inds_b.repeat(1, preds.shape[2])
+
+        
+            # Uniformly sample from ensemble
+            samples = (inds == 0).float() * preds[0]
+            #print("inds == 0: ",(inds == 0).shape)
+            #print("preds 0: ",preds[0].shape)
+            #print((inds==0).float())
+            #print(samples)
+            for i in range(1, preds.shape[0]):
+                samples += (inds == i).float() * preds[i]
+
+            # CODE TO GET ACTUAL PREDCTIONS - STILL UNSURE WHAT SAMPLES DO ABOVE
+            samples = self._flatten_from_ts(preds)
+            # denormalize
+            for i in range(self.ensemble_size):
+                samples[i] = self.denormalize_output(samples[i])
+
+            # just for plotting purposes
+            #for i in range(self.ensemble_size):
+            #    mean[i] = self.denormalize_output(mean[i])
+        
+            if disagreement_type == 'mean':
+                # Disagreement = mean squared difference in mean predictions (Kidambi et al. 2020)
+                means_a = (inds == 0).float() * mean[0]
+                means_b = (inds_b == 0).float() * mean[0]
+                #print("Means a: ",means_a)
+                #print("Means b: ",means_b)
+                for i in range(1, preds.shape[0]):
+                    means_a += (inds == i).float() * mean[i]
+                    means_b += (inds_b == i).float() * mean[i]
+
+                disagreements = torch.mean((means_a - means_b) ** 2, dim=-1, keepdim=True)
+            
+            elif disagreement_type == 'var':
+                # Disagreement = max Frobenius norm of covariance matrix (Yu et al. 2020)
+                vars = (2 * logstd).exp()
+                frobenius = torch.sqrt(vars.sum(dim=-1))
+                disagreements, *_ = frobenius.max(dim=0)
+                disagreements = disagreements.reshape(-1, 1)
+
+            else:
+                raise NotImplementedError
+
+            if return_dist:
+                samples_list.append(samples)
+                disagreements_list.append(disagreements)
+                mean_list.append(mean)
+                logstd_list.append(logstd)
+            else:
+                samples_list.append(samples)
+                disagreements_list.append(disagreements)
+
+        if return_dist:
+            return samples_list, disagreements_list, mean_list, logstd_list
+        else:
+            return samples_list, disagreements_list
+
     def sample_with_disagreement(self, input, return_dist=False, disagreement_type='mean'):
         #print("input shape: ", input.shape[:-2])
         preds, mean, logstd = self.forward(input, deterministic=False, return_dist=True)

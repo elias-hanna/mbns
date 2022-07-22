@@ -82,6 +82,23 @@ def model_evaluate_(t):
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj, model_dis=disagr)
 
+def model_evaluate_all_(T):
+    # same as the above evaluate but this takes in the disagreement also
+    # - useful if you want to make use disargeement value
+    # needs two types because no such thing as disagreemnt for real eval
+    Z = [T[i][0] for i in range(len(T))]
+    f = T[0][1]
+    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z) 
+    
+    # becasue it somehow returns a list in a list (have to keep checking sometimes)
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    
+    # return a species object (containing genotype, descriptor and fitness)
+    model_inds = []
+    for i in range(len(T)):
+        model_inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=obs_traj_list[i],
+                                     act_traj=act_traj_list[i], model_dis=disagr_list[i]))
+    return model_inds
 
 class ModelBasedQD:
     def __init__(self,
@@ -111,6 +128,9 @@ class ModelBasedQD:
         if params["model_variant"]=="dynamics":
             self.f_model = f_model
             print("Dynamics Model Variant")
+        if params["model_variant"]=="all_dynamics":
+            self.f_model = f_model
+            print("All Dynamics Model Variant")
         elif params["model_variant"]=="direct":
             self.f_model = self.evaluate_solution_surrogate_model 
             print("Direct Model Variant")
@@ -520,7 +540,7 @@ class ModelBasedQD:
             elif params["model_variant"]=="direct":
                 s_list_model = self.serial_eval(evaluate_, to_model_evaluate, params)
             elif params["model_variant"]=="all_dynamics":
-                s_list_model = model_evaluate_(to_model_evaluate)
+                s_list_model = model_evaluate_all_(to_model_evaluate)
             #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
             self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
 
