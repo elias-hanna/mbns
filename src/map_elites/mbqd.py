@@ -519,7 +519,8 @@ class ModelBasedQD:
                 print("Finished parallel evaluation of individuals")
             elif params["model_variant"]=="direct":
                 s_list_model = self.serial_eval(evaluate_, to_model_evaluate, params)
-            
+            elif params["model_variant"]=="all_dynamics":
+                s_list_model = model_evaluate_(to_model_evaluate)
             #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
             self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
 
