@@ -558,7 +558,7 @@ class ModelBasedQD:
             print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
             gen += 1
         self.model_eval_time = time.time() - start
-        print("Random model emitter ended in {self.model_eval_time} after {gen} gen")
+        print(f"Random model emitter ended in {self.model_eval_time} after {gen} gen")
         return add_list_model_final, all_model_eval
 
     def optimizing_emitter(self, to_model_evaluate, pool, params, gen):
@@ -610,7 +610,7 @@ class ModelBasedQD:
             gen += 1
                         
         self.model_eval_time = time.time() - start
-        print("Optimizing model emitter ended in {self.model_eval_time} after {gen} gen")        
+        print(f"Optimizing model emitter ended in {self.model_eval_time} after {gen} gen")        
         return add_list_model_final, all_model_eval
 
     def random_walk_emitter(self, to_model_evaluate, pool, params, gen):
@@ -677,7 +677,7 @@ class ModelBasedQD:
             gen += 1
 
         self.model_eval_time = time.time() - start
-        print("Random walk model emitter ended in {self.model_eval_time} after {gen} gen")        
+        print(f"Random walk model emitter ended in {self.model_eval_time} after {gen} gen")        
         return add_list_model_final, all_model_eval
 
     def improvement_emitter():
@@ -740,7 +740,7 @@ class ModelBasedQD:
             gen += 1
 
         self.model_eval_time = time.time() - start    
-        print("Model disagr emitter ended in {self.model_eval_time} after {gen} gen")        
+        print(f"Model disagr emitter ended in {self.model_eval_time} after {gen} gen")        
         return add_list_model_final, all_model_eval
 
     

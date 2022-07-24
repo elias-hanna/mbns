@@ -51,6 +51,7 @@ import copy
 import numpy as np
 import torch
 import time
+import tqdm
 
 # added in get dynamics model section
 #from src.trainers.mbrl.mbrl_det import MBRLTrainer
@@ -332,7 +333,7 @@ class WrappedEnv():
             S = np.tile(obs, (len(ctrls), 1))
             A = np.empty((len(ctrls), self.controller.output_dim))
 
-        for _ in range(self._env_max_h):
+        for _ in tqdm.tqdm(range(self._env_max_h), total=self._env_max_h):
             for i in range(len(ctrls)):
                 # A[i, :] = controller_list[i](S[i,:])
                 if use_particules:
