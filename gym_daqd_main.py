@@ -813,7 +813,9 @@ def main(args):
     ## Initialize model with wnb from previous run if an init method is to be used
     if args.init_method != 'no-init':
         if args.init_data_path is not None:
-            path = args.init_data_path
+            data_path = args.init_data_path
+            path = f'{data_path}/{args.environment}_results/{args.rep}/'\
+                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
         else:
             import src
             path_to_src = src.__path__[0]
