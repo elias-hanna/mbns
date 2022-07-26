@@ -302,7 +302,8 @@ class ModelBasedQD:
             self.model_train_time = 0
 
             # random initialization of archive - start up
-            if len(self.archive) <= params['random_init']*self.n_niches:
+            if (len(self.archive) <= params['random_init']*self.n_niches) \
+               or params['init_method'] == 'no-init':
                 print("Evaluation on real environment for initialization")
                 to_evaluate = self.random_archive_init(to_evaluate) # init real archive
                 #to_evaluate = self.random_archive_init_model(to_evaluate) # init synthetic archive 

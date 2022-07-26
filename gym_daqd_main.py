@@ -622,6 +622,7 @@ def main(args):
         "transfer_selection": args.transfer_selection,
         "nb_transfer": 1,
         'env_name': args.environment,
+        'init_method': args.init_method,
     }
 
     
@@ -811,11 +812,14 @@ def main(args):
 
     ## Initialize model with wnb from previous run if an init method is to be used
     if args.init_method != 'no-init':
-        import src
-        path_to_src = src.__path__[0]
-        module_path = f'{path_to_src}/../'
-        path = f'{module_path}/data/{args.environment}_results/{args.rep}/'\
-               f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
+        if args.init_data_path is not None:
+            path = args.init_data_path
+        else:
+            import src
+            path_to_src = src.__path__[0]
+            module_path = f'{path_to_src}/../'
+            path = f'{module_path}/data/{args.environment}_results/{args.rep}/'\
+                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
         dynamics_model.load_state_dict(torch.load(path))
         dynamics_model.eval()
         env.set_dynamics_model(dynamics_model)
@@ -845,8 +849,6 @@ def main(args):
                         n_niches=args.n_niches,
                         params=px, log_dir=args.log_dir)
 
-    from multiprocessing import cpu_count
-    
     mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
         
 
@@ -885,6 +887,7 @@ if __name__ == "__main__":
     parser.add_argument('--transfer-selection', type=str, default='all')
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--min-found-model', type=int, default=100)
+    parser.add_argument('--init-data-path', type=str, default=None)
 
     args = parser.parse_args()
 
