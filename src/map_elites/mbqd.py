@@ -272,8 +272,8 @@ class ModelBasedQD:
         else:
             num_cores = num_cores_set
             
-        #pool = multiprocessing.Pool(num_cores)
-        pool = get_context("spawn").Pool(num_cores)
+        pool = multiprocessing.Pool(num_cores)
+        #pool = get_context("spawn").Pool(num_cores)
         #pool = ThreadPool(num_cores)
         
         gen = 0 # generation

@@ -851,7 +851,8 @@ def main(args):
                         n_niches=args.n_niches,
                         params=px, log_dir=args.log_dir)
 
-    mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
+    #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
+    mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
         
 
 if __name__ == "__main__":
