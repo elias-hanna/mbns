@@ -8,7 +8,8 @@ env_high_limit=0.5
 
 # env=redundant_arm_no_walls_limited_angles
 env=ball_in_cup
-method=brownian-motion
+#method=brownian-motion
+method=no-init
 transfer_selection=all
 fitness_func=disagr_minimization
 

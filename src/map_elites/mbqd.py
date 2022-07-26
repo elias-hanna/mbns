@@ -300,10 +300,10 @@ class ModelBasedQD:
             ## intialize for time related stats ##
             gen_start_time = time.time()
             self.model_train_time = 0
-
+            
             # random initialization of archive - start up
             if (len(self.archive) <= params['random_init']*self.n_niches) \
-               or params['init_method'] == 'no-init':
+               and params['init_method'] != 'no-init':
                 print("Evaluation on real environment for initialization")
                 to_evaluate = self.random_archive_init(to_evaluate) # init real archive
                 #to_evaluate = self.random_archive_init_model(to_evaluate) # init synthetic archive 
@@ -532,7 +532,11 @@ class ModelBasedQD:
         while len(add_list_model_final) < params['min_found_model']:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
             to_model_evaluate=[]
-            to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive, self.f_model, params)
+            if self.model_archive == [] and params['init_method'] == 'no-init':
+                to_model_evaluate = self.random_archive_init_model(to_model_evaluate)
+            else:
+                to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive,
+                                                           self.f_model, params)
             if params["model_variant"]=="dynamics":
                 #s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
                 print("Starting parallel evaluation of individuals")

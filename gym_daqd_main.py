@@ -649,6 +649,8 @@ def main(args):
     elif args.init_method == 'colored-noise-beta-2':
         Initializer = ColoredNoiseMotion
         noise_beta = 2
+    elif args.init_method == 'no-init':
+        pass
     else:
         raise Exception(f"Warning {args.init_method} isn't a valid initializer")
     
@@ -824,7 +826,8 @@ def main(args):
                 f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
         dynamics_model.load_state_dict(torch.load(path))
         dynamics_model.eval()
-        env.set_dynamics_model(dynamics_model)
+
+    env.set_dynamics_model(dynamics_model)
     
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
 
