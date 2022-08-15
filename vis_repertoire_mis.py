@@ -1,11 +1,3 @@
-import sys, os
-import argparse
-
-import pandas as pd
-import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib
-import matplotlib.pyplot as plt
 import src.torch.pytorch_util as ptu
 
 
@@ -21,7 +13,7 @@ from model_init_study.initializers.brownian_motion \
 from model_init_study.initializers.colored_noise_motion \
     import ColoredNoiseMotion
 
-#----------controller imports--------#
+#----------Controller imports--------#
 from model_init_study.controller.nn_controller \
     import NeuralNetworkController
 
@@ -42,6 +34,18 @@ import gym
 import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
 import mb_ge ## Contains ball in cup
 import redundant_arm ## contains redundant arm
+
+#----------Utils imports--------#
+import sys, os
+import argparse
+import re
+import pandas as pd
+import numpy as np
+
+#----------Plot imports--------#
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib
+import matplotlib.pyplot as plt
 
 
 def key_event(event, args):
@@ -238,10 +242,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--init-methods', nargs="*",
-                        type=str, default=['brownian-motion', 'levy-flight', 'colored-noise-beta-0', 'colored-noise-beta-1', 'colored-noise-beta-2', 'random-actions', 'random-policies'])
+                        type=str, default=['brownian-motion', 'colored-noise-beta-0', 'colored-noise-beta-1', 'colored-noise-beta-2', 'random-actions', 'random-policies'])
 
     parser.add_argument('--init-episodes', nargs="*",
                         type=int, default=[20])
+
+    parser.add_argument('--transfer-selections', nargs="*",
+                        type=str, default=['all'])
+    parser.add_argument('--fitness-funcs', nargs="*",
+                        type=str, default=['energy_minimization', 'disagr_minimization'])
+    
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
     parser.add_argument('--dump-path', type=str, default='default_dump/')
     parser.add_argument("--filename", type=str) # file to visualize rollouts from
@@ -261,9 +271,20 @@ if __name__ == "__main__":
         init_methods = args.init_methods #['random-policies', 'random-actions']
         n_init_episodes = len(args.init_episodes) # 4
         init_episodes = args.init_episodes #[5, 10, 15, 20]
+        n_fitness_funcs = len(args.fitness_funcs) # 2
+        fitness_funcs = args.fitness_funcs #['energy_minimization', 'disagr_minimization']
 
         gym_env, max_step, ss_min, ss_max, dim_map = process_env(args)
 
+        ## Plot table with mean prediction error for n step predictions    
+        column_headers = [init_method for init_method in init_methods]
+        row_headers = [init_episode for init_episode in init_episodes]
+        cell_text = [["" for _ in range(len(column_headers))]
+                     for _ in range(len(row_headers))]
+        rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
+        ccolors = plt.cm.BuPu(np.full(len(column_headers), 0.1))
+
+        ## Get rep folders abs paths
         rep_folders = next(os.walk(f'.'))[1]
         rep_folders = [x for x in rep_folders if (x.isdigit())]
         
@@ -271,19 +292,60 @@ if __name__ == "__main__":
             init_episode = init_episodes[j]
             for i in range(n_init_method):
                 init_method =  init_methods[i]
-                rep_cpt = 0
-                for rep_path in rep_folders:
-                    rep_data = np.load(f'{rep_path}/{args.environment}_{init_method}_{init_episode}_data.npz')
+                for k in range(n_fitness_funcs):
+                    fitness_func = fitness_funcs[k]
+                    rep_cpt = 0
+                    mean_archive_size = 0
+                    archive_sizes = np.empty((len(rep_folders)))
+                    for rep_path in rep_folders:
+                        archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_results/'
+                        try:
+                            archive_files = next(os.walk(archive_folder))[2]
+                        except:
+                            import pdb; pdb.set_trace()
+                        archive_files = [f for f in archive_files if 'archive' in f]
 
-                    rep_data = pd.read_csv(args.filename)
-                    rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-                    
-                    #=====================PLOT DATA===========================#
-                    
-                    archive_size = len(rep_data.index)
-                    print('\nArchive size: ', archive_size, '\n')
-                    
-                    # fig, ax = plot_archive(rep_data, plt, args, ss_min, ss_max)
+                        last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
+                        last_archive = last_archive[0]
 
-                    if args.show:
-                        plt.show() 
+                        last_archive_path = os.path.join(archive_folder, last_archive)
+                        
+                        rep_data = pd.read_csv(last_archive_path)
+                        rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+
+                        #=====================PLOT DATA===========================#
+
+                        archive_size = len(rep_data.index)
+                        archive_sizes[rep_cpt] = archive_size
+
+                        rep_cpt += 1
+                        # print('\nArchive size: ', archive_size, '\n')
+
+                        # fig, ax = plot_archive(rep_data, plt, args, ss_min, ss_max)
+
+                        if args.show:
+                            plt.show() 
+
+                    mean_archive_size = np.mean(archive_sizes)
+                    std_archive_size = np.std(archive_sizes)
+                    cell_text[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
+
+        fig, ax = plt.subplots()
+        fig.patch.set_visible(False)
+        ax.axis('off')
+        ax.axis('tight')
+        the_table = plt.table(cellText=cell_text,
+                              rowLabels=row_headers,
+                              rowColours=rcolors,
+                              rowLoc='right',
+                              colColours=ccolors,
+                              colLabels=column_headers,
+                              loc='center')
+        fig.tight_layout()
+        the_table.auto_set_font_size(False)
+        the_table.set_fontsize(6)
+        plt.title(f'Mean archive size and standard deviation on {args.environment} environment', y=.7)
+        
+        plt.savefig(f"{args.environment}_quant_archive_size", dpi=300, bbox_inches='tight')
+    
+
