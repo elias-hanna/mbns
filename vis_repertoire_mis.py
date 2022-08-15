@@ -1,0 +1,289 @@
+import sys, os
+import argparse
+
+import pandas as pd
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+import matplotlib
+import matplotlib.pyplot as plt
+import src.torch.pytorch_util as ptu
+
+
+#----------Init methods imports--------#
+from model_init_study.initializers.random_policy_initializer \
+    import RandomPolicyInitializer
+from model_init_study.initializers.random_actions_initializer \
+    import RandomActionsInitializer
+from model_init_study.initializers.random_actions_random_policies_hybrid_initializer \
+    import RARPHybridInitializer
+from model_init_study.initializers.brownian_motion \
+    import BrownianMotion
+from model_init_study.initializers.colored_noise_motion \
+    import ColoredNoiseMotion
+
+#----------controller imports--------#
+from model_init_study.controller.nn_controller \
+    import NeuralNetworkController
+
+#----------Separator imports--------#
+from model_init_study.visualization.fetch_pick_and_place_separator \
+    import FetchPickAndPlaceSeparator
+from model_init_study.visualization.ant_separator \
+    import AntSeparator
+from model_init_study.visualization.ball_in_cup_separator \
+    import BallInCupSeparator
+from model_init_study.visualization.redundant_arm_separator \
+    import RedundantArmSeparator
+from model_init_study.visualization.fastsim_separator \
+    import FastsimSeparator
+
+#----------Environment imports--------#
+import gym
+import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
+import mb_ge ## Contains ball in cup
+import redundant_arm ## contains redundant arm
+
+
+def key_event(event, args):
+    if event.key == 'escape':
+        sys.exit(0)
+
+def click_event(event, args):
+    '''
+    # reutrns a list of tupples of x-y points
+    click_in = plt.ginput(1,-1) # one click only, should not timeout
+    print("click_in: ",click_in)
+    
+    selected_cell = [int(click_in[0][0]), int(click_in[0][1])]
+    print(selected_cell)
+    selected_x = selected_cell[0]
+    selected_y = selected_cell[1]
+    '''
+    #event.button ==1 is the left mouse click
+    if event.button == 1:
+        selected_x = int(event.xdata)
+        selected_y = int(event.ydata)
+        selected_solution = data[(data["x_bin"] == selected_x) & (data["y_bin"] == selected_y)]
+        #selected_solution = data[(data["y_bin"] == selected_x) & (data["z_bin"] == selected_y)]
+
+        # For hexapod omnitask
+        print("SELECTED SOLUTION SHAPE: ",selected_solution.shape)
+        selected_solution = selected_solution.iloc[0, :]
+        print("Selected solution shape: ", selected_solution.shape)
+        selected_ctrl = selected_solution.iloc[4:-2].to_numpy()
+        print(selected_ctrl.shape) #(1,36)
+
+        #hexapod uni
+        #selected_solution = selected_solution.iloc[0, :]
+        #selected_ctrl = selected_solution.iloc[8:-2].to_numpy()
+        
+        #print("Selected ctrl shape: ", selected_ctrl.shape) # should be 3661
+        print("Selected descriptor bin: " ,selected_x, selected_y)
+        print("Selected descriptor from archive: ", selected_solution.iloc[1:3].to_numpy())
+        #print("Selected fitness from archive: ", selected_solution.iloc[0])
+
+        # ---- SIMULATE THE SELECTED CONTROLLER -----#
+        #simulate(selected_ctrl, 5.0, render=True) # Hexapod
+        #env.evaluate_solution(selected_ctrl)
+        
+        #fit, desc, _, _ = env.evaluate_solution_uni(selected_ctrl, render=True)
+        #print("fitness from simulation real eval:", fit)
+        #fit, desc, _, _ = env.evaluate_solution_model_uni(selected_ctrl)
+        #print("fitness from dynamics model :", fit)
+        
+        fit, desc, _, _ = env.evaluate_solution(selected_ctrl, render=True)
+        #simulate(selected_ctrl, render=True) # panda bullet
+        #simulate(selected_ctrl, 5.0, render=True) # panda dart 
+        #evaluate_solution(selected_ctrl, gui=True) 
+        print("SIMULATION DONE")
+
+
+def plot_archive(data, plt, args, ss_min, ss_max):
+    # FOR BINS / GRID
+    if args.plot_type == "grid":
+            ## Artificially add a min and max of state space element to auto set boundaries of grid
+        df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
+        df_min[1] = ss_min; df_max[1] = ss_max
+        df_min[2] = ss_min; df_max[2] = ss_max
+        
+        # Deprecated
+        data = data.append(df_min, ignore_index = True)
+        data = data.append(df_max, ignore_index = True)
+        # data = pd.concat([data, df_min]) ## does ugly thingies cba to look at them rn
+        # data = pd.concat([data, df_max])
+        nb_div = 100
+        
+        data['x_bin']=pd.cut(x = data.iloc[:,1],
+                             bins = nb_div, 
+                             labels = [p for p in range(nb_div)])
+        data['y_bin']=pd.cut(x = data.iloc[:,2],
+                             bins = nb_div,
+                             labels = [p for p in range(nb_div)])
+        
+        fig, ax = plt.subplots()
+        data.plot.scatter(x="x_bin",y="y_bin",c=0,colormap="viridis", s=2, ax=ax)
+        plt.xlim(0,nb_div)
+        plt.ylim(0,nb_div)
+    elif args.plot_type == "3d" or args.environment == "ball_in_cup":
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        xs = data.iloc[:,1]
+        ys = data.iloc[:,2]
+        zs = data.iloc[:,3]
+
+        ax.scatter(xs, ys, zs, marker="x")
+        plt.xlim(ss_min,ss_max)
+        plt.ylim(ss_min,ss_max)
+        
+    else:
+        #fig, ax = plt.subplots(nrows=1, ncols=2)
+        fig, ax = plt.subplots()
+
+        # FOR JUST A SCATTER PLOT OF THE DESCRIPTORS - doesnt work for interactive selection
+        #data.plot.scatter(x=2,y=3,c=0,colormap='Spectral', s=2, ax=ax, vmin=-0.1, vmax=1.2)
+        data.plot.scatter(x=1,y=2,c=0,colormap='viridis', s=2, ax=ax)
+        plt.xlim(ss_min,ss_max)
+        plt.ylim(ss_min,ss_max)
+
+        #data.plot.scatter(x=1,y=2,s=2, ax=ax[0])
+        #data.plot.scatter(x=3,y=4,c=0,colormap='viridis', s=2, ax=ax)
+        #data.plot.scatter(x=4,y=5,s=2, ax=ax[1])
+        #plt.xlim(-0.5,0.5)
+        #plt.ylim(-0.5,0.5)
+
+    return fig, ax
+
+def process_env(args):
+    ### Environment initialization ###
+    env_register_id = 'BallInCup3d-v0'
+    gym_args = {}
+    if args.environment == 'ball_in_cup':
+        env_register_id = 'BallInCup3d-v0'
+        separator = BallInCupSeparator
+        ss_min = -0.4
+        ss_max = 0.4
+        dim_map = 3
+    elif args.environment == 'redundant_arm':
+        env_register_id = 'RedundantArmPos-v0'
+        separator = RedundantArmSeparator
+        ss_min = -1
+        ss_max = 1
+        dim_map = 2
+    elif args.environment == 'redundant_arm_no_walls':
+        env_register_id = 'RedundantArmPosNoWalls-v0'
+        separator = RedundantArmSeparator
+        ss_min = -1
+        ss_max = 1
+        dim_map = 2
+    elif args.environment == 'redundant_arm_no_walls_no_collision':
+        env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
+        separator = RedundantArmSeparator
+        ss_min = -1
+        ss_max = 1
+        dim_map = 2
+    elif args.environment == 'redundant_arm_no_walls_limited_angles':
+        env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
+        separator = RedundantArmSeparator
+        ss_min = -1
+        ss_max = 1
+        dim_map = 2
+        gym_args['dof'] = 100
+    elif args.environment == 'fastsim_maze':
+        env_register_id = 'FastsimSimpleNavigationPos-v0'
+        separator = FastsimSeparator
+        ss_min = 0
+        ss_max = 600
+        dim_map = 2
+    elif args.environment == 'fastsim_maze_traps':
+        env_register_id = 'FastsimSimpleNavigationPos-v0'
+        separator = FastsimSeparator
+        ss_min = 0
+        ss_max = 600
+        dim_map = 2
+        gym_args['physical_traps'] = True
+    else:
+        raise ValueError(f"{args.environment} is not a defined environment")
+    
+    gym_env = gym.make(env_register_id, **gym_args)
+
+    try:
+        max_step = gym_env._max_episode_steps
+    except:
+        try:
+            max_step = gym_env.max_steps
+        except:
+            raise AttributeError("Env does not allow access to _max_episode_steps or to max_steps")
+
+    return gym_env, max_step, ss_min, ss_max, dim_map
+
+def main(args):
+    
+    gym_env, max_step, ss_min, ss_max, dim_map = process_env(args)
+    
+    data = pd.read_csv(args.filename)
+    data = data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+
+    #=====================PLOT DATA===========================#
+
+    archive_size = len(data.index)
+    print('\nArchive size: ', archive_size, '\n')
+
+    fig, ax = plot_archive(data, plt, args, ss_min, ss_max)
+
+    plt.show() 
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--init-methods', nargs="*",
+                        type=str, default=['brownian-motion', 'levy-flight', 'colored-noise-beta-0', 'colored-noise-beta-1', 'colored-noise-beta-2', 'random-actions', 'random-policies'])
+
+    parser.add_argument('--init-episodes', nargs="*",
+                        type=int, default=[20])
+    parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
+    parser.add_argument('--dump-path', type=str, default='default_dump/')
+    parser.add_argument("--filename", type=str) # file to visualize rollouts from
+    # parser.add_argument("--sim_time", type=float, help="simulation time depending on the type of archive you chose to visualize, 3s archive or a 5s archive")
+    parser.add_argument("--show", help="Show the plot and saves it. Unless specified, just save the mean plot over all repetitions",
+                    action="store_true")
+    parser.add_argument("--plot_type", type=str, default="scatter", help="scatter plot or grid plot")
+
+    args = parser.parse_args()
+
+    if args.filename is not None:
+        main(args)
+
+    else:
+        ## Set params and rename some 
+        n_init_method = len(args.init_methods) # 2
+        init_methods = args.init_methods #['random-policies', 'random-actions']
+        n_init_episodes = len(args.init_episodes) # 4
+        init_episodes = args.init_episodes #[5, 10, 15, 20]
+
+        gym_env, max_step, ss_min, ss_max, dim_map = process_env(args)
+
+        rep_folders = next(os.walk(f'.'))[1]
+        rep_folders = [x for x in rep_folders if (x.isdigit())]
+        
+        for j in range(n_init_episodes):
+            init_episode = init_episodes[j]
+            for i in range(n_init_method):
+                init_method =  init_methods[i]
+                rep_cpt = 0
+                for rep_path in rep_folders:
+                    rep_data = np.load(f'{rep_path}/{args.environment}_{init_method}_{init_episode}_data.npz')
+
+                    rep_data = pd.read_csv(args.filename)
+                    rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+                    
+                    #=====================PLOT DATA===========================#
+                    
+                    archive_size = len(rep_data.index)
+                    print('\nArchive size: ', archive_size, '\n')
+                    
+                    # fig, ax = plot_archive(rep_data, plt, args, ss_min, ss_max)
+
+                    if args.show:
+                        plt.show() 
