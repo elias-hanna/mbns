@@ -105,7 +105,7 @@ def click_event(event, args):
 def plot_archive(data, plt, args, ss_min, ss_max):
     # FOR BINS / GRID
     if args.plot_type == "grid":
-            ## Artificially add a min and max of state space element to auto set boundaries of grid
+        ## Artificially add a min and max of state space element to auto set boundaries of grid
         df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
         df_min[1] = ss_min; df_max[1] = ss_max
         df_min[2] = ss_min; df_max[2] = ss_max
@@ -165,8 +165,8 @@ def process_env(args):
     if args.environment == 'ball_in_cup':
         env_register_id = 'BallInCup3d-v0'
         separator = BallInCupSeparator
-        ss_min = -0.4
-        ss_max = 0.4
+        ss_min = -0.33
+        ss_max = 0.33
         dim_map = 3
     elif args.environment == 'redundant_arm':
         env_register_id = 'RedundantArmPos-v0'
@@ -258,7 +258,8 @@ if __name__ == "__main__":
     # parser.add_argument("--sim_time", type=float, help="simulation time depending on the type of archive you chose to visualize, 3s archive or a 5s archive")
     parser.add_argument("--show", help="Show the plot and saves it. Unless specified, just save the mean plot over all repetitions",
                     action="store_true")
-    parser.add_argument("--plot_type", type=str, default="scatter", help="scatter plot or grid plot")
+    parser.add_argument("--plot_type", type=str, default="scatter", help="scatter plot, grid plot or 3d")
+    parser.add_argument("--nb_div", type=int, default=100, help="Number of equally separated bins to divide the outcome space in")
 
     args = parser.parse_args()
 
@@ -282,6 +283,8 @@ if __name__ == "__main__":
         row_headers = [200, 400, 600, 800, 1000]
         cell_text = [["" for _ in range(len(column_headers))]
                      for _ in range(len(row_headers))]
+        cell_text_cov = [["" for _ in range(len(column_headers))]
+                         for _ in range(len(row_headers))]
         rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
         ccolors = plt.cm.BuPu(np.full(len(column_headers), 0.1))
 
@@ -299,6 +302,7 @@ if __name__ == "__main__":
                     mean_archive_size = 0
                     # archive_sizes = np.empty((len(rep_folders)))
                     archive_sizes = np.empty((len(rep_folders), len(row_headers)))
+                    coverages = np.empty((len(rep_folders), len(row_headers)))
                     for rep_path in rep_folders:
                         archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_results/'
                         archive_files = next(os.walk(archive_folder))[2]
@@ -307,18 +311,84 @@ if __name__ == "__main__":
                         sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
                         
                         for r in range(len(row_headers)):
+                            #=====================LOAD DATA===========================#
                             archive = sorted_archive_files[r]
                             archive_path = os.path.join(archive_folder, archive)
 
                             rep_data = pd.read_csv(archive_path)
                             rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-
-                            #=====================PLOT DATA===========================#
                             
+                            #=====================ARCHIVE SIZE===========================#
                             archive_size = len(rep_data.index)
                             archive_sizes[rep_cpt, r] = archive_size
+
+                            #=====================COVERAGE===========================#
     
-                        
+                            df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
+                            df_min[1] = ss_min; df_max[1] = ss_max
+                            df_min[2] = ss_min; df_max[2] = ss_max
+
+                            if args.environment == "ball_in_cup":
+                                df_min[3] = ss_min; df_max[3] = ss_max
+                            
+                            # Deprecated
+                            rep_data = rep_data.append(df_min, ignore_index = True)
+                            rep_data = rep_data.append(df_max, ignore_index = True)
+                            # data = pd.concat([data, df_min]) ## does ugly thingies cba to look at them rn
+                            # data = pd.concat([data, df_max])
+                            nb_div = 10
+
+                            rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
+                                                 bins = nb_div, 
+                                                 labels = [p for p in range(nb_div)])
+
+                            bin_filled = [0, 0, 0]
+
+                            counts = rep_data['x_bin'].value_counts()
+                            for c in range(len(counts)):
+                                if c != 0 and c != 99 and counts[c] >= 1:
+                                    bin_filled[0] += 1
+                                elif counts[c] >= 2:
+                                    bin_filled[0] += 1
+                                    
+                            rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
+                                                 bins = nb_div,
+                                                 labels = [p for p in range(nb_div)])
+
+                            counts = rep_data['y_bin'].value_counts()
+                            for c in range(len(counts)):
+                                if c != 0 and c != 99 and counts[c] >= 1:
+                                    bin_filled[1] += 1
+                                elif counts[c] >= 2:
+                                    bin_filled[1] += 1
+
+                            coverages[rep_cpt, r] = sum(bin_filled)/nb_div**2
+
+                            total_bins = nb_div**2
+                            
+                            if args.environment == "ball_in_cup":
+                                rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
+                                                     bins = nb_div,
+                                                     labels = [p for p in range(nb_div)])
+
+                                counts = rep_data['z_bin'].value_counts()
+                                for c in range(len(counts)):
+                                    if c != 0 and c != 99 and counts[c] >= 1:
+                                        bin_filled[2] += 1
+                                    elif counts[i] >= 2:
+                                        bin_filled[2] += 1
+                            
+                                coverages[rep_cpt, r] = sum(bin_filled)/nb_div**3
+                                total_bins = nb_div**3
+                                
+                            rep_data = rep_data.assign(cartesian=pd.Categorical
+                                                       (rep_data.filter(regex='_bin')
+                                                        .apply(tuple, 1)))
+
+                            counts = rep_data['cartesian'].value_counts()
+
+                            coverages[rep_cpt, r] = len(counts[counts>=1])/total_bins
+                            
                         # last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
                         # last_archive = last_archive[0]
 
@@ -348,9 +418,15 @@ if __name__ == "__main__":
                     # cell_text[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
                     mean_archive_size = np.mean(archive_sizes, axis=0)
                     std_archive_size = np.std(archive_sizes, axis=0)
-                    for r in range(len(row_headers)):
-                        cell_text[r][i] = f'{mean_archive_size[r]} \u00B1 {round(std_archive_size[r],1)}'
 
+                    mean_cov = np.mean(coverages, axis=0)
+                    std_cov = np.std(coverages, axis=0)
+
+                    for r in range(len(row_headers)):
+                        cell_text[r][i] = f'{round(mean_archive_size[r],1)} \u00B1 {round(std_archive_size[r],1)}'
+                        cell_text_cov[r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
+
+        #=====================SAVE ARCHIVE SIZE TABLE===========================#
         fig, ax = plt.subplots()
         fig.patch.set_visible(False)
         ax.axis('off')
@@ -369,4 +445,24 @@ if __name__ == "__main__":
         
         plt.savefig(f"{args.environment}_quant_archive_size", dpi=300, bbox_inches='tight')
     
-
+        #=====================SAVE COVERAGE TABLE===========================#
+        fig, ax = plt.subplots()
+        fig.patch.set_visible(False)
+        ax.axis('off')
+        ax.axis('tight')
+        the_table = plt.table(cellText=cell_text_cov,
+                              rowLabels=row_headers,
+                              rowColours=rcolors,
+                              rowLoc='right',
+                              colColours=ccolors,
+                              colLabels=column_headers,
+                              loc='center')
+        fig.tight_layout()
+        the_table.auto_set_font_size(False)
+        the_table.set_fontsize(6)
+        plt.title(f'Mean coverage and standard deviation on {args.environment} environment', y=.7)
+        
+        plt.savefig(f"{args.environment}_quant_coverage", dpi=300, bbox_inches='tight')
+    
+        
+        
