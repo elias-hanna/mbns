@@ -278,7 +278,8 @@ if __name__ == "__main__":
 
         ## Plot table with mean prediction error for n step predictions    
         column_headers = [init_method for init_method in init_methods]
-        row_headers = [init_episode for init_episode in init_episodes]
+        # row_headers = [init_episode for init_episode in init_episodes]
+        row_headers = [200, 400, 600, 800, 1000]
         cell_text = [["" for _ in range(len(column_headers))]
                      for _ in range(len(row_headers))]
         rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
@@ -296,29 +297,43 @@ if __name__ == "__main__":
                     fitness_func = fitness_funcs[k]
                     rep_cpt = 0
                     mean_archive_size = 0
-                    archive_sizes = np.empty((len(rep_folders)))
+                    # archive_sizes = np.empty((len(rep_folders)))
+                    archive_sizes = np.empty((len(rep_folders), len(row_headers)))
                     for rep_path in rep_folders:
                         archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_results/'
-                        try:
-                            archive_files = next(os.walk(archive_folder))[2]
-                        except:
-                            import pdb; pdb.set_trace()
+                        archive_files = next(os.walk(archive_folder))[2]
                         archive_files = [f for f in archive_files if 'archive' in f]
-
-                        last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
-                        last_archive = last_archive[0]
-
-                        last_archive_path = os.path.join(archive_folder, last_archive)
+                        archive_numbers = [int(re.findall(r'\d+', f)[0]) for f in archive_files]
+                        sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
                         
-                        rep_data = pd.read_csv(last_archive_path)
-                        rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+                        for r in range(len(row_headers)):
+                            archive = sorted_archive_files[r]
+                            archive_path = os.path.join(archive_folder, archive)
+
+                            rep_data = pd.read_csv(archive_path)
+                            rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+
+                            #=====================PLOT DATA===========================#
+                            
+                            archive_size = len(rep_data.index)
+                            archive_sizes[rep_cpt, r] = archive_size
+    
+                        
+                        # last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
+                        # last_archive = last_archive[0]
+
+                        # last_archive_path = os.path.join(archive_folder, last_archive)
+                        
+                        # rep_data = pd.read_csv(last_archive_path)
+                        # rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+
+
+                        # archive_size = len(rep_data.index)
+                        # archive_sizes[rep_cpt] = archive_size
+
 
                         #=====================PLOT DATA===========================#
 
-                        archive_size = len(rep_data.index)
-                        archive_sizes[rep_cpt] = archive_size
-
-                        rep_cpt += 1
                         # print('\nArchive size: ', archive_size, '\n')
 
                         # fig, ax = plot_archive(rep_data, plt, args, ss_min, ss_max)
@@ -326,9 +341,15 @@ if __name__ == "__main__":
                         if args.show:
                             plt.show() 
 
-                    mean_archive_size = np.mean(archive_sizes)
-                    std_archive_size = np.std(archive_sizes)
-                    cell_text[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
+                        rep_cpt += 1
+
+                    # mean_archive_size = np.mean(archive_sizes)
+                    # std_archive_size = np.std(archive_sizes)
+                    # cell_text[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
+                    mean_archive_size = np.mean(archive_sizes, axis=0)
+                    std_archive_size = np.std(archive_sizes, axis=0)
+                    for r in range(len(row_headers)):
+                        cell_text[r][i] = f'{mean_archive_size[r]} \u00B1 {round(std_archive_size[r],1)}'
 
         fig, ax = plt.subplots()
         fig.patch.set_visible(False)
