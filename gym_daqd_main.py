@@ -620,7 +620,7 @@ def main(args):
 
         "min_found_model": args.min_found_model,
         "transfer_selection": args.transfer_selection,
-        "nb_transfer": 1,
+        "nb_transfer": args.nb_transfer,
         'env_name': args.environment,
         'init_method': args.init_method,
     }
@@ -653,6 +653,10 @@ def main(args):
         Initializer = ColoredNoiseMotion
         noise_beta = 2
     elif args.init_method == 'no-init':
+        ## this will do uninitialized model daqd
+        pass
+    elif args.init_method == 'vanilla':
+        ## This will do vanilla daqd
         pass
     else:
         raise Exception(f"Warning {args.init_method} isn't a valid initializer")
@@ -728,7 +732,7 @@ def main(args):
         try:
             max_step = gym_env.max_steps
         except:
-            raise AttributeError("Env does not allow access to _max_episode_steps or to max_steps")
+            raise AttributeError("Env doesnt allow access to _max_episode_steps or to max_steps")
 
     obs = gym_env.reset()
     if isinstance(obs, dict):
@@ -816,7 +820,7 @@ def main(args):
     surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
 
     ## Initialize model with wnb from previous run if an init method is to be used
-    if args.init_method != 'no-init':
+    if args.init_method != 'no-init' or args.init_method != 'vanilla':
         if args.init_data_path is not None:
             data_path = args.init_data_path
             path = f'{data_path}/{args.environment}_results/{args.rep}/'\
@@ -891,12 +895,13 @@ if __name__ == "__main__":
     #----------model init study params--------#
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
     parser.add_argument('--init-method', type=str, default='random-policies')
-    parser.add_argument('--init-episodes', type=int, default='10')
+    parser.add_argument('--init-episodes', type=int, default='20')
     parser.add_argument('--rep', type=int, default='1')
     parser.add_argument('--transfer-selection', type=str, default='all')
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--init-data-path', type=str, default=None)
+    parser.add_argument('--nb-transfer', type=int, default=1)
 
     args = parser.parse_args()
 

@@ -186,14 +186,14 @@ class ModelBasedQD:
 
     def random_archive_init(self, to_evaluate):
         for i in range(0, self.params['random_init_batch']):
-            x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
+            x = np.random.uniform(low=self.params['min'], high=self.params['max'],size=self.dim_x)
             to_evaluate += [(x, self.f_real)]
         
         return to_evaluate
 
     def random_archive_init_model(self, to_evaluate):
         for i in range(0, self.params['random_init_batch']):
-            x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
+            x = np.random.uniform(low=self.params['min'], high=self.params['max'],size=self.dim_x)
             to_evaluate += [(x, self.f_model)]
         
         return to_evaluate
@@ -303,14 +303,14 @@ class ModelBasedQD:
             
             # random initialization of archive - start up
             if (len(self.archive) <= params['random_init']*self.n_niches) \
-               and params['init_method'] != 'no-init':
+               and params['init_method'] == 'vanilla':
                 print("Evaluation on real environment for initialization")
                 to_evaluate = self.random_archive_init(to_evaluate) # init real archive
-                #to_evaluate = self.random_archive_init_model(to_evaluate) # init synthetic archive 
+                #to_evaluate = self.random_archive_init_model(to_evaluate) #init synthetic archive 
 
                 start = time.time()
-                s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params) # init real archive
-                #s_list = cm.parallel_eval(model_evaluate_, to_evaluate, pool, params) # init model
+                s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params) #init real archive
+                #s_list = cm.parallel_eval(model_evaluate_, to_evaluate, pool, params) #init model
                 self.eval_time = time.time() - start 
                 self.archive, add_list, _ = self.addition_condition(s_list, self.archive, params)
 
@@ -398,7 +398,7 @@ class ModelBasedQD:
                         to_evaluate_stats = []
                         for z in discard_list_model: 
                             to_evaluate_stats += [(z.x, self.f_real)]
-                        s_list_stats = cm.parallel_eval(evaluate_, to_evaluate_stats, pool, params)
+                        s_list_stats = cm.parallel_eval(evaluate_, to_evaluate_stats, pool,params)
                         tmp_archive, add_list_stats, discard_list_stats = self.addition_condition(s_list_stats, tmp_archive, params)
                     
                         false_neg = len(add_list_stats)
@@ -532,8 +532,31 @@ class ModelBasedQD:
         while len(add_list_model_final) < params['min_found_model']:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
             to_model_evaluate=[]
-            if self.model_archive == [] and params['init_method'] == 'no-init':
+            # if self.model_archive == [] and params['init_method'] != 'vanilla':
+                # to_model_evaluate = self.random_archive_init_model(to_model_evaluate)
+            if (len(self.model_archive) <= params['random_init']*self.n_niches) \
+               and params['init_method'] != 'vanilla':
                 to_model_evaluate = self.random_archive_init_model(to_model_evaluate)
+                if len(self.model_archive) > 0:
+                    import pdb; pdb.set_trace()
+                    try:
+                        to_model_evaluate = np.array(to_model_evaluate)[
+                            np.random.choice(len(to_model_evaluate),
+                                             int(params['random_init']*self.n_niches -
+                                             len(self.model_archive)),
+                                             replace=False)
+                        ]
+                    except:
+                        import pdb; pdb.set_trace()
+                    # to_model_evaluate = np.random.choice(to_model_evaluate,
+                                                         # params['random_init']*self.n_niches -
+                                                         # len(self.model_archive),
+                                                         # replace=False)
+                    to_model_evaluate = to_model_evaluate.tolist()
+                    import pdb;pdb.set_trace()
+                    to_model_evaluate.append(self.select_and_mutate(to_model_evaluate,
+                                                                    self.model_archive,
+                                                                    self.f_model, params))
             else:
                 to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive,
                                                            self.f_model, params)
@@ -560,7 +583,7 @@ class ModelBasedQD:
             #    cm.save_archive(self.model_archive, "model_gen_"+str(i), params, self.log_dir)
             #    print("Model gen: ", i)
             #    print("Model archive size: ", len(self.model_archive))
-            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
+            print(f'Individuals evaluated on model: {len(s_list_model)}\nCurrent valid population at gen {gen}: {len(add_list_model_final)}')
             gen += 1
         self.model_eval_time = time.time() - start
         print(f"Random model emitter ended in {self.model_eval_time} after {gen} gen")
@@ -682,7 +705,7 @@ class ModelBasedQD:
             gen += 1
 
         self.model_eval_time = time.time() - start
-        print(f"Random walk model emitter ended in {self.model_eval_time} after {gen} gen")        
+        print(f"Random walk model emitter ended in {self.model_eval_time} after {gen} gen") 
         return add_list_model_final, all_model_eval
 
     def improvement_emitter():
