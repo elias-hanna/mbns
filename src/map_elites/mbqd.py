@@ -38,7 +38,7 @@
 #| had knowledge of the CeCILL license and that you accept its terms.
 import os, sys
 import time
-import math
+import math, random
 import numpy as np
 import multiprocessing
 
@@ -532,31 +532,43 @@ class ModelBasedQD:
         while len(add_list_model_final) < params['min_found_model']:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
             to_model_evaluate=[]
+            # import pdb; pdb.set_trace()
             # if self.model_archive == [] and params['init_method'] != 'vanilla':
                 # to_model_evaluate = self.random_archive_init_model(to_model_evaluate)
             if (len(self.model_archive) <= params['random_init']*self.n_niches) \
                and params['init_method'] != 'vanilla':
                 to_model_evaluate = self.random_archive_init_model(to_model_evaluate)
                 if len(self.model_archive) > 0:
-                    import pdb; pdb.set_trace()
-                    try:
-                        to_model_evaluate = np.array(to_model_evaluate)[
-                            np.random.choice(len(to_model_evaluate),
-                                             int(params['random_init']*self.n_niches -
-                                             len(self.model_archive)),
-                                             replace=False)
-                        ]
-                    except:
-                        import pdb; pdb.set_trace()
+                    # to_model_evaluate = np.array(to_model_evaluate)[
+                        # np.random.choice(len(to_model_evaluate),
+                                         # int(params['random_init']*self.n_niches -
+                                             # len(self.model_archive)),
+                                         # replace=False)
+                    # ]
                     # to_model_evaluate = np.random.choice(to_model_evaluate,
                                                          # params['random_init']*self.n_niches -
                                                          # len(self.model_archive),
                                                          # replace=False)
-                    to_model_evaluate = to_model_evaluate.tolist()
-                    import pdb;pdb.set_trace()
-                    to_model_evaluate.append(self.select_and_mutate(to_model_evaluate,
-                                                                    self.model_archive,
-                                                                    self.f_model, params))
+                    # import pdb; pdb.set_trace()
+                    # to_model_evaluate = to_model_evaluate.tolist()
+                    # import pdb;pdb.set_trace()
+                    to_model_evaluate = random.sample(to_model_evaluate,
+                                                      int(params['random_init']*self.n_niches -
+                                                          len(self.model_archive)))
+
+
+                    ## Create fake archive with new species created to have an archive size of 100
+                    fake_archive = self.model_archive.copy()
+                    for n in range(int(params['random_init']*self.n_niches -
+                                                          len(self.model_archive))):
+                        s = cm.Species(to_model_evaluate[n][0], [], [])
+                        fake_archive.append(s)
+                    # to_model_evaluate += self.select_and_mutate(to_model_evaluate,
+                                                                # self.model_archive,
+                                                                # self.f_model, params)
+                    to_model_evaluate = self.select_and_mutate(to_model_evaluate,
+                                                               fake_archive,
+                                                               self.f_model, params)
             else:
                 to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive,
                                                            self.f_model, params)
