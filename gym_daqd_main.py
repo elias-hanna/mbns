@@ -820,7 +820,7 @@ def main(args):
     surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
 
     ## Initialize model with wnb from previous run if an init method is to be used
-    if args.init_method != 'no-init' or args.init_method != 'vanilla':
+    if args.init_method != 'no-init' and args.init_method != 'vanilla':
         if args.init_data_path is not None:
             data_path = args.init_data_path
             path = f'{data_path}/{args.environment}_results/{args.rep}/'\
