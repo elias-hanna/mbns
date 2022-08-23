@@ -243,14 +243,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--init-methods', nargs="*",
                         type=str, default=['brownian-motion', 'colored-noise-beta-0', 'colored-noise-beta-1', 'colored-noise-beta-2', 'random-actions', 'random-policies'])
-
     parser.add_argument('--init-episodes', nargs="*",
                         type=int, default=[20])
 
-    parser.add_argument('--transfer-selections', nargs="*",
-                        type=str, default=['all'])
+    ## DAQD specific parameters
     parser.add_argument('--fitness-funcs', nargs="*",
                         type=str, default=['energy_minimization', 'disagr_minimization'])
+    parser.add_argument('--transfer-selection', nargs="*",
+                        type=str, default=['disagr', 'disagr_bd'])
+    parser.add_argument('--nb-transfer', nargs="*",
+                        type=int, default=[1, 10])
     
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
     parser.add_argument('--dump-path', type=str, default='default_dump/')
@@ -274,17 +276,24 @@ if __name__ == "__main__":
         init_episodes = args.init_episodes #[5, 10, 15, 20]
         n_fitness_funcs = len(args.fitness_funcs) # 2
         fitness_funcs = args.fitness_funcs #['energy_minimization', 'disagr_minimization']
+        n_transfer_sels = len(args.transfer_selection) # 2
+        transfer_sels = args.transfer_selection #['disagr', 'disagr_bd']
+        n_nb_transfers = len(args.nb_transfer) # 2
+        nb_transfers = args.nb_transfer #[10, 1]
 
         gym_env, max_step, ss_min, ss_max, dim_map = process_env(args)
 
         ## Plot table with mean prediction error for n step predictions    
         column_headers = [init_method for init_method in init_methods]
         # row_headers = [init_episode for init_episode in init_episodes]
-        row_headers = [200, 400, 600, 800, 1000]
-        cell_text = [["" for _ in range(len(column_headers))]
-                     for _ in range(len(row_headers))]
-        cell_text_cov = [["" for _ in range(len(column_headers))]
-                         for _ in range(len(row_headers))]
+        row_headers = [20, 40, 60, 80, 100]
+        cell_text_size = []
+        cell_text_cov = []
+        for i in range(n_nb_transfers + n_transfer_sels):
+            cell_text_size.append([["" for _ in range(len(column_headers))]
+                                   for _ in range(len(row_headers))])
+            cell_text_cov.append([["" for _ in range(len(column_headers))]
+                                  for _ in range(len(row_headers))])
         rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
         ccolors = plt.cm.BuPu(np.full(len(column_headers), 0.1))
 
@@ -298,171 +307,183 @@ if __name__ == "__main__":
                 init_method =  init_methods[i]
                 for k in range(n_fitness_funcs):
                     fitness_func = fitness_funcs[k]
-                    rep_cpt = 0
-                    mean_archive_size = 0
-                    # archive_sizes = np.empty((len(rep_folders)))
-                    archive_sizes = np.empty((len(rep_folders), len(row_headers)))
-                    coverages = np.empty((len(rep_folders), len(row_headers)))
-                    for rep_path in rep_folders:
-                        archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_results/'
-                        archive_files = next(os.walk(archive_folder))[2]
-                        archive_files = [f for f in archive_files if 'archive' in f]
-                        archive_numbers = [int(re.findall(r'\d+', f)[0]) for f in archive_files]
-                        sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
-                        
-                        for r in range(len(row_headers)):
-                            #=====================LOAD DATA===========================#
-                            archive = sorted_archive_files[r]
-                            archive_path = os.path.join(archive_folder, archive)
+                    tab_cpt = 0
+                    for l in range(n_nb_transfers):
+                        nb_transfer = nb_transfers[l]
+                        for m in range(n_transfer_sels):
+                            transfer_sel = transfer_sels[m]
+                            rep_cpt = 0
+                            mean_archive_size = 0
+                            # archive_sizes = np.empty((len(rep_folders)))
+                            archive_sizes = np.empty((len(rep_folders), len(row_headers)))
+                            coverages = np.empty((len(rep_folders), len(row_headers)))
+                            for rep_path in rep_folders:
+                                archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_{transfer_sel}_{nb_transfer}_results/'
+                                archive_files = next(os.walk(archive_folder))[2]
+                                archive_files = [f for f in archive_files if 'archive' in f]
+                                archive_numbers = [int(re.findall(r'\d+', f)[0]) for f in archive_files]
+                                sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
 
-                            rep_data = pd.read_csv(archive_path)
-                            rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-                            
-                            #=====================ARCHIVE SIZE===========================#
-                            archive_size = len(rep_data.index)
-                            archive_sizes[rep_cpt, r] = archive_size
+                                for r in range(len(row_headers)):
+                                    #=====================LOAD DATA===========================#
+                                    archive = sorted_archive_files[r]
+                                    archive_path = os.path.join(archive_folder, archive)
 
-                            #=====================COVERAGE===========================#
+                                    rep_data = pd.read_csv(archive_path)
+                                    rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+
+                                    #=====================ARCHIVE SIZE===========================#
+                                    archive_size = len(rep_data.index)
+                                    archive_sizes[rep_cpt, r] = archive_size
+
+                                    #=====================COVERAGE===========================#
+
+                                    df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
+                                    df_min[1] = ss_min; df_max[1] = ss_max
+                                    df_min[2] = ss_min; df_max[2] = ss_max
+
+                                    if args.environment == "ball_in_cup":
+                                        df_min[3] = ss_min; df_max[3] = ss_max
+
+                                    # Deprecated
+                                    rep_data = rep_data.append(df_min, ignore_index = True)
+                                    rep_data = rep_data.append(df_max, ignore_index = True)
+                                    # data = pd.concat([data, df_min]) ## does ugly thingies cba to look at them rn
+                                    # data = pd.concat([data, df_max])
+                                    nb_div = 10
+
+                                    rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
+                                                         bins = nb_div, 
+                                                         labels = [p for p in range(nb_div)])
+
+                                    bin_filled = [0, 0, 0]
+
+                                    counts = rep_data['x_bin'].value_counts()
+                                    for c in range(len(counts)):
+                                        if c != 0 and c != 99 and counts[c] >= 1:
+                                            bin_filled[0] += 1
+                                        elif counts[c] >= 2:
+                                            bin_filled[0] += 1
+
+                                    rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
+                                                         bins = nb_div,
+                                                         labels = [p for p in range(nb_div)])
+
+                                    counts = rep_data['y_bin'].value_counts()
+                                    for c in range(len(counts)):
+                                        if c != 0 and c != 99 and counts[c] >= 1:
+                                            bin_filled[1] += 1
+                                        elif counts[c] >= 2:
+                                            bin_filled[1] += 1
+
+                                    coverages[rep_cpt, r] = sum(bin_filled)/nb_div**2
+
+                                    total_bins = nb_div**2
+
+                                    if args.environment == "ball_in_cup":
+                                        rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
+                                                             bins = nb_div,
+                                                             labels = [p for p in range(nb_div)])
+
+                                        counts = rep_data['z_bin'].value_counts()
+                                        for c in range(len(counts)):
+                                            if c != 0 and c != 99 and counts[c] >= 1:
+                                                bin_filled[2] += 1
+                                            elif counts[i] >= 2:
+                                                bin_filled[2] += 1
+
+                                        coverages[rep_cpt, r] = sum(bin_filled)/nb_div**3
+                                        total_bins = nb_div**3
+
+                                    rep_data = rep_data.assign(cartesian=pd.Categorical
+                                                               (rep_data.filter(regex='_bin')
+                                                                .apply(tuple, 1)))
+
+                                    counts = rep_data['cartesian'].value_counts()
+
+                                    coverages[rep_cpt, r] = len(counts[counts>=1])/total_bins
+
+                                # last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
+                                # last_archive = last_archive[0]
+
+                                # last_archive_path = os.path.join(archive_folder, last_archive)
+
+                                # rep_data = pd.read_csv(last_archive_path)
+                                # rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+
+
+                                # archive_size = len(rep_data.index)
+                                # archive_sizes[rep_cpt] = archive_size
+
+
+                                #=====================PLOT DATA===========================#
+
+                                # print('\nArchive size: ', archive_size, '\n')
+
+                                # fig, ax = plot_archive(rep_data, plt, args, ss_min, ss_max)
+
+                                if args.show:
+                                    plt.show() 
+
+                                rep_cpt += 1
+
+                            # mean_archive_size = np.mean(archive_sizes)
+                            # std_archive_size = np.std(archive_sizes)
+                            # cell_text_size[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
+                            mean_archive_size = np.mean(archive_sizes, axis=0)
+                            std_archive_size = np.std(archive_sizes, axis=0)
+
+                            mean_cov = np.mean(coverages, axis=0)
+                            std_cov = np.std(coverages, axis=0)
+
+                            for r in range(len(row_headers)):
+                                cell_text_size[tab_cpt][r][i] = f'{round(mean_archive_size[r],2)} \u00B1 {round(std_archive_size[r],2)}'
+                                cell_text_cov[tab_cpt][r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
+                            tab_cpt += 1
+
+        tab_cpt = 0
+        for i in range(n_nb_transfers):
+            nb_transfer = nb_transfers[i]
+            for j in range(n_transfer_sels):
+                transfer_sel = transfer_sels[j]
+                
+                #=====================SAVE ARCHIVE SIZE TABLE===========================#
+                fig, ax = plt.subplots()
+                fig.patch.set_visible(False)
+                ax.axis('off')
+                ax.axis('tight')
+                the_table = plt.table(cellText=cell_text_size[tab_cpt],
+                                      rowLabels=row_headers,
+                                      rowColours=rcolors,
+                                      rowLoc='right',
+                                      colColours=ccolors,
+                                      colLabels=column_headers,
+                                      loc='center')
+                fig.tight_layout()
+                the_table.auto_set_font_size(False)
+                the_table.set_fontsize(6)
+                plt.title(f'Mean archive size and standard deviation on {args.environment} environment for\n {transfer_sel} selection with {nb_transfer} individuals transferred', y=.7)
+
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_archive_size", dpi=300, bbox_inches='tight')
+
+                #=====================SAVE COVERAGE TABLE===========================#
+                fig, ax = plt.subplots()
+                fig.patch.set_visible(False)
+                ax.axis('off')
+                ax.axis('tight')
+                the_table = plt.table(cellText=cell_text_cov[tab_cpt],
+                                      rowLabels=row_headers,
+                                      rowColours=rcolors,
+                                      rowLoc='right',
+                                      colColours=ccolors,
+                                      colLabels=column_headers,
+                                      loc='center')
+                fig.tight_layout()
+                the_table.auto_set_font_size(False)
+                the_table.set_fontsize(6)
+                plt.title(f'Mean coverage and standard deviation on {args.environment} environment for\n {transfer_sel} selection with {nb_transfer} individuals transferred', y=.7)
+
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_coverage", dpi=300, bbox_inches='tight')
     
-                            df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
-                            df_min[1] = ss_min; df_max[1] = ss_max
-                            df_min[2] = ss_min; df_max[2] = ss_max
-
-                            if args.environment == "ball_in_cup":
-                                df_min[3] = ss_min; df_max[3] = ss_max
-                            
-                            # Deprecated
-                            rep_data = rep_data.append(df_min, ignore_index = True)
-                            rep_data = rep_data.append(df_max, ignore_index = True)
-                            # data = pd.concat([data, df_min]) ## does ugly thingies cba to look at them rn
-                            # data = pd.concat([data, df_max])
-                            nb_div = 10
-
-                            rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
-                                                 bins = nb_div, 
-                                                 labels = [p for p in range(nb_div)])
-
-                            bin_filled = [0, 0, 0]
-
-                            counts = rep_data['x_bin'].value_counts()
-                            for c in range(len(counts)):
-                                if c != 0 and c != 99 and counts[c] >= 1:
-                                    bin_filled[0] += 1
-                                elif counts[c] >= 2:
-                                    bin_filled[0] += 1
-                                    
-                            rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
-                                                 bins = nb_div,
-                                                 labels = [p for p in range(nb_div)])
-
-                            counts = rep_data['y_bin'].value_counts()
-                            for c in range(len(counts)):
-                                if c != 0 and c != 99 and counts[c] >= 1:
-                                    bin_filled[1] += 1
-                                elif counts[c] >= 2:
-                                    bin_filled[1] += 1
-
-                            coverages[rep_cpt, r] = sum(bin_filled)/nb_div**2
-
-                            total_bins = nb_div**2
-                            
-                            if args.environment == "ball_in_cup":
-                                rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
-                                                     bins = nb_div,
-                                                     labels = [p for p in range(nb_div)])
-
-                                counts = rep_data['z_bin'].value_counts()
-                                for c in range(len(counts)):
-                                    if c != 0 and c != 99 and counts[c] >= 1:
-                                        bin_filled[2] += 1
-                                    elif counts[i] >= 2:
-                                        bin_filled[2] += 1
-                            
-                                coverages[rep_cpt, r] = sum(bin_filled)/nb_div**3
-                                total_bins = nb_div**3
-                                
-                            rep_data = rep_data.assign(cartesian=pd.Categorical
-                                                       (rep_data.filter(regex='_bin')
-                                                        .apply(tuple, 1)))
-
-                            counts = rep_data['cartesian'].value_counts()
-
-                            coverages[rep_cpt, r] = len(counts[counts>=1])/total_bins
-                            
-                        # last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
-                        # last_archive = last_archive[0]
-
-                        # last_archive_path = os.path.join(archive_folder, last_archive)
-                        
-                        # rep_data = pd.read_csv(last_archive_path)
-                        # rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-
-
-                        # archive_size = len(rep_data.index)
-                        # archive_sizes[rep_cpt] = archive_size
-
-
-                        #=====================PLOT DATA===========================#
-
-                        # print('\nArchive size: ', archive_size, '\n')
-
-                        # fig, ax = plot_archive(rep_data, plt, args, ss_min, ss_max)
-
-                        if args.show:
-                            plt.show() 
-
-                        rep_cpt += 1
-
-                    # mean_archive_size = np.mean(archive_sizes)
-                    # std_archive_size = np.std(archive_sizes)
-                    # cell_text[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
-                    mean_archive_size = np.mean(archive_sizes, axis=0)
-                    std_archive_size = np.std(archive_sizes, axis=0)
-
-                    mean_cov = np.mean(coverages, axis=0)
-                    std_cov = np.std(coverages, axis=0)
-
-                    for r in range(len(row_headers)):
-                        cell_text[r][i] = f'{round(mean_archive_size[r],1)} \u00B1 {round(std_archive_size[r],1)}'
-                        cell_text_cov[r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
-
-        #=====================SAVE ARCHIVE SIZE TABLE===========================#
-        fig, ax = plt.subplots()
-        fig.patch.set_visible(False)
-        ax.axis('off')
-        ax.axis('tight')
-        the_table = plt.table(cellText=cell_text,
-                              rowLabels=row_headers,
-                              rowColours=rcolors,
-                              rowLoc='right',
-                              colColours=ccolors,
-                              colLabels=column_headers,
-                              loc='center')
-        fig.tight_layout()
-        the_table.auto_set_font_size(False)
-        the_table.set_fontsize(6)
-        plt.title(f'Mean archive size and standard deviation on {args.environment} environment', y=.7)
-        
-        plt.savefig(f"{args.environment}_quant_archive_size", dpi=300, bbox_inches='tight')
-    
-        #=====================SAVE COVERAGE TABLE===========================#
-        fig, ax = plt.subplots()
-        fig.patch.set_visible(False)
-        ax.axis('off')
-        ax.axis('tight')
-        the_table = plt.table(cellText=cell_text_cov,
-                              rowLabels=row_headers,
-                              rowColours=rcolors,
-                              rowLoc='right',
-                              colColours=ccolors,
-                              colLabels=column_headers,
-                              loc='center')
-        fig.tight_layout()
-        the_table.auto_set_font_size(False)
-        the_table.set_fontsize(6)
-        plt.title(f'Mean coverage and standard deviation on {args.environment} environment', y=.7)
-        
-        plt.savefig(f"{args.environment}_quant_coverage", dpi=300, bbox_inches='tight')
-    
-        
+                tab_cpt += 1
         

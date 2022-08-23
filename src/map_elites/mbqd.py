@@ -355,8 +355,9 @@ class ModelBasedQD:
                     sorted_by_disagr = sorted(add_list_model,
                                               key=lambda x: np.mean(np.array(x.model_dis)))
 
+                    ## Select params['nb_transfer'] indiviuals for transfer
                     add_list_model = sorted_by_disagr[:params['nb_transfer']]
-                if params['transfer_selection'] == 'disagr_bd':
+                elif params['transfer_selection'] == 'disagr_bd':
                     ## Sort by mean disagr on bd states only
                     if params['env_name'] == 'ball_in_cup':
                         sorted_by_disagr_bd = sorted(add_list_model,
@@ -375,8 +376,13 @@ class ModelBasedQD:
                                                      key=lambda x:
                                                      np.mean(np.array(x.model_dis)[:,0,-2:]))
 
+                    ## Select params['nb_transfer'] indiviuals for transfer
                     add_list_model = sorted_by_disagr_bd[:params['nb_transfer']]
-                
+                elif params['transfer_selection'] == 'random':
+                    ## Randomly shuffle the list
+                    shuffled_list = random.sample(add_list_model, len(add_list_model))
+                    ## Select params['nb_transfer'] indiviuals for transfer
+                    add_list_model = shuffled_list[:params['nb_transfer']]
                     
                 # if model finds novel solutions - evalute in real setting
                 if len(add_list_model) > 0:
