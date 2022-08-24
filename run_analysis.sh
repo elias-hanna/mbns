@@ -29,13 +29,15 @@ fitnesses=(energy_minimization)
 # nb_transfers=(10 1)
 transfer_sels=(random)
 nb_transfers=(10)
+# dumps=(20 40 60 80 100)
+dump_vals=(10 20 30 40 50 60 70 80 90 100)
 
 ## Plot means (only means) over test replications on same plot
 cpt=0
 for env in "${environments[@]}"; do
     cd test_${env}_daqd_results
     echo "Processing following folder"; pwd
-    python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-path .
+    python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-vals ${dump_vals[*]} --dump-path .
     cd ..
     cpt=$((cpt+1))
     echo "finished archive analysis for $env"
