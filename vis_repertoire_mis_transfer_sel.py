@@ -323,10 +323,16 @@ if __name__ == "__main__":
                                 archive_files = [f for f in archive_files if 'archive' in f]
                                 archive_numbers = [int(re.findall(r'\d+', f)[0]) for f in archive_files]
                                 sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
-
+                                
                                 for r in range(len(row_headers)):
+                                    if r != len(row_headers) - 1:
+                                        if init_method == 'vanilla':
+                                            continue
                                     #=====================LOAD DATA===========================#
-                                    archive = sorted_archive_files[r]
+                                    if init_method == 'vanilla':
+                                        archive = sorted_archive_files[-1]
+                                    else:
+                                        archive = sorted_archive_files[r]
                                     archive_path = os.path.join(archive_folder, archive)
 
                                     rep_data = pd.read_csv(archive_path)

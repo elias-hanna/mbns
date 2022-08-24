@@ -423,7 +423,7 @@ if __name__ == "__main__":
                     std_cov = np.std(coverages, axis=0)
 
                     for r in range(len(row_headers)):
-                        cell_text_size[r][i] = f'{round(mean_archive_size[r],1)} \u00B1 {round(std_archive_size[r],1)}'
+                        cell_text_size[r][i] = f'{round(mean_archive_size[r])} \u00B1 {round(std_archive_size[r])}'
                         cell_text_cov[r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
 
         #=====================SAVE ARCHIVE SIZE TABLE===========================#

@@ -10,29 +10,33 @@ pred_error_plot_upper_limits=(5 5 100 100) # warning needs to be in same order a
 disagr_plot_upper_limits=(1 1 5 5) # warning needs to be in same order as envs
 
 episodes=(20)
-methods=(brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-actions random-policies)
+methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies vanilla no-init)
+# fitnesses=(energy_minimization disagr_minimization)
+fitnesses=(energy_minimization)
 
-# ## Plot means (only means) over replications on same plot
-# cpt=0
-# for env in "${environments[@]}"; do
-#     cd ${env}_daqd_results
-#     echo "Processing following folder"; pwd
-#     python ../../vis_repertoire_mis_all.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --environment $env --dump-path .
-#     cd ..
-#     cpt=$((cpt+1))
-#     echo "finished archive analysis for $env"
-# done
-
-transfer_sels=(disagr disagr_bd)
-nb_transfers=(10 1)
-
-## Plot means (only means) over test replications on same plot
+## Plot means (only means) over replications on same plot
 cpt=0
 for env in "${environments[@]}"; do
-    cd test_${env}_daqd_results
+    cd ${env}_daqd_results
     echo "Processing following folder"; pwd
-    python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-path .
+    python ../../vis_repertoire_mis_all.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --environment $env --dump-path .
     cd ..
     cpt=$((cpt+1))
     echo "finished archive analysis for $env"
 done
+
+# transfer_sels=(disagr disagr_bd)
+# nb_transfers=(10 1)
+transfer_sels=(disagr)
+nb_transfers=(10)
+
+# ## Plot means (only means) over test replications on same plot
+# cpt=0
+# for env in "${environments[@]}"; do
+#     cd test_${env}_daqd_results
+#     echo "Processing following folder"; pwd
+#     python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-path .
+#     cd ..
+#     cpt=$((cpt+1))
+#     echo "finished archive analysis for $env"
+# done
