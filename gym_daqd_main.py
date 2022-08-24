@@ -894,7 +894,7 @@ if __name__ == "__main__":
     #----------population params--------#
     parser.add_argument("--b_size", default=200, type=int) # For paralellization - 
     parser.add_argument("--dump_period", default=5000, type=int) 
-    parser.add_argument("--dump-mode", default=str, default="budget")
+    parser.add_argument("--dump-mode", type=str, default="budget")
     parser.add_argument("--max_evals", default=1e6, type=int) # max number of evaluation
     parser.add_argument("--selector", default="uniform", type=str)
     parser.add_argument("--mutation", default="iso_dd", type=str)
