@@ -564,6 +564,9 @@ def main(args):
         "random_init_batch": 100,
         # when to write results (one generation = one batch)
         "dump_period": args.dump_period,
+        # when to write results (budget = dump when dump period budget exhausted,
+        # gen = dump at each generation)
+        "dump_mode": args.dump_mode,
 
         # do we use several cores?
         "parallel": True,
@@ -609,8 +612,11 @@ def main(args):
 
         "model_variant": "all_dynamics", #"direct", # "dynamics" or "direct" or "all_dynamics"  
         "train_model_on": True, #                                                                              
-        "train_freq": 40, # train at a or condition between train freq and evals_per_train
-        "evals_per_train": 500,
+        # "train_freq": 40, # train at a or condition between train freq and evals_per_train
+        # "evals_per_train": 500,
+        "train_freq": 1, # train at a or condition between train freq and evals_per_train
+        "evals_per_train": 10,
+
         "log_model_stats": False,
         "log_time_stats": False, 
 
@@ -888,6 +894,7 @@ if __name__ == "__main__":
     #----------population params--------#
     parser.add_argument("--b_size", default=200, type=int) # For paralellization - 
     parser.add_argument("--dump_period", default=5000, type=int) 
+    parser.add_argument("--dump-mode", default=str, default="budget") 
     parser.add_argument("--max_evals", default=1e6, type=int) # max number of evaluation
     parser.add_argument("--selector", default="uniform", type=str)
     parser.add_argument("--mutation", default="iso_dd", type=str)
@@ -902,7 +909,7 @@ if __name__ == "__main__":
     parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--init-data-path', type=str, default=None)
     parser.add_argument('--nb-transfer', type=int, default=1)
-
+    
     args = parser.parse_args()
 
     main(args)

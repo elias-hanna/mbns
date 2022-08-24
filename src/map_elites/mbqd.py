@@ -459,13 +459,35 @@ class ModelBasedQD:
             print("b_evals: ", b_evals)
 
             # write archive during dump period
-            if b_evals >= params['dump_period'] and params['dump_period'] != -1:
+            if b_evals >= params['dump_period'] and params['dump_period'] != -1 \
+               and params['dump_mode'] == 'budget':
                 save_start = time.time()
             
                 # write archive
                 #print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
                 print("[{}/{}]".format(n_evals, int(max_evals)))
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
+                ## Also save model archive for more visualizations
+                cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
+                b_evals = 0
+                
+                # Save models
+                #ptu.save_model(self.model, self.save_model_path)
+                print("Saving torch model")
+                ptu.save_model(self.dynamics_model, self.save_model_path)
+                print("Done saving torch model")
+
+                save_end = time.time() - save_start
+                print("Save archive and model time: ", save_end)
+            elif params['dump_mode'] == 'gen':
+                save_start = time.time()
+            
+                # write archive
+                #print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
+                print("[{}/{}]".format(n_evals, int(max_evals)))
+                cm.save_archive(self.archive, n_evals, params, self.log_dir)
+                ## Also save model archive for more visualizations
+                cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
                 b_evals = 0
                 
                 # Save models

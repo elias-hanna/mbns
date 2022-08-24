@@ -15,28 +15,28 @@ methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-
 fitnesses=(energy_minimization)
 
 ## Plot means (only means) over replications on same plot
-cpt=0
-for env in "${environments[@]}"; do
-    cd ${env}_daqd_results
-    echo "Processing following folder"; pwd
-    python ../../vis_repertoire_mis_all.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --environment $env --dump-path .
-    cd ..
-    cpt=$((cpt+1))
-    echo "finished archive analysis for $env"
-done
-
-# transfer_sels=(disagr disagr_bd)
-# nb_transfers=(10 1)
-transfer_sels=(disagr)
-nb_transfers=(10)
-
-# ## Plot means (only means) over test replications on same plot
 # cpt=0
 # for env in "${environments[@]}"; do
-#     cd test_${env}_daqd_results
+#     cd ${env}_daqd_results
 #     echo "Processing following folder"; pwd
-#     python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-path .
+#     python ../../vis_repertoire_mis_all.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --environment $env --dump-path .
 #     cd ..
 #     cpt=$((cpt+1))
 #     echo "finished archive analysis for $env"
 # done
+
+# transfer_sels=(all disagr disagr_bd random)
+# nb_transfers=(10 1)
+transfer_sels=(random)
+nb_transfers=(10)
+
+## Plot means (only means) over test replications on same plot
+cpt=0
+for env in "${environments[@]}"; do
+    cd test_${env}_daqd_results
+    echo "Processing following folder"; pwd
+    python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-path .
+    cd ..
+    cpt=$((cpt+1))
+    echo "finished archive analysis for $env"
+done
