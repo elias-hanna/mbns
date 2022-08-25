@@ -468,7 +468,7 @@ class ModelBasedQD:
                 print("[{}/{}]".format(n_evals, int(max_evals)))
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
                 ## Also save model archive for more visualizations
-                cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
+                # cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
                 b_evals = 0
                 
                 # Save models

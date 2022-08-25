@@ -302,14 +302,16 @@ def save_archive(archive, gen, params, log_dir):
                 f.write("\n") # newline to store new individual
         elif (params["type"] == "unstructured"):
             for k in archive:
-
                 ind_string = str(k.fitness) + ','
                 ind_string += get_array_string(k.desc)
-                ind_string += str(k.model_dis) + ','
+                # ind_string += str(k.model_dis) + ','
+                ## Above doesn't work actually, only works when model_dis = scalar
+                ## so we take the mean
+                ind_string += str(np.mean(k.model_dis)) + ','
                 ind_string += get_array_string(k.x)
 
                 f.write(ind_string + "\n")
-                
+                    
                 '''
                 f.write(str(k.fitness) + ',') # write fitness
                 write_array(k.desc, f) # write desriptor
