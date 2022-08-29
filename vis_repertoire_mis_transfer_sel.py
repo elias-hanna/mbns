@@ -293,11 +293,18 @@ if __name__ == "__main__":
         row_headers = args.dump_vals
         cell_text_size = []
         cell_text_cov = []
+
+        cell_text_model_size = []
+        cell_text_model_cov = []
         for i in range(n_nb_transfers * n_transfer_sels):
             cell_text_size.append([["" for _ in range(len(column_headers))]
                                    for _ in range(len(row_headers))])
             cell_text_cov.append([["" for _ in range(len(column_headers))]
                                   for _ in range(len(row_headers))])
+            cell_text_model_size.append([["" for _ in range(len(column_headers))]
+                                         for _ in range(len(row_headers))])
+            cell_text_model_cov.append([["" for _ in range(len(column_headers))]
+                                        for _ in range(len(row_headers))])
         rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
         ccolors = plt.cm.BuPu(np.full(len(column_headers), 0.1))
 
@@ -309,7 +316,23 @@ if __name__ == "__main__":
         archive_std_sizes = np.zeros((len(init_methods), len(args.dump_vals)))
         archive_mean_covs = np.zeros((len(init_methods), len(args.dump_vals)))
         archive_std_covs = np.zeros((len(init_methods), len(args.dump_vals)))
-        
+
+        model_archive_mean_sizes = np.zeros((len(init_methods), len(args.dump_vals)))
+        model_archive_std_sizes = np.zeros((len(init_methods), len(args.dump_vals)))
+        model_archive_mean_covs = np.zeros((len(init_methods), len(args.dump_vals)))
+        model_archive_std_covs = np.zeros((len(init_methods), len(args.dump_vals)))
+
+        model_to_real_diff_sizes = np.zeros((len(init_methods), len(args.dump_vals)))
+        model_to_real_diff_covs = np.zeros((len(init_methods), len(args.dump_vals)))
+
+        ## Get pred error data for each initialization method
+        pred_error_data = np.load('pred_error_data.npz')
+
+        ## mean/std pred errors shape: (method, init budget, prediction horizon(1, 20, full))
+        mean_pred_errors = pred_error_data['mean_pred_errors']
+        std_pred_errors = pred_error_data['std_pred_errors']
+        ### Be careful need to regen the pred error data in the right order
+
         for j in range(n_init_episodes):
             init_episode = init_episodes[j]
             for i in range(n_init_method):
@@ -327,7 +350,8 @@ if __name__ == "__main__":
                             archive_sizes = np.empty((len(rep_folders), len(row_headers)))
                             model_archive_sizes = np.empty((len(rep_folders), len(row_headers)))
 
-                            # coverages = np.empty((len(rep_folders), len(row_headers)))
+                            coverages = np.empty((len(rep_folders), len(row_headers)))
+                            model_coverages = np.empty((len(rep_folders), len(row_headers)))
 
                             for rep_path in rep_folders:
                                 archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_{transfer_sel}_{nb_transfer}_results/'
@@ -350,68 +374,110 @@ if __name__ == "__main__":
                                     #=====================LOAD DATA===========================#
                                     if init_method == 'vanilla':
                                         archive = sorted_archive_files[-1]
+                                        model_archive = sorted_model_archive_files[-1]
                                     else:
                                         archive = sorted_archive_files[r]
                                         model_archive = sorted_model_archive_files[r]
                                         
                                     archive_path = os.path.join(archive_folder, archive)
-                                    model_archive_path = os.path.join(archive_folder,
-                                                                      model_archive)
+                                    if init_method != 'vanilla':
+                                        model_archive_path = os.path.join(archive_folder,
+                                                                          model_archive)
 
                                     rep_data = pd.read_csv(archive_path)
                                     rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-                                    model_rep_data = pd.read_csv(model_archive_path,
-                                                                 on_bad_lines='skip')
-                                    model_rep_data = model_rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+                                    if init_method != 'vanilla':
+                                        model_rep_data = pd.read_csv(model_archive_path)
 
+                                        model_rep_data = model_rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
                                     #=====================ARCHIVE SIZE===========================#
                                     archive_size = len(rep_data.index)
                                     archive_sizes[rep_cpt, r] = archive_size
 
-                                    model_archive_size = len(model_rep_data.index)
-                                    model_archive_sizes[rep_cpt, r] = model_archive_size
+                                    if init_method != 'vanilla':
+                                        model_archive_size = len(model_rep_data.index)
+                                        model_archive_sizes[rep_cpt, r] = model_archive_size
 
                                     #=====================COVERAGE===========================#
 
-                                    # df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
-                                    # df_min[1] = ss_min; df_max[1] = ss_max
-                                    # df_min[2] = ss_min; df_max[2] = ss_max
+                                    df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
+                                    df_min[1] = ss_min; df_max[1] = ss_max
+                                    df_min[2] = ss_min; df_max[2] = ss_max
 
-                                    # if args.environment == "ball_in_cup":
-                                    #     df_min[3] = ss_min; df_max[3] = ss_max
+                                    if args.environment == "ball_in_cup":
+                                        df_min[3] = ss_min; df_max[3] = ss_max
 
-                                    # # Deprecated
-                                    # rep_data = rep_data.append(df_min, ignore_index = True)
-                                    # rep_data = rep_data.append(df_max, ignore_index = True)
-                                    # # data = pd.concat([data, df_min]) ## does ugly thingies cba to look at them rn
-                                    # # data = pd.concat([data, df_max])
-                                    # nb_div = 10
+                                    ## Deprecated but oh well
+                                    rep_data = rep_data.append(df_min, ignore_index = True)
+                                    rep_data = rep_data.append(df_max, ignore_index = True)
 
-                                    # rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
-                                    #                          bins = nb_div, 
-                                    #                          labels = [p for p in range(nb_div)])
+                                    if init_method != 'vanilla':
+                                        model_rep_data = model_rep_data.append(df_min,
+                                                                               ignore_index = True)
+                                        model_rep_data = model_rep_data.append(df_max,
+                                                                               ignore_index = True)
+                                    ## Does ugly thingies cba to look at them rn
+                                    # data = pd.concat([data, df_min]) 
+                                    # data = pd.concat([data, df_max])
+                                    
+                                    nb_div = 10
 
-                                    # rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
-                                    #                          bins = nb_div,
-                                    #                          labels = [p for p in range(nb_div)])
+                                    rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
+                                                             bins = nb_div, 
+                                                             labels = [p for p in range(nb_div)])
 
-                                    # total_bins = nb_div**2
+                                    rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
+                                                             bins = nb_div,
+                                                             labels = [p for p in range(nb_div)])
 
-                                    # if args.environment == "ball_in_cup":
-                                    #     rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
-                                    #                          bins = nb_div,
-                                    #                          labels = [p for p in range(nb_div)])
+                                    if init_method != 'vanilla':
+                                        model_rep_data['x_bin']=pd.cut(x= model_rep_data.iloc[:,1],
+                                                                       bins = nb_div, 
+                                                                       labels = [p for p
+                                                                                 in range(nb_div)])
+                                        
+                                        model_rep_data['y_bin']=pd.cut(x= model_rep_data.iloc[:,2],
+                                                                       bins = nb_div,
+                                                                       labels = [p for p
+                                                                                 in range(nb_div)])
 
-                                    #     total_bins = nb_div**3
+                                    total_bins = nb_div**2
 
-                                    # rep_data = rep_data.assign(bins=pd.Categorical
-                                    #                            (rep_data.filter(regex='_bin')
-                                    #                             .apply(tuple, 1)))
+                                    if args.environment == "ball_in_cup":
+                                        rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
+                                                             bins = nb_div,
+                                                             labels = [p for p in range(nb_div)])
+                                        if init_method != 'vanilla':
+                                            model_rep_data['z_bin']=pd.cut(x=model_rep_data.
+                                                                           iloc[:,3],
+                                                                           bins = nb_div,
+                                                                           labels = [p for p
+                                                                                     in range
+                                                                                     (nb_div)])
 
-                                    # counts = rep_data['bins'].value_counts()
+                                        total_bins = nb_div**3
 
-                                    # coverages[rep_cpt, r] = len(counts[counts>=1])/total_bins
+                                    rep_data = rep_data.assign(bins=pd.Categorical
+                                                               (rep_data.filter(regex='_bin')
+                                                                .apply(tuple, 1)))
+                                    if init_method != 'vanilla':
+                                        model_rep_data = model_rep_data.assign(bins=pd.Categorical
+                                                                               (model_rep_data.
+                                                                                filter(
+                                                                                    regex='_bin')
+                                                                                .apply(tuple, 1)))
 
+                                    counts = rep_data['bins'].value_counts()
+
+                                    coverages[rep_cpt, r] = len(counts[counts>=1])/total_bins
+
+                                    if init_method != 'vanilla':
+                                        counts = model_rep_data['bins'].value_counts()
+
+                                        model_coverages[rep_cpt, r] = len(counts
+                                                                          [counts>=1])/total_bins
+
+                                ## Old ##
                                 # last_archive = [f for f in archive_files if len(re.split('\.|\_', f)[1])==4]
                                 # last_archive = last_archive[0]
 
@@ -423,7 +489,7 @@ if __name__ == "__main__":
 
                                 # archive_size = len(rep_data.index)
                                 # archive_sizes[rep_cpt] = archive_size
-
+                                ## ##
 
                                 #=====================PLOT DATA===========================#
 
@@ -441,27 +507,45 @@ if __name__ == "__main__":
                             # cell_text_size[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
                             mean_archive_size = np.mean(archive_sizes, axis=0)
                             std_archive_size = np.std(archive_sizes, axis=0)
-                            import pdb; pdb.set_trace()
-                            mean_model_archive_size = np.mean(archive_sizes, axis=0)
-                            std_model_archive_size = np.std(archive_sizes, axis=0)
 
-                            # mean_cov = np.mean(coverages, axis=0)
-                            # std_cov = np.std(coverages, axis=0)
+                            mean_cov = np.mean(coverages, axis=0)
+                            std_cov = np.std(coverages, axis=0)
 
                             ## For plotting as a graph
                             archive_mean_sizes[i] = mean_archive_size
                             archive_std_sizes[i] = std_archive_size
 
-                            model_archive_mean_sizes[i] = mean_model_archive_size
-                            model_archive_std_sizes[i] = std_model_archive_size
+                            archive_mean_covs[i] = mean_cov
+                            archive_std_covs[i] = std_cov
 
-                            # archive_mean_covs[i] = mean_cov
-                            # archive_std_covs[i] = std_cov
+                            if init_method != 'vanilla':
+                                mean_model_archive_size = np.mean(archive_sizes, axis=0)
+                                std_model_archive_size = np.std(archive_sizes, axis=0)
+
+                                model_mean_cov = np.mean(model_coverages, axis=0)
+                                model_std_cov = np.std(model_coverages, axis=0)
+
+                                model_archive_mean_sizes[i] = mean_model_archive_size
+                                model_archive_std_sizes[i] = std_model_archive_size
+
+                                model_archive_mean_covs[i] = mean_cov
+                                model_archive_std_covs[i] = std_cov
+
+                                model_to_real_diff_sizes[i] = np.mean(model_archive_sizes -
+                                                                      archive_sizes,
+                                                                      axis = 0)
+                                
+                                
+                                model_to_real_diff_covs[i] = np.mean(model_coverages - coverages,
+                                                                     axis = 0)
 
                             ## For plotting as a tab
                             for r in range(len(row_headers)):
                                 cell_text_size[tab_cpt][r][i] = f'{round(mean_archive_size[r],2)} \u00B1 {round(std_archive_size[r],2)}'
-                                # cell_text_cov[tab_cpt][r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
+                                cell_text_cov[tab_cpt][r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
+                                if init_method != 'vanilla':
+                                    cell_text_model_size[tab_cpt][r][i] = f'{round(mean_model_archive_size[r],2)} \u00B1 {round(std_model_archive_size[r],2)}'
+                                    cell_text_model_cov[tab_cpt][r][i] = f'{round(model_mean_cov[r],3)} \u00B1 {round(model_std_cov[r],3)}'
 
                             tab_cpt += 1
 
@@ -481,19 +565,91 @@ if __name__ == "__main__":
 
                 #=====================SAVE ARCHIVE SIZE FIGURE===========================#
                 fig = plt.figure()
+
                 for k in range(n_init_method):
                     plt.plot(args.dump_vals, archive_mean_sizes[k], label=init_methods[k],
                              color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                    # plt.plot(args.dump_vals, model_archive_mean_sizes[k],
+                             # label=f'model_{init_methods[k]}',
+                             # color=colors.to_rgba(k), linestyle=linestyles[k], alpha=0.5)
+                    
                 plt.legend()
 
                 plt.title(f'Mean archive size on {args.environment} ' \
-                          'environment for\n {transfer_sel} selection with {nb_transfer} ' \
-                          'individuals transferred')
+                          f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
+                          f'individuals transferred')
                 
                 plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_size",
                             dpi=300, bbox_inches='tight')
+
+                #=============SAVE ARCHIVE LAST SIZE VS PRED ERROR FIGURE================#
+                fig = plt.figure()
+
+                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                    plt.plot(mean_pred_errors[k][2][2], archive_mean_sizes[k][-1], 'o',
+                             label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                plt.legend()
+
+                plt.title(f'Mean archive size after last transfer vs prediction error on ' \
+                          f'{args.environment} environment for\n {transfer_sel} ' \
+                          f'selection with {nb_transfer} individuals transferred')
                 
-                #=====================SAVE ARCHIVE SIZE TABLE===========================#
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_last_size_vs_pred_error",
+                            dpi=300, bbox_inches='tight')
+
+                #==============SAVE ARCHIVE FIRST SIZE VS PRED ERROR FIGURE===============#
+                fig = plt.figure()
+
+                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                    plt.plot(mean_pred_errors[k][2][2], archive_mean_sizes[k][0], 'o',
+                             label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                plt.legend()
+
+                plt.title(f'Mean archive size after first transfer vs prediction error on ' \
+                          f'{args.environment} environment for\n {transfer_sel} ' \
+                          f'selection with {nb_transfer} individuals transferred')
+                
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_first_size_vs_pred_error",
+                            dpi=300, bbox_inches='tight')
+
+                #=====================SAVE ARCHIVE DIFF SIZE FIGURE=====================#
+                fig = plt.figure()
+                for k in range(n_init_method):
+                    plt.plot(args.dump_vals, model_to_real_diff_sizes[k], label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                plt.legend()
+
+                plt.title(f'Mean archive size difference between model and real world ' \
+                          f'evaluations on {args.environment} ' \
+                          f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
+                          f'individuals transferred')
+                
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_size_transfer",
+                            dpi=300, bbox_inches='tight')
+
+                #=====================SAVE ARCHIVE DIFF SIZE FIGURE=====================#
+                fig = plt.figure()
+                for k in range(n_init_method):
+                    plt.plot(args.dump_vals, model_to_real_diff_covs[k], label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                plt.legend()
+
+                plt.title(f'Mean archive coverage difference between model and real world ' \
+                          f'evaluations on {args.environment} ' \
+                          f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
+                          f'individuals transferred')
+                
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_cov_transfer",
+                            dpi=300, bbox_inches='tight')
+                
+                #=====================SAVE ARCHIVE DIFF COV TABLE=======================#
                 fig, ax = plt.subplots()
                 fig.patch.set_visible(False)
                 ax.axis('off')
@@ -509,30 +665,32 @@ if __name__ == "__main__":
                 the_table.auto_set_font_size(False)
                 the_table.set_fontsize(6)
                 plt.title(f'Mean archive size and standard deviation on {args.environment} ' \
-                          'environment for\n {transfer_sel} selection with {nb_transfer} ' \
-                          'individuals transferred', y=.8)
+                          f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
+                          f'individuals transferred', y=.8)
 
                 plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_archive_size",
                             dpi=300, bbox_inches='tight')
 
                 #=====================SAVE COVERAGE TABLE===========================#
-                # fig, ax = plt.subplots()
-                # fig.patch.set_visible(False)
-                # ax.axis('off')
-                # ax.axis('tight')
-                # the_table = plt.table(cellText=cell_text_cov[tab_cpt],
-                #                       rowLabels=row_headers,
-                #                       rowColours=rcolors,
-                #                       rowLoc='right',
-                #                       colColours=ccolors,
-                #                       colLabels=column_headers,
-                #                       loc='center')
-                # fig.tight_layout()
-                # the_table.auto_set_font_size(False)
-                # the_table.set_fontsize(6)
-                # plt.title(f'Mean coverage and standard deviation on {args.environment} environment for\n {transfer_sel} selection with {nb_transfer} individuals transferred', y=.8)
+                fig, ax = plt.subplots()
+                fig.patch.set_visible(False)
+                ax.axis('off')
+                ax.axis('tight')
+                the_table = plt.table(cellText=cell_text_cov[tab_cpt],
+                                      rowLabels=row_headers,
+                                      rowColours=rcolors,
+                                      rowLoc='right',
+                                      colColours=ccolors,
+                                      colLabels=column_headers,
+                                      loc='center')
+                fig.tight_layout()
+                the_table.auto_set_font_size(False)
+                the_table.set_fontsize(6)
+                plt.title(f'Mean coverage and standard deviation on {args.environment} ' \
+                          f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
+                          f'individuals transferred', y=.8)
 
-                # plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_coverage", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_coverage", dpi=300, bbox_inches='tight')
     
                 tab_cpt += 1
         

@@ -27,7 +27,7 @@ fitnesses=(energy_minimization)
 
 # transfer_sels=(all disagr disagr_bd random)
 # nb_transfers=(10 1)
-transfer_sels=(random)
+transfer_sels=(random disagr)
 nb_transfers=(10)
 # dumps=(20 40 60 80 100)
 dump_vals=(10 20 30 40 50 60 70 80 90 100)

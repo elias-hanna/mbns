@@ -611,7 +611,7 @@ def main(args):
         # fitness is always positive - so t_qua
 
         "model_variant": "all_dynamics", #"direct", # "dynamics" or "direct" or "all_dynamics"  
-        "train_model_on": True, #                                                                              
+        "train_model_on": not args.no_training, #                                                                              
         # "train_freq": 40, # train at a or condition between train freq and evals_per_train
         # "evals_per_train": 500,
         "train_freq": 1, # train at a or condition between train freq and evals_per_train
@@ -844,7 +844,9 @@ def main(args):
     
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
 
-    if dynamics_model_type == "det":
+    if args.perfect_model:
+        f_model = f_real
+    elif dynamics_model_type == "det":
         f_model = env.evaluate_solution_model 
     elif dynamics_model_type == "prob":
         f_model = env.evaluate_solution_model_ensemble
@@ -899,16 +901,21 @@ if __name__ == "__main__":
     parser.add_argument("--selector", default="uniform", type=str)
     parser.add_argument("--mutation", default="iso_dd", type=str)
 
+    #-------------DAQD params-----------#
+    parser.add_argument('--transfer-selection', type=str, default='all')
+    parser.add_argument('--fitness-func', type=str, default='energy_minimization')
+    parser.add_argument('--min-found-model', type=int, default=100)
+    parser.add_argument('--nb-transfer', type=int, default=1)
+ 
+    parser.add_argument('--no-training', action='store_true')
+    parser.add_argument('--perfect-model', action='store_true')
+
     #----------model init study params--------#
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
     parser.add_argument('--init-method', type=str, default='random-policies')
     parser.add_argument('--init-episodes', type=int, default='20')
-    parser.add_argument('--rep', type=int, default='1')
-    parser.add_argument('--transfer-selection', type=str, default='all')
-    parser.add_argument('--fitness-func', type=str, default='energy_minimization')
-    parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--init-data-path', type=str, default=None)
-    parser.add_argument('--nb-transfer', type=int, default=1)
+    parser.add_argument('--rep', type=int, default='1')
     
     args = parser.parse_args()
 
