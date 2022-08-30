@@ -61,11 +61,11 @@ def evaluate_(t):
     # evaluate z with function f - z is the genotype and f is the evalution function
     # t is the tuple from the to_evaluate list
     z, f = t
-    fit, desc, obs_traj, act_traj = f(z) 
+    fit, desc, obs_traj, act_traj, disagr = f(z) 
     
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
-    disagr = 0 # no disagreement for real evalaution - but need to put to save archive
+    # disagr = 0 # no disagreement for real evalaution - but need to put to save archive
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj, model_dis=disagr)
 
@@ -583,7 +583,7 @@ class ModelBasedQD:
             else:
                 to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive,
                                                            self.f_model, params)
-            if params["model_variant"]=="dynamics":
+            if params["model_variant"]=="dynamics" or params["perfect_model_on"]:
                 #s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
                 print("Starting parallel evaluation of individuals")
                 s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)

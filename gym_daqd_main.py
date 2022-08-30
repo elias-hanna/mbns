@@ -178,7 +178,7 @@ class WrappedEnv():
         if render:
             print("Desc from simulation", desc)
 
-        return fitness, desc, obs_traj, act_traj
+        return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     def evaluate_solution_model(self, ctrl, mean=False, det=True, render=False):
         """
@@ -611,7 +611,9 @@ def main(args):
         # fitness is always positive - so t_qua
 
         "model_variant": "all_dynamics", #"direct", # "dynamics" or "direct" or "all_dynamics"  
-        "train_model_on": not args.no_training, #                                                                              
+        "train_model_on": not args.no_training,
+        "perfect_model_on": args.perfect_model,
+        
         # "train_freq": 40, # train at a or condition between train freq and evals_per_train
         # "evals_per_train": 500,
         "train_freq": 1, # train at a or condition between train freq and evals_per_train
