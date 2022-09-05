@@ -333,6 +333,69 @@ if __name__ == "__main__":
         std_pred_errors = pred_error_data['std_pred_errors']
         ### Be careful need to regen the pred error data in the right order
 
+        ns_bd_data = np.load(
+            f"/home/elias-hanna/results/ns_cov_results/{args.environment}/archive_all_gen500.npz"
+            # f"/~/results/ns_cov_results/{args.environment}/archive_all_gen500.npz"
+        )
+        
+        bd_keys = [key for key in ns_bd_data.keys() if 'ind' in key]
+
+        ## we just load a random archive to have the good format
+        archive_path = "1/random-actions_20_energy_minimization_random_10_results/archive_10.dat"
+        rep_data = pd.read_csv(archive_path)
+        rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+        bd_data = pd.DataFrame().reindex(columns=rep_data.columns)
+
+        df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
+        df_min[1] = ss_min; df_max[1] = ss_max
+        df_min[2] = ss_min; df_max[2] = ss_max
+        
+        if args.environment == "ball_in_cup":
+            df_min[3] = ss_min; df_max[3] = ss_max
+
+        ## Deprecated but oh well
+        bd_data = bd_data.append(df_min, ignore_index = True)
+        bd_data = bd_data.append(df_max, ignore_index = True)
+
+        
+        for key in bd_keys:
+            df_bd = rep_data.iloc[0].copy()
+            df_bd[1] = ns_bd_data[key][0]
+            df_bd[2] = ns_bd_data[key][1]
+
+            if args.environment == "ball_in_cup":
+                df_bd[3] = ns_bd_data[key][2]
+
+            ## Deprecated but oh well
+            bd_data = bd_data.append(df_bd, ignore_index = True)
+
+        nb_div = 10
+
+        bd_data['x_bin']=pd.cut(x = bd_data.iloc[:,1],
+                                 bins = nb_div, 
+                                 labels = [p for p in range(nb_div)])
+
+        bd_data['y_bin']=pd.cut(x = bd_data.iloc[:,2],
+                                 bins = nb_div,
+                                 labels = [p for p in range(nb_div)])
+
+        total_bins = nb_div**2
+
+        if args.environment == "ball_in_cup":
+            bd_data['z_bin']=pd.cut(x = bd_data.iloc[:,3],
+                                 bins = nb_div,
+                                 labels = [p for p in range(nb_div)])
+
+            total_bins = nb_div**3
+
+        bd_data = bd_data.assign(bins=pd.Categorical
+                                   (bd_data.filter(regex='_bin')
+                                    .apply(tuple, 1)))
+
+        counts = bd_data['bins'].value_counts()
+
+        ns_cov = len(counts[counts>=1])/total_bins
+
         for j in range(n_init_episodes):
             init_episode = init_episodes[j]
             for i in range(n_init_method):
@@ -355,7 +418,10 @@ if __name__ == "__main__":
 
                             for rep_path in rep_folders:
                                 archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_{transfer_sel}_{nb_transfer}_results/'
-                                archive_files = next(os.walk(archive_folder))[2]
+                                try:
+                                    archive_files = next(os.walk(archive_folder))[2]
+                                except:
+                                    import pdb; pdb.set_trace()
                                 archive_files = [f for f in archive_files if 'archive' in f]
                                 
                                 model_archive_files = [f for f in archive_files if 'model' in f]
@@ -383,7 +449,6 @@ if __name__ == "__main__":
                                     if init_method != 'vanilla':
                                         model_archive_path = os.path.join(archive_folder,
                                                                           model_archive)
-
                                     rep_data = pd.read_csv(archive_path)
                                     rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
                                     if init_method != 'vanilla':
@@ -693,4 +758,56 @@ if __name__ == "__main__":
                 plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_coverage", dpi=300, bbox_inches='tight')
     
                 tab_cpt += 1
-        
+
+                #=====================SAVE COVERAGE FIGURE===========================#
+                fig = plt.figure()
+
+                for k in range(n_init_method):
+                    plt.plot(args.dump_vals, archive_mean_covs[k], label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+                    plt.hlines(ns_cov, args.dump_vals[0], args.dump_vals[-1], label='NS-cov-500g')
+                    
+                plt.legend()
+
+                plt.title(f'Mean coverage on {args.environment} ' \
+                          f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
+                          f'individuals transferred')
+                
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_coverage",
+                            dpi=300, bbox_inches='tight')
+
+                
+                #=============SAVE LAST COVERAGE VS PRED ERROR FIGURE================#
+                fig = plt.figure()
+
+                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                    plt.plot(mean_pred_errors[k][2][2], archive_mean_covs[k][-1], 'o',
+                             label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                plt.legend()
+
+                plt.title(f'Mean coverage after last transfer vs prediction error on ' \
+                          f'{args.environment} environment for\n {transfer_sel} ' \
+                          f'selection with {nb_transfer} individuals transferred')
+                
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_last_cov_vs_pred_error",
+                            dpi=300, bbox_inches='tight')
+
+                #==============SAVE FIRST COVERAGE VS PRED ERROR FIGURE===============#
+                fig = plt.figure()
+
+                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                    plt.plot(mean_pred_errors[k][2][2], archive_mean_covs[k][0], 'o',
+                             label=init_methods[k],
+                             color=colors.to_rgba(k), linestyle=linestyles[k])
+
+                plt.legend()
+
+                plt.title(f'Mean coverage after first transfer vs prediction error on ' \
+                          f'{args.environment} environment for\n {transfer_sel} ' \
+                          f'selection with {nb_transfer} individuals transferred')
+                
+                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_first_cov_vs_pred_error",
+                            dpi=300, bbox_inches='tight')
+
