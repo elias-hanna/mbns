@@ -40,10 +40,10 @@ sup_args=--no-training
 ## Plot means (only means) over test replications on same plot
 cpt=0
 for env in "${environments[@]}"; do
-    cd test_${env}${sup_args}_daqd_results
+    cd ${env}${sup_args}_daqd_results
     echo "Processing following folder"; pwd
     # python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-vals ${dump_vals[*]} --dump-path .
-    python ../../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-vals ${dump_vals[*]} --dump-path .
+    python ../../vis_repertoire_mis_transfer_sel.py --init-methods ${methods[*]} --init-episodes ${episodes[*]} --fitness-funcs ${fitnesses[*]} --transfer-selection ${transfer_sels[*]} --nb-transfer ${nb_transfers[*]} --environment $env --dump-vals ${dump_vals[*]} --dump-path .
     cd ..
     cpt=$((cpt+1))
     echo "finished archive analysis for $env"
