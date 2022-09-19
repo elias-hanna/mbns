@@ -44,6 +44,7 @@ import gym
 import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
 import mb_ge ## Contains ball in cup
 import redundant_arm ## contains redundant arm
+from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
 
 #----------Utils imports--------#
 from multiprocessing import cpu_count
@@ -610,7 +611,7 @@ def main(args):
         # If it is larger than the nov_l value, we are imposing that the model must predict something more novel than we would normally have before even trying it out
         # fitness is always positive - so t_qua
 
-        "model_variant": "all_dynamics", #"direct", # "dynamics" or "direct" or "all_dynamics"  
+        "model_variant": args.model_variant, # "dynamics" or "direct" or "all_dynamics"  
         "train_model_on": not args.no_training,
         "perfect_model_on": args.perfect_model,
         
@@ -673,6 +674,7 @@ def main(args):
     ### Environment initialization ###
     env_register_id = 'BallInCup3d-v0'
     gym_args = {}
+    is_local_env = False
     if args.environment == 'ball_in_cup':
         env_register_id = 'BallInCup3d-v0'
         separator = BallInCupSeparator
@@ -717,37 +719,40 @@ def main(args):
         ss_max = 10
         dim_map = 2
         gym_args['physical_traps'] = True
+    elif args.environment == 'hexapod_omni':
+        is_local_env = True
+        env = HexapodEnv(dynamics_model=dynamics_model,
+                     render=False,
+                     record_state_action=True,
+                     ctrl_freq=100)
+        obs_dim = 48
+        act_dim = 18
+        dim_x = 36
+        separator = None
+        ss_min = -1
+        ss_max = 1
+        dim_map = 2
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
     
-    
-    # if args.environment == 'fetch_pick_and_place':
-    #     env_register_id = 'FetchPickAndPlaceDeterministic-v1'
-    #     separator = FetchPickAndPlaceSeparator
-    #     ss_min = -1
-    #     ss_max = 1
-    # if args.environment == 'ant':
-    #     env_register_id = 'AntBulletEnvDeterministicPos-v0'
-    #     separator = AntSeparator
-    #     ss_min = -10
-    #     ss_max = 10
-        
-    gym_env = gym.make(env_register_id, **gym_args)
+    if not is_local_env:
+        gym_env = gym.make(env_register_id, **gym_args)
 
-    try:
-        max_step = gym_env._max_episode_steps
-    except:
         try:
-            max_step = gym_env.max_steps
+            max_step = gym_env._max_episode_steps
         except:
-            raise AttributeError("Env doesnt allow access to _max_episode_steps or to max_steps")
+            try:
+                max_step = gym_env.max_steps
+            except:
+                raise AttributeError("Env doesnt allow access to _max_episode_steps" \
+                                     "or to max_steps")
 
-    obs = gym_env.reset()
-    if isinstance(obs, dict):
-        obs_dim = gym_env.observation_space['observation'].shape[0]
-    else:
-        obs_dim = gym_env.observation_space.shape[0]
-    act_dim = gym_env.action_space.shape[0]
+        obs = gym_env.reset()
+        if isinstance(obs, dict):
+            obs_dim = gym_env.observation_space['observation'].shape[0]
+        else:
+            obs_dim = gym_env.observation_space.shape[0]
+        act_dim = gym_env.action_space.shape[0]
 
     controller_params = \
     {
@@ -815,14 +820,15 @@ def main(args):
 
     env = WrappedEnv(params)
 
-    dim_x = env.policy_representation_dim
+    if not is_local_env:
+        dim_x = env.policy_representation_dim
     obs_dim = obs_dim
     action_dim = act_dim
     
-    # Deterministic = "det", Probablistic = "prob" 
+    # Deterministic = "det", Probablistic = "prob"
     dynamics_model_type = "prob"
 
-    print("Dynamics model type: ", dynamics_model_type) 
+    print("Dynamics model type: ", dynamics_model_type)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_type,
                                                                 action_dim, obs_dim)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
@@ -908,7 +914,8 @@ if __name__ == "__main__":
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--nb-transfer', type=int, default=1)
- 
+
+    parser.add_argument('--model-variant', type=str, default='all_dynamics')
     parser.add_argument('--no-training', action='store_true')
     parser.add_argument('--perfect-model', action='store_true')
 

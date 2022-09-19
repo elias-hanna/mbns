@@ -194,16 +194,32 @@ if __name__ == "__main__":
     
     #-----------QD params for cvt or GRID---------------#
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
-    parser.add_argument("--dim_map", default=2, type=int) # Dim of behaviour descriptor
     parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
     parser.add_argument("--n_niches", default=3000, type=int)
 
     #----------population params--------#
-    parser.add_argument("--b_size", default=200, type=int) # For parralellization - 
+    parser.add_argument("--b_size", default=200, type=int) # For paralellization - 
     parser.add_argument("--dump_period", default=5000, type=int) 
+    parser.add_argument("--dump-mode", type=str, default="budget")
     parser.add_argument("--max_evals", default=1e6, type=int) # max number of evaluation
     parser.add_argument("--selector", default="uniform", type=str)
     parser.add_argument("--mutation", default="iso_dd", type=str)
+
+    #-------------DAQD params-----------#
+    parser.add_argument('--transfer-selection', type=str, default='all')
+    parser.add_argument('--fitness-func', type=str, default='energy_minimization')
+    parser.add_argument('--min-found-model', type=int, default=100)
+    parser.add_argument('--nb-transfer', type=int, default=1)
+ 
+    parser.add_argument('--no-training', action='store_true')
+    parser.add_argument('--perfect-model', action='store_true')
+
+    #----------model init study params--------#
+    parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
+    parser.add_argument('--init-method', type=str, default='random-policies')
+    parser.add_argument('--init-episodes', type=int, default='20')
+    parser.add_argument('--init-data-path', type=str, default=None)
+    parser.add_argument('--rep', type=int, default='1')
     
     args = parser.parse_args()
     

@@ -8,7 +8,7 @@ From: airl_lab/default/airl_env:base_2.0
     Version v0.0.1
 
 %files
-   /home/elias-hanna/src/model_based_qd /git
+
 
 %environment
    export PYTHONPATH=$PYTHONPATH:/workspace/lib/python3.8/site-packages/
@@ -36,10 +36,9 @@ From: airl_lab/default/airl_env:base_2.0
 
    echo "cloning model_based_qd repository"
    cd /git
-   # git clone --recurse-submodules https://github.com/adaptive-intelligent-robotics/Dynamics-Aware_Quality-Diversity.git model_based_qd/
-   # git clone --recurse-submodules git@github.com:elias-hanna/daqd.git model_based_qd/
-   # git clone --recurse-submodule https://github.com/elias-hanna/daqd.git model_based_qd/
-   # mv /src/daqd /git/model_based_qd
+   git clone --recurse-submodules https://github.com/adaptive-intelligent-robotics/Dynamics-Aware_Quality-Diversity.git model_based_qd/
+   
+
 
 %runscript
 
