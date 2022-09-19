@@ -7,9 +7,6 @@ From: airl_lab/default/airl_env:base_2.0
     Author h.elias@hotmail.fr base from bryan.lim16@imperial.ac.uk
     Version v0.0.2
 
-%setup
-    mkdir ${SINGULARITY_ROOTFS}/src
-    
 %files
     /home/elias-hanna/src/mb_ge /src
 	/home/elias-hanna/src/mujoco-py /src
@@ -22,15 +19,15 @@ From: airl_lab/default/airl_env:base_2.0
     /home/elias-hanna/src/model_based_qd /git
     
 %environment
-    # export PYTHONPATH=$PYTHONPATH:/workspace/lib/python3.8/site-packages/
-    # export PYTHONPATH=$PYTHONPATH:/git/model_based_qd/
-    # export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
+    export PYTHONPATH=$PYTHONPATH:/workspace/lib/python3.8/site-packages/
+    #export PYTHONPATH=$PYTHONPATH:/git/model_based_qd/
+    export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
     export MUJOCO_PY_MUJOCO_PATH=/src/.mujoco/mujoco210
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/src/.mujoco/mujoco210/bin
 
    
 %post
-    # export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH="/workspace/lib:$LD_LIBRARY_PATH"
     mkdir -p /src/.mujoco
 	mkdir -p /src/tmp
 

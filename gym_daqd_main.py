@@ -721,10 +721,7 @@ def main(args):
         gym_args['physical_traps'] = True
     elif args.environment == 'hexapod_omni':
         is_local_env = True
-        env = HexapodEnv(dynamics_model=dynamics_model,
-                     render=False,
-                     record_state_action=True,
-                     ctrl_freq=100)
+        max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
         obs_dim = 48
         act_dim = 18
         dim_x = 36
@@ -753,7 +750,9 @@ def main(args):
         else:
             obs_dim = gym_env.observation_space.shape[0]
         act_dim = gym_env.action_space.shape[0]
-
+    else:
+        gym_env = None
+        
     controller_params = \
     {
         'controller_input_dim': obs_dim,
@@ -818,9 +817,9 @@ def main(args):
     ####################### End of Preparation of run #######################
     #########################################################################
 
-    env = WrappedEnv(params)
 
     if not is_local_env:
+        env = WrappedEnv(params)
         dim_x = env.policy_representation_dim
     obs_dim = obs_dim
     action_dim = act_dim
@@ -842,14 +841,20 @@ def main(args):
         else:
             import src
             path_to_src = src.__path__[0]
-            module_path = f'{path_to_src}/../'
+            module_path = f'{path_to_src}/..'
             path = f'{module_path}/data/{args.environment}_results/{args.rep}/'\
                 f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
         dynamics_model.load_state_dict(torch.load(path))
         dynamics_model.eval()
 
-    env.set_dynamics_model(dynamics_model)
-    
+    if not is_local_env:
+        env.set_dynamics_model(dynamics_model)
+    elif args.environment == 'hexapod_omni':
+        env = HexapodEnv(dynamics_model=dynamics_model,
+                         render=False,
+                         record_state_action=True,
+                         ctrl_freq=100)
+        
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
 
     if args.perfect_model:

@@ -92,7 +92,8 @@ def apply_changes(original_file):
 
 def compile_container():
     
-    image_name = f"final_{get_repo_name()}_{time.strftime('%Y-%m-%d_%H_%M_%S')}.sif"
+    #image_name = f"final_{get_repo_name()}_{time.strftime('%Y-%m-%d_%H_%M_%S')}.sif"
+    image_name = f"final_{get_repo_name()}.sif"
     command = os.popen(f"singularity build --force --fakeroot {image_name} ./tmp.def && rm ./tmp.def")
     output = command.read()[:-1]
     
