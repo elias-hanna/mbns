@@ -42,8 +42,16 @@ class HexapodEnv:
         return 1
         
     def init_robot(self):
-        # Load robot urdf and intialize robot 
-        robot = rd.Robot(self.urdf_path+"hexapod_v2.urdf", "hexapod", False)
+        # Load robot urdf and intialize robot
+        import src, os
+        path_to_src = src.__path__[0]
+        split_path = os.path.split(path_to_src)
+        
+        abs_path_to_urdf = os.path.join(split_path[0], self.urdf_path)
+        
+        # print('paths ', path_to_src, self.urdf_path, abs_path_to_urdf)
+        # robot = rd.Robot(self.urdf_path+"hexapod_v2.urdf", "hexapod", False)
+        robot = rd.Robot(abs_path_to_urdf+"hexapod_v2.urdf", "hexapod", False)
         robot.free_from_world([0,0,0.0,0,0,0.15]) # place robot slightly above the floor
         robot.set_actuator_types('servo') # THIS IS IMPORTANT
         robot.set_position_enforced(True)
@@ -212,7 +220,7 @@ class HexapodEnv:
             obs_traj = None
             act_traj = None
     
-        return fitness, desc, obs_traj, act_traj
+        return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     # for NN timestep model
     def simulate_model(self, ctrl, sim_time, mean, det):

@@ -129,8 +129,7 @@ class SinusoidController(rd.RobotControl):
         applies sinusoid control signal for only ONE motor. this functino is applied to every motor
         returns sinusoid for one period (ARRAY_DIM)
         '''
-        #  print("sinusoid_control_signal", amplitude, phase, duty_cycle)
-        
+        # print("sinusoid_control_signal", amplitude, phase, duty_cycle, ARRAY_DIM)
         #building the square wave sinusoidal wave
         temp = np.zeros(ARRAY_DIM)
         uptime = int(np.floor(ARRAY_DIM*duty_cycle)) #unnormalize

@@ -15,3 +15,4 @@ analysis/*
 !analysis/plot_all_analysis.py
 !analysis/plot_coverage.py
 *.sif
+*tmp*
