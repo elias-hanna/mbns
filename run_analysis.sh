@@ -5,10 +5,14 @@
 ##########Execute from data folder################
 ##################################################
 
-environments=(ball_in_cup redundant_arm_no_walls_limited_angles fastsim_maze fastsim_maze_traps)
+# environments=(ball_in_cup redundant_arm_no_walls_limited_angles fastsim_maze fastsim_maze_traps hexapod_omni)
+# pred_error_plot_upper_limits=(5 5 100 100) # warning needs to be in same order as envs
+# disagr_plot_upper_limits=(1 1 5 5) # warning needs to be in same order as envs
+
 # environments=(ball_in_cup)
-pred_error_plot_upper_limits=(5 5 100 100) # warning needs to be in same order as envs
-disagr_plot_upper_limits=(1 1 5 5) # warning needs to be in same order as envs
+environments=(hexapod_omni)
+pred_error_plot_upper_limits=(1) # warning needs to be in same order as envs
+disagr_plot_upper_limits=(1) # warning needs to be in same order as envs
 
 episodes=(20)
 methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies vanilla no-init)
@@ -26,16 +30,19 @@ fitnesses=(energy_minimization)
 #     echo "finished archive analysis for $env"
 # done
 
+# methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies no-init no-init--perfect-model)
+methods=(no-init)
+sup_args=--no-training
+
 # transfer_sels=(all disagr disagr_bd random)
 # nb_transfers=(10 1)
-# transfer_sels=(random disagr)
-transfer_sels=(random)
-nb_transfers=(10)
-# dumps=(20 40 60 80 100)
-dump_vals=(10 20 30 40 50 60 70 80 90 100)
 
-methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies no-init no-init--perfect-model)
-sup_args=--no-training
+transfer_sels=(all)
+nb_transfers=(10)
+
+# dump_vals=(10 20 30 40 50 60 70 80 90 100)
+# dump_vals=(100 200 300 400 500 600 700 800 900 1000)
+dump_vals=(100 300 500 700 900 1100)
 
 ## Plot means (only means) over test replications on same plot
 cpt=0

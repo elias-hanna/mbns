@@ -48,60 +48,22 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+def str_to_tab(tab_as_str, dim=2):
+    splitted_tab_as_str = tab_as_str.split(' ')
+    tab = []
+    ## preprocessing to remove non digits elements
+    for substr in splitted_tab_as_str:
+        clean_substr = ''
+        for a in substr:
+            if a.isdigit() or a == '.':
+                clean_substr += a
 
-def key_event(event, args):
-    if event.key == 'escape':
-        sys.exit(0)
+        if clean_substr != '':
+            tab.append(float(clean_substr))
 
-def click_event(event, args):
-    '''
-    # reutrns a list of tupples of x-y points
-    click_in = plt.ginput(1,-1) # one click only, should not timeout
-    print("click_in: ",click_in)
-    
-    selected_cell = [int(click_in[0][0]), int(click_in[0][1])]
-    print(selected_cell)
-    selected_x = selected_cell[0]
-    selected_y = selected_cell[1]
-    '''
-    #event.button ==1 is the left mouse click
-    if event.button == 1:
-        selected_x = int(event.xdata)
-        selected_y = int(event.ydata)
-        selected_solution = data[(data["x_bin"] == selected_x) & (data["y_bin"] == selected_y)]
-        #selected_solution = data[(data["y_bin"] == selected_x) & (data["z_bin"] == selected_y)]
+    assert len(tab) == dim, "Obtained tab length does not correspond to given expected dimensions"
 
-        # For hexapod omnitask
-        print("SELECTED SOLUTION SHAPE: ",selected_solution.shape)
-        selected_solution = selected_solution.iloc[0, :]
-        print("Selected solution shape: ", selected_solution.shape)
-        selected_ctrl = selected_solution.iloc[4:-2].to_numpy()
-        print(selected_ctrl.shape) #(1,36)
-
-        #hexapod uni
-        #selected_solution = selected_solution.iloc[0, :]
-        #selected_ctrl = selected_solution.iloc[8:-2].to_numpy()
-        
-        #print("Selected ctrl shape: ", selected_ctrl.shape) # should be 3661
-        print("Selected descriptor bin: " ,selected_x, selected_y)
-        print("Selected descriptor from archive: ", selected_solution.iloc[1:3].to_numpy())
-        #print("Selected fitness from archive: ", selected_solution.iloc[0])
-
-        # ---- SIMULATE THE SELECTED CONTROLLER -----#
-        #simulate(selected_ctrl, 5.0, render=True) # Hexapod
-        #env.evaluate_solution(selected_ctrl)
-        
-        #fit, desc, _, _ = env.evaluate_solution_uni(selected_ctrl, render=True)
-        #print("fitness from simulation real eval:", fit)
-        #fit, desc, _, _ = env.evaluate_solution_model_uni(selected_ctrl)
-        #print("fitness from dynamics model :", fit)
-        
-        fit, desc, _, _ = env.evaluate_solution(selected_ctrl, render=True)
-        #simulate(selected_ctrl, render=True) # panda bullet
-        #simulate(selected_ctrl, 5.0, render=True) # panda dart 
-        #evaluate_solution(selected_ctrl, gui=True) 
-        print("SIMULATION DONE")
-
+    return tab
 
 def plot_archive(data, plt, args, ss_min, ss_max):
     # FOR BINS / GRID
@@ -207,6 +169,16 @@ def process_env(args):
         ss_max = 600
         dim_map = 2
         gym_args['physical_traps'] = True
+    elif args.environment == 'hexapod_omni':
+        is_local_env = True
+        max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
+        obs_dim = 48
+        act_dim = 18
+        dim_x = 36
+        separator = None
+        ss_min = -1
+        ss_max = 1
+        dim_map = 2
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
     
@@ -326,76 +298,90 @@ if __name__ == "__main__":
         model_to_real_diff_covs = np.zeros((len(init_methods), len(args.dump_vals)))
 
         ## Get pred error data for each initialization method
-        pred_error_data = np.load('pred_error_data.npz')
+        has_pred_errors = True
+        try:
+            pred_error_data = np.load('pred_error_data.npz')
+        except FileNotFoundError:
+            has_pred_errors = False
+            print("\n\nWARNING: pred_error_data.npz file NOT FOUND! Visualisations" \
+                  " that require it WON'T be printed \n\n")
+        if has_pred_errors:
+            ## mean/std pred errors shape: (method, init budget, prediction horizon(1, 20, full))
+            mean_pred_errors = pred_error_data['mean_pred_errors']
+            std_pred_errors = pred_error_data['std_pred_errors']
 
-        ## mean/std pred errors shape: (method, init budget, prediction horizon(1, 20, full))
-        mean_pred_errors = pred_error_data['mean_pred_errors']
-        std_pred_errors = pred_error_data['std_pred_errors']
+        has_ns_cov = True
         ### Be careful need to regen the pred error data in the right order
+        try:
+            ns_bd_data = np.load(
+                f"/home/elias-hanna/results/ns_cov_results/{args.environment}/" \
+                f"archive_all_gen500.npz"
+            )
 
-        ns_bd_data = np.load(
-            f"/home/elias-hanna/results/ns_cov_results/{args.environment}/archive_all_gen500.npz"
-            # f"/~/results/ns_cov_results/{args.environment}/archive_all_gen500.npz"
-        )
-        
-        bd_keys = [key for key in ns_bd_data.keys() if 'ind' in key]
+            bd_keys = [key for key in ns_bd_data.keys() if 'ind' in key]
 
-        ## we just load a random archive to have the good format
-        archive_path = "1/random-actions_20_energy_minimization_random_10_results/archive_10.dat"
-        rep_data = pd.read_csv(archive_path)
-        rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-        bd_data = pd.DataFrame().reindex(columns=rep_data.columns)
+            ## we just load a random archive to have the good format
+            archive_path = "1/random-actions_20_energy_minimization_random_10_results/archive_10.dat"
+            rep_data = pd.read_csv(archive_path)
+            rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+            bd_data = pd.DataFrame().reindex(columns=rep_data.columns)
 
-        df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
-        df_min[1] = ss_min; df_max[1] = ss_max
-        df_min[2] = ss_min; df_max[2] = ss_max
-        
-        if args.environment == "ball_in_cup":
-            df_min[3] = ss_min; df_max[3] = ss_max
-
-        ## Deprecated but oh well
-        bd_data = bd_data.append(df_min, ignore_index = True)
-        bd_data = bd_data.append(df_max, ignore_index = True)
-
-        
-        for key in bd_keys:
-            df_bd = rep_data.iloc[0].copy()
-            df_bd[1] = ns_bd_data[key][0]
-            df_bd[2] = ns_bd_data[key][1]
+            df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
+            df_min[1] = ss_min; df_max[1] = ss_max
+            df_min[2] = ss_min; df_max[2] = ss_max
 
             if args.environment == "ball_in_cup":
-                df_bd[3] = ns_bd_data[key][2]
+                df_min[3] = ss_min; df_max[3] = ss_max
 
             ## Deprecated but oh well
-            bd_data = bd_data.append(df_bd, ignore_index = True)
+            bd_data = bd_data.append(df_min, ignore_index = True)
+            bd_data = bd_data.append(df_max, ignore_index = True)
 
-        nb_div = 10
 
-        bd_data['x_bin']=pd.cut(x = bd_data.iloc[:,1],
-                                 bins = nb_div, 
-                                 labels = [p for p in range(nb_div)])
+            for key in bd_keys:
+                df_bd = rep_data.iloc[0].copy()
+                df_bd[1] = ns_bd_data[key][0]
+                df_bd[2] = ns_bd_data[key][1]
 
-        bd_data['y_bin']=pd.cut(x = bd_data.iloc[:,2],
-                                 bins = nb_div,
-                                 labels = [p for p in range(nb_div)])
+                if args.environment == "ball_in_cup":
+                    df_bd[3] = ns_bd_data[key][2]
 
-        total_bins = nb_div**2
+                ## Deprecated but oh well
+                bd_data = bd_data.append(df_bd, ignore_index = True)
 
-        if args.environment == "ball_in_cup":
-            bd_data['z_bin']=pd.cut(x = bd_data.iloc[:,3],
-                                 bins = nb_div,
-                                 labels = [p for p in range(nb_div)])
+            nb_div = 10
 
-            total_bins = nb_div**3
+            bd_data['x_bin']=pd.cut(x = bd_data.iloc[:,1],
+                                     bins = nb_div, 
+                                     labels = [p for p in range(nb_div)])
 
-        bd_data = bd_data.assign(bins=pd.Categorical
-                                   (bd_data.filter(regex='_bin')
-                                    .apply(tuple, 1)))
+            bd_data['y_bin']=pd.cut(x = bd_data.iloc[:,2],
+                                     bins = nb_div,
+                                     labels = [p for p in range(nb_div)])
 
-        counts = bd_data['bins'].value_counts()
+            total_bins = nb_div**2
 
-        ns_cov = len(counts[counts>=1])/total_bins
+            if args.environment == "ball_in_cup":
+                bd_data['z_bin']=pd.cut(x = bd_data.iloc[:,3],
+                                     bins = nb_div,
+                                     labels = [p for p in range(nb_div)])
 
+                total_bins = nb_div**3
+
+            bd_data = bd_data.assign(bins=pd.Categorical
+                                       (bd_data.filter(regex='_bin')
+                                        .apply(tuple, 1)))
+
+            counts = bd_data['bins'].value_counts()
+
+            ns_cov = len(counts[counts>=1])/total_bins
+        except FileNotFoundError:
+            has_ns_cov = False
+            print("\n\nWARNING: archive_all_gen500.npz file NOT FOUND! Visualisations" \
+                  " that require it WON'T be printed \n\n")
+            
+        ## Main loop for printing figures
+        
         for j in range(n_init_episodes):
             init_episode = init_episodes[j]
             for i in range(n_init_method):
@@ -442,9 +428,11 @@ if __name__ == "__main__":
                                         archive = sorted_archive_files[-1]
                                         model_archive = sorted_model_archive_files[-1]
                                     else:
-                                        archive = sorted_archive_files[r]
-                                        model_archive = sorted_model_archive_files[r]
-                                        
+                                        try:
+                                            archive = sorted_archive_files[r]
+                                            model_archive = sorted_model_archive_files[r]
+                                        except:
+                                            import pdb; pdb.set_trace()
                                     archive_path = os.path.join(archive_folder, archive)
                                     if init_method != 'vanilla':
                                         model_archive_path = os.path.join(archive_folder,
@@ -464,7 +452,20 @@ if __name__ == "__main__":
                                         model_archive_sizes[rep_cpt, r] = model_archive_size
 
                                     #=====================COVERAGE===========================#
-
+                                    
+                                    if args.environment == 'hexapod_omni':
+                                        for idx in range(len(rep_data.iloc[:,1])):
+                                            bd_tab = str_to_tab(rep_data.iloc[:,1][idx],
+                                                                dim=dim_map)
+                                            for dim in range(1, dim_map + 1):
+                                                rep_data.iloc[:,dim][idx] = bd_tab[dim-1]
+                                        if init_method != 'vanilla':
+                                            for idx in range(len(model_rep_data.iloc[:,1])):
+                                                bd_tab = str_to_tab(model_rep_data.iloc[:,1][idx],
+                                                                    dim=dim_map)
+                                                for dim in range(1, dim_map + 1):
+                                                    model_rep_data.iloc[:,dim][idx] = bd_tab[dim-1]
+                                                    
                                     df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
                                     df_min[1] = ss_min; df_max[1] = ss_max
                                     df_min[2] = ss_min; df_max[2] = ss_max
@@ -487,6 +488,8 @@ if __name__ == "__main__":
                                     
                                     nb_div = 10
 
+                                    
+                                    
                                     rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
                                                              bins = nb_div, 
                                                              labels = [p for p in range(nb_div)])
@@ -648,39 +651,40 @@ if __name__ == "__main__":
                 plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_size",
                             dpi=300, bbox_inches='tight')
 
-                #=============SAVE ARCHIVE LAST SIZE VS PRED ERROR FIGURE================#
-                fig = plt.figure()
+                if has_pred_errors:
+                    #=============SAVE ARCHIVE LAST SIZE VS PRED ERROR FIGURE================#
+                    fig = plt.figure()
 
-                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
-                    plt.plot(mean_pred_errors[k][2][2], archive_mean_sizes[k][-1], 'o',
-                             label=init_methods[k],
-                             color=colors.to_rgba(k), linestyle=linestyles[k])
+                    for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                        plt.plot(mean_pred_errors[k][2][2], archive_mean_sizes[k][-1], 'o',
+                                 label=init_methods[k],
+                                 color=colors.to_rgba(k), linestyle=linestyles[k])
 
-                plt.legend()
+                    plt.legend()
 
-                plt.title(f'Mean archive size after last transfer vs prediction error on ' \
-                          f'{args.environment} environment for\n {transfer_sel} ' \
-                          f'selection with {nb_transfer} individuals transferred')
-                
-                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_last_size_vs_pred_error",
-                            dpi=300, bbox_inches='tight')
+                    plt.title(f'Mean archive size after last transfer vs prediction error on ' \
+                              f'{args.environment} environment for\n {transfer_sel} ' \
+                              f'selection with {nb_transfer} individuals transferred')
 
-                #==============SAVE ARCHIVE FIRST SIZE VS PRED ERROR FIGURE===============#
-                fig = plt.figure()
+                    plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_last_size_vs_pred_error",
+                                dpi=300, bbox_inches='tight')
 
-                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
-                    plt.plot(mean_pred_errors[k][2][2], archive_mean_sizes[k][0], 'o',
-                             label=init_methods[k],
-                             color=colors.to_rgba(k), linestyle=linestyles[k])
+                    #==============SAVE ARCHIVE FIRST SIZE VS PRED ERROR FIGURE===============#
+                    fig = plt.figure()
 
-                plt.legend()
+                    for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                        plt.plot(mean_pred_errors[k][2][2], archive_mean_sizes[k][0], 'o',
+                                 label=init_methods[k],
+                                 color=colors.to_rgba(k), linestyle=linestyles[k])
 
-                plt.title(f'Mean archive size after first transfer vs prediction error on ' \
-                          f'{args.environment} environment for\n {transfer_sel} ' \
-                          f'selection with {nb_transfer} individuals transferred')
-                
-                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_first_size_vs_pred_error",
-                            dpi=300, bbox_inches='tight')
+                    plt.legend()
+
+                    plt.title(f'Mean archive size after first transfer vs prediction error on ' \
+                              f'{args.environment} environment for\n {transfer_sel} ' \
+                              f'selection with {nb_transfer} individuals transferred')
+
+                    plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_first_size_vs_pred_error",
+                                dpi=300, bbox_inches='tight')
 
                 #=====================SAVE ARCHIVE DIFF SIZE FIGURE=====================#
                 fig = plt.figure()
@@ -765,6 +769,7 @@ if __name__ == "__main__":
                 for k in range(n_init_method):
                     plt.plot(args.dump_vals, archive_mean_covs[k], label=init_methods[k],
                              color=colors.to_rgba(k), linestyle=linestyles[k])
+                if has_ns_cov:
                     plt.hlines(ns_cov, args.dump_vals[0], args.dump_vals[-1], label='NS-cov-500g')
                     
                 plt.legend()
@@ -776,38 +781,38 @@ if __name__ == "__main__":
                 plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_coverage",
                             dpi=300, bbox_inches='tight')
 
-                
-                #=============SAVE LAST COVERAGE VS PRED ERROR FIGURE================#
-                fig = plt.figure()
+                if has_pred_errors:
+                    #=============SAVE LAST COVERAGE VS PRED ERROR FIGURE================#
+                    fig = plt.figure()
 
-                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
-                    plt.plot(mean_pred_errors[k][2][2], archive_mean_covs[k][-1], 'o',
-                             label=init_methods[k],
-                             color=colors.to_rgba(k), linestyle=linestyles[k])
+                    for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                        plt.plot(mean_pred_errors[k][2][2], archive_mean_covs[k][-1], 'o',
+                                 label=init_methods[k],
+                                 color=colors.to_rgba(k), linestyle=linestyles[k])
 
-                plt.legend()
+                    plt.legend()
 
-                plt.title(f'Mean coverage after last transfer vs prediction error on ' \
-                          f'{args.environment} environment for\n {transfer_sel} ' \
-                          f'selection with {nb_transfer} individuals transferred')
-                
-                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_last_cov_vs_pred_error",
-                            dpi=300, bbox_inches='tight')
+                    plt.title(f'Mean coverage after last transfer vs prediction error on ' \
+                              f'{args.environment} environment for\n {transfer_sel} ' \
+                              f'selection with {nb_transfer} individuals transferred')
 
-                #==============SAVE FIRST COVERAGE VS PRED ERROR FIGURE===============#
-                fig = plt.figure()
+                    plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_last_cov_vs_pred_error",
+                                dpi=300, bbox_inches='tight')
 
-                for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
-                    plt.plot(mean_pred_errors[k][2][2], archive_mean_covs[k][0], 'o',
-                             label=init_methods[k],
-                             color=colors.to_rgba(k), linestyle=linestyles[k])
+                    #==============SAVE FIRST COVERAGE VS PRED ERROR FIGURE===============#
+                    fig = plt.figure()
 
-                plt.legend()
+                    for k in range(n_init_method - 2): ## -2 because we remove vanilla and no init
+                        plt.plot(mean_pred_errors[k][2][2], archive_mean_covs[k][0], 'o',
+                                 label=init_methods[k],
+                                 color=colors.to_rgba(k), linestyle=linestyles[k])
 
-                plt.title(f'Mean coverage after first transfer vs prediction error on ' \
-                          f'{args.environment} environment for\n {transfer_sel} ' \
-                          f'selection with {nb_transfer} individuals transferred')
-                
-                plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_first_cov_vs_pred_error",
-                            dpi=300, bbox_inches='tight')
+                    plt.legend()
+
+                    plt.title(f'Mean coverage after first transfer vs prediction error on ' \
+                              f'{args.environment} environment for\n {transfer_sel} ' \
+                              f'selection with {nb_transfer} individuals transferred')
+
+                    plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_archive_first_cov_vs_pred_error",
+                                dpi=300, bbox_inches='tight')
 
