@@ -14,4 +14,5 @@ analysis/*
 !analysis/count_bins.py
 !analysis/plot_all_analysis.py
 !analysis/plot_coverage.py
+*tmp*
 *.sif

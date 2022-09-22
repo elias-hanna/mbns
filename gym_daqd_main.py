@@ -574,8 +574,8 @@ def main(args):
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
-        "min": -5,
-        "max": 5,
+        "min": -5 if args.environment != 'hexapod_omni' else 0.0,
+        "max": 5 if args.environment != 'hexapod_omni' else 1.0,
         
         #------------MUTATION PARAMS---------#
         # selector ["uniform", "random_search"]
