@@ -5,9 +5,10 @@
 ##########Execute from data folder################
 ##################################################
 
-# environments=(ball_in_cup redundant_arm_no_walls_limited_angles fastsim_maze fastsim_maze_traps hexapod_omni)
-# pred_error_plot_upper_limits=(5 5 100 100) # warning needs to be in same order as envs
-# disagr_plot_upper_limits=(1 1 5 5) # warning needs to be in same order as envs
+#environments=(ball_in_cup redundant_arm_no_walls_limited_angles fastsim_maze fastsim_maze_traps hexapod_omni)
+environments=(ball_in_cup redundant_arm_no_walls_limited_angles fastsim_maze fastsim_maze_traps)
+pred_error_plot_upper_limits=(5 5 100 100) # warning needs to be in same order as envs
+disagr_plot_upper_limits=(1 1 5 5) # warning needs to be in same order as envs
 
 # environments=(ball_in_cup)
 environments=(hexapod_omni)
@@ -15,7 +16,8 @@ pred_error_plot_upper_limits=(1) # warning needs to be in same order as envs
 disagr_plot_upper_limits=(1) # warning needs to be in same order as envs
 
 episodes=(20)
-methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies vanilla no-init)
+#methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies vanilla no-init)
+methods=(random-actions brownian-motion colored-noise-beta-0 colored-noise-beta-1 colored-noise-beta-2 random-policies no-init)
 # fitnesses=(energy_minimization disagr_minimization)
 fitnesses=(energy_minimization)
 
@@ -41,9 +43,11 @@ transfer_sels=(all)
 nb_transfers=(10)
 
 # dump_vals=(10 20 30 40 50 60 70 80 90 100)
-# dump_vals=(100 200 300 400 500 600 700 800 900 1000)
+dump_vals=(100 200 300 400 500 600 700 800 900 1000)
 # dump_vals=(100 300 500 700 900 1100)
-dump_vals=(100 300 500 700 900 1100 1700 2300 2900 3500 4100 4700 5300 5900 6500 7100 7700 8300 8900 9500 10100)
+# dump_vals=(500 1100 1700 2300 2900 3500 4100 4700 5300 5900 6500 7100 7700 8300 8900 9500 10100)
+dump_vals=(10100 20300 30500 40100 49700)
+
 ## Plot means (only means) over test replications on same plot
 cpt=0
 for env in "${environments[@]}"; do
