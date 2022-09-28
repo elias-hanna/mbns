@@ -16,3 +16,4 @@ analysis/*
 !analysis/plot_coverage.py
 *tmp*
 *.sif
+*.save
