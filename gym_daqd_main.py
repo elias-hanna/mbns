@@ -562,7 +562,7 @@ def main(args):
         # proportion of total number of niches to be filled before starting
         "random_init": 0.005,  
         # batch for random initialization
-        "random_init_batch": 100,
+        "random_init_batch": args.random_init_batch,
         # when to write results (one generation = one batch)
         "dump_period": args.dump_period,
         # when to write results (budget = dump when dump period budget exhausted,
@@ -907,6 +907,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_niches", default=3000, type=int)
 
     #----------population params--------#
+    parser.add_argument("--random-init-batch", default=100, type=int) # Number of inds to initialize the archive
     parser.add_argument("--b_size", default=200, type=int) # For paralellization - 
     parser.add_argument("--dump_period", default=5000, type=int) 
     parser.add_argument("--dump-mode", type=str, default="budget")
