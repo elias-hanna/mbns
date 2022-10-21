@@ -425,7 +425,7 @@ class ModelBasedQD:
                 # s_list are solutions that have been evaluated in the real setting
                 print("Training model")
                 start = time.time()
-                if params["model_variant"]=="dynamics":
+                if params["model_variant"]=="dynamics" or params["model_variant"]=="all_dynamics":
                     # FOR DYNAMICS MODEL
                     torch.set_num_threads(24)
                     self.dynamics_model_trainer.train_from_buffer(self.replay_buffer, 
@@ -548,6 +548,8 @@ class ModelBasedQD:
         print("==========================================")
         print("End of QD algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
+        ## Also save model archive for more visualizations
+        cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
         return self.archive
 
 

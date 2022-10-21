@@ -317,11 +317,11 @@ if __name__ == "__main__":
                 f"/home/elias-hanna/results/ns_cov_results/{args.environment}/" \
                 f"archive_all_gen500.npz"
             )
-
             bd_keys = [key for key in ns_bd_data.keys() if 'ind' in key]
 
             ## we just load a random archive to have the good format
-            archive_path = "1/random-actions_20_energy_minimization_random_10_results/archive_10.dat"
+            archive_path = f"/home/elias-hanna/results/ns_cov_results/{args.environment}/" \
+                           f"archive.dat"
             rep_data = pd.read_csv(archive_path)
             rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
             bd_data = pd.DataFrame().reindex(columns=rep_data.columns)
@@ -397,17 +397,22 @@ if __name__ == "__main__":
                             mean_archive_size = 0
 
                             archive_sizes = np.empty((len(rep_folders), len(row_headers)))
+                            archive_sizes[:] = np.nan
                             model_archive_sizes = np.empty((len(rep_folders), len(row_headers)))
+                            model_archive_sizes[:] = np.nan
 
                             coverages = np.empty((len(rep_folders), len(row_headers)))
+                            coverages[:] = np.nan
                             model_coverages = np.empty((len(rep_folders), len(row_headers)))
+                            model_coverages[:] = np.nan
 
                             for rep_path in rep_folders:
                                 archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_{transfer_sel}_{nb_transfer}_results/'
                                 try:
                                     archive_files = next(os.walk(archive_folder))[2]
-                                except:
+                                except Exception as error:
                                     import pdb; pdb.set_trace()
+                                    excelsior = e
                                 archive_files = [f for f in archive_files if 'archive' in f]
                                 
                                 model_archive_files = [f for f in archive_files if 'model' in f]
@@ -430,9 +435,16 @@ if __name__ == "__main__":
                                     else:
                                         try:
                                             archive = sorted_archive_files[r]
-                                            model_archive = sorted_model_archive_files[r]
+                                            try:
+                                                model_archive = sorted_model_archive_files[r]
+                                            except:
+                                                print(f"WARNING: missing model_archive for {archive} with {init_method} on {args.environment} on rep {rep_path}")
                                         except:
-                                            import pdb; pdb.set_trace()
+                                            if r != len(row_headers) - 1: 
+                                                import pdb; pdb.set_trace()
+                                            else:
+                                                print(f"WARNING: missing archive at {row_headers[r]} with {init_method} on {args.environment} on rep {rep_path}")
+                                                continue
                                     archive_path = os.path.join(archive_folder, archive)
                                     if init_method != 'vanilla':
                                         model_archive_path = os.path.join(archive_folder,
@@ -573,11 +585,11 @@ if __name__ == "__main__":
                             # mean_archive_size = np.mean(archive_sizes)
                             # std_archive_size = np.std(archive_sizes)
                             # cell_text_size[j][i] = f'{mean_archive_size} \u00B1 {round(std_archive_size,1)}'
-                            mean_archive_size = np.mean(archive_sizes, axis=0)
-                            std_archive_size = np.std(archive_sizes, axis=0)
+                            mean_archive_size = np.nanmean(archive_sizes, axis=0)
+                            std_archive_size = np.nanstd(archive_sizes, axis=0)
 
-                            mean_cov = np.mean(coverages, axis=0)
-                            std_cov = np.std(coverages, axis=0)
+                            mean_cov = np.nanmean(coverages, axis=0)
+                            std_cov = np.nanstd(coverages, axis=0)
 
                             ## For plotting as a graph
                             archive_mean_sizes[i] = mean_archive_size
@@ -587,11 +599,11 @@ if __name__ == "__main__":
                             archive_std_covs[i] = std_cov
 
                             if init_method != 'vanilla':
-                                mean_model_archive_size = np.mean(archive_sizes, axis=0)
-                                std_model_archive_size = np.std(archive_sizes, axis=0)
+                                mean_model_archive_size = np.nanmean(archive_sizes, axis=0)
+                                std_model_archive_size = np.nanstd(archive_sizes, axis=0)
 
-                                model_mean_cov = np.mean(model_coverages, axis=0)
-                                model_std_cov = np.std(model_coverages, axis=0)
+                                model_mean_cov = np.nanmean(model_coverages, axis=0)
+                                model_std_cov = np.nanstd(model_coverages, axis=0)
 
                                 model_archive_mean_sizes[i] = mean_model_archive_size
                                 model_archive_std_sizes[i] = std_model_archive_size
@@ -599,12 +611,12 @@ if __name__ == "__main__":
                                 model_archive_mean_covs[i] = mean_cov
                                 model_archive_std_covs[i] = std_cov
 
-                                model_to_real_diff_sizes[i] = np.mean(model_archive_sizes -
+                                model_to_real_diff_sizes[i] = np.nanmean(model_archive_sizes -
                                                                       archive_sizes,
                                                                       axis = 0)
                                 
                                 
-                                model_to_real_diff_covs[i] = np.mean(model_coverages - coverages,
+                                model_to_real_diff_covs[i] = np.nanmean(model_coverages - coverages,
                                                                      axis = 0)
 
                             ## For plotting as a tab

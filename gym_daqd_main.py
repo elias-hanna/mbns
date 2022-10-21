@@ -617,8 +617,8 @@ def main(args):
         
         # "train_freq": 40, # train at a or condition between train freq and evals_per_train
         # "evals_per_train": 500,
-        "train_freq": 1, # train at a or condition between train freq and evals_per_train
-        "evals_per_train": 10,
+        "train_freq": args.train_freq_gen, # train at a or condition between train freq and evals_per_train
+        "evals_per_train": args.train_freq_eval,
 
         "log_model_stats": False,
         "log_time_stats": False, 
@@ -918,6 +918,8 @@ if __name__ == "__main__":
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--nb-transfer', type=int, default=1)
+    parser.add_argument('--train-freq-gen', type=int, default=5)
+    parser.add_argument('--train-freq-eval', type=int, default=500)
 
     parser.add_argument('--model-variant', type=str, default='all_dynamics')
     parser.add_argument('--no-training', action='store_true')
