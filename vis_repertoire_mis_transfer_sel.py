@@ -41,6 +41,7 @@ import argparse
 import re
 import pandas as pd
 import numpy as np
+from tqdm import tqdm # for pretty print of progress bar
 
 #----------Plot imports--------#
 from mpl_toolkits.mplot3d import Axes3D
@@ -236,7 +237,8 @@ if __name__ == "__main__":
     parser.add_argument("--show", help="Show the plot and saves it. Unless specified, just save the mean plot over all repetitions",
                     action="store_true")
     parser.add_argument("--plot_type", type=str, default="scatter", help="scatter plot, grid plot or 3d")
-    parser.add_argument("--nb_div", type=int, default=100, help="Number of equally separated bins to divide the outcome space in")
+    parser.add_argument("--nb_div", type=int, default=10, help="Number of equally separated bins to divide the outcome space in")
+    parser.add_argument("--random-budget", type=int, default=1000, help="Number of random evaluations for plotting, will look into full_random_{random-budget} folder")
 
     args = parser.parse_args()
 
@@ -300,7 +302,12 @@ if __name__ == "__main__":
         ## Get pred error data for each initialization method
         has_pred_errors = True
         try:
-            pred_error_data = np.load('pred_error_data.npz')
+            # pred_error_data = np.load('pred_error_data.npz')
+            pred_error_data = np.load(
+                f"/home/elias-hanna/results/sigma_0.05/pred_errors/" \
+                f"{args.environment}_0.05_results/" \
+                f"pred_error_data.npz"
+            )
         except FileNotFoundError:
             has_pred_errors = False
             print("\n\nWARNING: pred_error_data.npz file NOT FOUND! Visualisations" \
@@ -310,6 +317,77 @@ if __name__ == "__main__":
             mean_pred_errors = pred_error_data['mean_pred_errors']
             std_pred_errors = pred_error_data['std_pred_errors']
 
+        has_random_data = True
+        try:
+            random_folder_path = f"/home/elias-hanna/results/full_random_{args.random_budget}/" \
+                                 f"{args.environment}/"
+            rep_folders = next(os.walk(random_folder_path))[1]
+            rep_folders = [x for x in rep_folders if (x.isdigit())]
+            random_cov = 0
+            random_asize = 0 
+            for rep_path in rep_folders:
+                archive_folder = f'{random_folder_path}/{rep_path}/vanilla_20_energy_' \
+                                 f'minimization_all_{nb_transfers[0]}_results/'
+                archive_files = next(os.walk(archive_folder))[2]
+                archive_files = [f for f in archive_files if 'archive' in f]
+                archive_files = [f for f in archive_files if 'model' not in f]
+                assert len(archive_files) == 1
+                archive_file = archive_files[0]
+                archive_file_path = os.path.join(archive_folder, archive_file)
+                rep_data = pd.read_csv(archive_file_path)
+
+                rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
+                #=====================ARCHIVE SIZE===========================#
+                random_asize += len(rep_data.index)
+
+                #=====================COVERAGE===========================#
+
+                df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
+                df_min[1] = ss_min; df_max[1] = ss_max
+                df_min[2] = ss_min; df_max[2] = ss_max
+
+                if args.environment == "ball_in_cup":
+                    df_min[3] = ss_min; df_max[3] = ss_max
+
+                ## Deprecated but oh well
+                rep_data = rep_data.append(df_min, ignore_index = True)
+                rep_data = rep_data.append(df_max, ignore_index = True)
+
+                nb_div = args.nb_div
+
+                rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
+                                                                 bins = nb_div, 
+                                         labels = [p for p in range(nb_div)])
+
+                rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
+                                         bins = nb_div,
+                                         labels = [p for p in range(nb_div)])
+
+                total_bins = nb_div**2
+
+                if args.environment == "ball_in_cup":
+                    rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
+                                         bins = nb_div,
+                                         labels = [p for p in range(nb_div)])
+
+                    total_bins = nb_div**3
+
+                rep_data = rep_data.assign(bins=pd.Categorical
+                                           (rep_data.filter(regex='_bin')
+                                            .apply(tuple, 1)))
+
+                counts = rep_data['bins'].value_counts()
+
+                random_cov += len(counts[counts>=1])/total_bins
+
+            random_cov /= len(rep_folders)
+            random_asize /= len(rep_folders)
+
+        except FileNotFoundError:
+            has_random_data = False
+            print("\n\nWARNING: Some full_random data files were NOT FOUND! Visualisations" \
+                  " that require it WON'T be printed \n\n")
+            
         has_ns_cov = True
         ### Be careful need to regen the pred error data in the right order
         try:
@@ -318,7 +396,6 @@ if __name__ == "__main__":
                 f"archive_all_gen500.npz"
             )
             bd_keys = [key for key in ns_bd_data.keys() if 'ind' in key]
-
             ## we just load a random archive to have the good format
             archive_path = f"/home/elias-hanna/results/ns_cov_results/{args.environment}/" \
                            f"archive.dat"
@@ -349,7 +426,7 @@ if __name__ == "__main__":
                 ## Deprecated but oh well
                 bd_data = bd_data.append(df_bd, ignore_index = True)
 
-            nb_div = 10
+            nb_div = args.nb_div
 
             bd_data['x_bin']=pd.cut(x = bd_data.iloc[:,1],
                                      bins = nb_div, 
@@ -375,6 +452,8 @@ if __name__ == "__main__":
             counts = bd_data['bins'].value_counts()
 
             ns_cov = len(counts[counts>=1])/total_bins
+            ns_asize = len(bd_keys)
+            
         except FileNotFoundError:
             has_ns_cov = False
             print("\n\nWARNING: archive_all_gen500.npz file NOT FOUND! Visualisations" \
@@ -384,7 +463,7 @@ if __name__ == "__main__":
         
         for j in range(n_init_episodes):
             init_episode = init_episodes[j]
-            for i in range(n_init_method):
+            for i in tqdm(range(n_init_method)):
                 init_method =  init_methods[i]
                 for k in range(n_fitness_funcs):
                     fitness_func = fitness_funcs[k]
@@ -423,28 +502,38 @@ if __name__ == "__main__":
                                 
                                 archive_numbers = [int(re.findall(r'\d+', f)[0]) for f in archive_files]
                                 sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
-                                
-                                for r in range(len(row_headers)):
-                                    if r != len(row_headers) - 1:
-                                        if init_method == 'vanilla':
-                                            continue
+
+                                for archives in zip(sorted_archive_files, sorted_model_archive_files):
+                                    archive = archives[0]; model_archive = archives[1]
+                                    a_sz = int(archive.replace('.','_').split('_')[1])
+                                    loc_row_headers = [int(header) for header in row_headers]
+                                    diff = lambda l : abs(l - a_sz)
+                                    r_val = min(loc_row_headers, key=diff)
+                                    r = loc_row_headers.index(r_val)
+                                    
+                                #for r in range(len(row_headers)):
+                                    # if r != len(row_headers) - 1:
+                                        # if init_method == 'vanilla':
+                                            # continue
                                     #=====================LOAD DATA===========================#
-                                    if init_method == 'vanilla':
-                                        archive = sorted_archive_files[-1]
-                                        model_archive = sorted_model_archive_files[-1]
-                                    else:
-                                        try:
-                                            archive = sorted_archive_files[r]
-                                            try:
-                                                model_archive = sorted_model_archive_files[r]
-                                            except:
-                                                print(f"WARNING: missing model_archive for {archive} with {init_method} on {args.environment} on rep {rep_path}")
-                                        except:
-                                            if r != len(row_headers) - 1: 
-                                                import pdb; pdb.set_trace()
-                                            else:
-                                                print(f"WARNING: missing archive at {row_headers[r]} with {init_method} on {args.environment} on rep {rep_path}")
-                                                continue
+                                    # if False:
+                                    #     pass
+                                    # # if init_method == 'vanilla':
+                                    #     # archive = sorted_archive_files[-1]
+                                    #     # model_archive = sorted_model_archive_files[-1]
+                                    # else:
+                                    #     try:
+                                    #         archive = sorted_archive_files[r]
+                                    #         try:
+                                    #             model_archive = sorted_model_archive_files[r]
+                                    #         except:
+                                    #             print(f"WARNING: missing model_archive for {archive} with {init_method} on {args.environment} on rep {rep_path}")
+                                    #     except:
+                                    #         if r != len(row_headers) - 1: 
+                                    #             import pdb; pdb.set_trace()
+                                    #         else:
+                                    #             print(f"WARNING: missing archive at {row_headers[r]} with {init_method} on {args.environment} on rep {rep_path}")
+                                    #             continue
                                     archive_path = os.path.join(archive_folder, archive)
                                     if init_method != 'vanilla':
                                         model_archive_path = os.path.join(archive_folder,
@@ -498,7 +587,7 @@ if __name__ == "__main__":
                                     # data = pd.concat([data, df_min]) 
                                     # data = pd.concat([data, df_max])
                                     
-                                    nb_div = 10
+                                    nb_div = args.nb_div
 
                                     
                                     
@@ -653,6 +742,13 @@ if __name__ == "__main__":
                     # plt.plot(args.dump_vals, model_archive_mean_sizes[k],
                              # label=f'model_{init_methods[k]}',
                              # color=colors.to_rgba(k), linestyle=linestyles[k], alpha=0.5)
+
+                if has_ns_cov:
+                    plt.hlines(ns_asize, args.dump_vals[0], args.dump_vals[-1],
+                               label=f'NS-asize-500g', color='g')
+                if has_random_data:
+                    plt.hlines(random_asize, args.dump_vals[0], args.dump_vals[-1],
+                               label=f'rand-cov-{args.random_budget}', color='r')
                     
                 plt.legend()
 
@@ -744,7 +840,7 @@ if __name__ == "__main__":
                                       loc='center')
                 fig.tight_layout()
                 the_table.auto_set_font_size(False)
-                the_table.set_fontsize(6)
+                the_table.set_fontsize(4)
                 plt.title(f'Mean archive size and standard deviation on {args.environment} ' \
                           f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
                           f'individuals transferred', y=.8)
@@ -766,7 +862,7 @@ if __name__ == "__main__":
                                       loc='center')
                 fig.tight_layout()
                 the_table.auto_set_font_size(False)
-                the_table.set_fontsize(6)
+                the_table.set_fontsize(4)
                 plt.title(f'Mean coverage and standard deviation on {args.environment} ' \
                           f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
                           f'individuals transferred', y=.8)
@@ -782,7 +878,11 @@ if __name__ == "__main__":
                     plt.plot(args.dump_vals, archive_mean_covs[k], label=init_methods[k],
                              color=colors.to_rgba(k), linestyle=linestyles[k])
                 if has_ns_cov:
-                    plt.hlines(ns_cov, args.dump_vals[0], args.dump_vals[-1], label='NS-cov-500g')
+                    plt.hlines(ns_cov, args.dump_vals[0], args.dump_vals[-1], label='NS-cov-500g',
+                               color='g')
+                if has_random_data:
+                    plt.hlines(random_cov, args.dump_vals[0], args.dump_vals[-1],
+                               label=f'rand-cov-{args.random_budget}', color='r')
                     
                 plt.legend()
 
