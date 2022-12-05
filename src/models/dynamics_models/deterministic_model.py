@@ -48,7 +48,6 @@ class DeterministicDynModel(nn.Module):
         nn.init.xavier_uniform_(self.fc2.weight)
         nn.init.xavier_uniform_(self.fc3.weight)
         nn.init.xavier_uniform_(self.fc4.weight)
-
         
     def forward(self, x_input):
 
@@ -62,7 +61,6 @@ class DeterministicDynModel(nn.Module):
         x = self.fc4(x)
 
         return x
-
     
     def get_loss(self, x, y, return_l2_error=False):
 
@@ -103,7 +101,6 @@ class DeterministicDynModel(nn.Module):
 
         self.output_mu.data = ptu.from_numpy(mean)
         self.output_std.data = ptu.from_numpy(std)
-    
 
     #output predictions after unnormalized
     def output_pred(self, x_input):
@@ -114,7 +111,6 @@ class DeterministicDynModel(nn.Module):
         output = ptu.get_numpy(y)
 
         return output
-
     
     def normalize_inputs(self, data):
         data_norm = (data - self.input_mu)/(self.input_std)
@@ -127,6 +123,3 @@ class DeterministicDynModel(nn.Module):
     def denormalize_output(self, data):
         data_denorm = data*self.output_std + self.output_mu
         return data_denorm
-    
-    
-    

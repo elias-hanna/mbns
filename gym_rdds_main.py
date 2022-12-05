@@ -30,50 +30,18 @@ import torch
 import time
 import tqdm
 
-# added in get dynamics model section
-#from src.trainers.mbrl.mbrl_det import MBRLTrainer
-#from src.trainers.mbrl.mbrl import MBRLTrainer
-#from src.trainers.qd.surrogate import SurrogateTrainer
-
 from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
 
 def get_dynamics_model(dynamics_model_type, act_dim, obs_dim):
     obs_dim = obs_dim
     action_dim = act_dim
     
-    ## INIT MODEL ##
-    if dynamics_model_type == "prob":
-        from src.trainers.mbrl.mbrl import MBRLTrainer
-        variant = dict(
-            mbrl_kwargs=dict(
-                ensemble_size=4,
-                layer_size=500,
-                learning_rate=1e-3,
-                batch_size=512,
-            )
-        )
-        M = variant['mbrl_kwargs']['layer_size']
-        dynamics_model = ProbabilisticEnsemble(
-            ensemble_size=variant['mbrl_kwargs']['ensemble_size'],
-            obs_dim=obs_dim,
-            action_dim=action_dim,
-            hidden_sizes=[M, M]
-        )
-        dynamics_model_trainer = MBRLTrainer(
-            ensemble=dynamics_model,
-            **variant['mbrl_kwargs'],
-        )
-
-        # ensemble somehow cant run in parallel evaluations
-    elif dynamics_model_type == "det":
-        from src.trainers.mbrl.mbrl_det import MBRLTrainer 
-        dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
-                                               action_dim=action_dim,
-                                               hidden_size=500)
-        dynamics_model_trainer = MBRLTrainer(
-            model=dynamics_model,
-            batch_size=512,)
-
+    from src.trainers.mbrl.mbrl_det import MBRLTrainer 
+    dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
+                                           action_dim=action_dim,
+                                           hidden_size=500)
+    dynamics_model_trainer = MBRLTrainer(model=dynamics_model,
+                                         batch_size=512,)
 
     return dynamics_model, dynamics_model_trainer
 
@@ -145,9 +113,9 @@ class WrappedEnv():
             obs, reward, done, info = self._env.step(action)
             if done:
                 break
-        # if self._is_goal_env:
-            # obs = obs['observation']
-        # obs_traj.append(obs)
+        if self._is_goal_env:
+            obs = obs['observation']
+        obs_traj.append(obs)
 
         desc = self.compute_bd(obs_traj)
         fitness = self.compute_fitness(obs_traj, act_traj)
@@ -203,182 +171,6 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj
 
-    def evaluate_solution_model_ensemble(self, ctrl, mean=True, disagr=True, render=False):
-        """
-        Input: ctrl (array of floats) the genome of the individual
-        Output: Trajectory and actions taken
-        """
-        ## Create a copy of the controller
-        controller = self.controller.copy()
-        ## Verify that x and controller parameterization have same size
-        # assert len(x) == len(self.controller.get_parameters())
-        ## Set controller parameters
-        controller.set_parameters(ctrl)
-        env = copy.copy(self._env) ## need to verify this works
-        obs = self._init_obs
-        act_traj = []
-        obs_traj = []
-        disagr_traj = []
-        obs = np.tile(obs,(self.dynamics_model.ensemble_size, 1))
-        ## WARNING: need to get previous obs
-        for t in range(self._env_max_h):
-            ## Get mean obs to determine next action
-            # mean_obs = [np.mean(obs[:,i]) for i in range(len(obs[0]))]
-            action = controller(obs)
-            action[action>self._action_max] = self._action_max
-            action[action<self._action_min] = self._action_min
-            # if t == 0:
-                # obs = np.tile(obs,(self.dynamics_model.ensemble_size, 1))
-            obs_traj.append(obs)
-            act_traj.append(action)
-
-            s = ptu.from_numpy(np.array(obs))
-            a = ptu.from_numpy(np.array(action))
-
-            # if t ==0:
-                # a = a.repeat(self.dynamics_model.ensemble_size,1)
-            
-            # if probalistic dynamics model - choose output mean or sample
-            if disagr:
-                pred_delta_ns, _ = self.dynamics_model.sample_with_disagreement(torch.cat((
-                    self.dynamics_model._expand_to_ts_form(s),
-                    self.dynamics_model._expand_to_ts_form(a)), dim=-1))#,
-                    # disagreement_type="mean" if mean else "var")
-                pred_delta_ns = ptu.get_numpy(pred_delta_ns)
-                disagreement = self.compute_abs_disagreement(obs, pred_delta_ns)
-                # print("Disagreement: ", disagreement.shape)
-                # print("Disagreement: ", disagreement)
-                disagreement = ptu.get_numpy(disagreement) 
-                #disagreement = ptu.get_numpy(disagreement[0,3]) 
-                #disagreement = ptu.get_numpy(torch.mean(disagreement)) 
-                disagr_traj.append(disagreement)
-                
-            else:
-                pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s,a, mean=mean)
-
-            # mean_pred = [np.mean(pred_delta_ns[:,i]) for i in range(len(pred_delta_ns[0]))]
-            obs = pred_delta_ns + obs # This keeps all model predictions separated
-            # obs = mean_pred + obs # This uses mean prediction
-            
-        # obs_traj.append(obs)
-
-        obs_traj = np.array(obs_traj)
-        act_traj = np.array(act_traj)
-        
-        desc = self.compute_bd(obs_traj, ensemble=True)
-        fitness = self.compute_fitness(obs_traj, act_traj, disagr_traj=disagr_traj, ensemble=True)
-
-        if render:
-            print("Desc from model", desc)
-
-        return fitness, desc, obs_traj, act_traj, disagr_traj
-
-    def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
-                                                 render=False, use_particules=True):
-        """
-        Input: ctrl (array of floats) the genome of the individual
-        Output: Trajectory and actions taken
-        """
-        controller_list = []
-        traj_list = []
-        actions_list = []
-        disagreements_list = []
-        obs_list = []
-
-        env = copy.copy(self._env) ## need to verify this works
-        obs = self._init_obs
-
-        for ctrl in ctrls:
-            ## Create a copy of the controller
-            controller_list.append(self.controller.copy())
-            ## Set controller parameters
-            controller_list[-1].set_parameters(ctrl)
-            traj_list.append([])
-            actions_list.append([])
-            disagreements_list.append([])
-            obs_list.append(obs.copy())
-
-        ens_size = self.dynamics_model.ensemble_size
-
-        if use_particules:
-            S = np.tile(obs, (ens_size*len(ctrls), 1))
-            A = np.empty((ens_size*len(ctrls),
-                          self.controller.output_dim))
-        else:
-            ## WARNING: need to get previous obs
-            # S = np.tile(prev_element.trajectory[-1].copy(), (len(X)))
-            S = np.tile(obs, (len(ctrls), 1))
-            A = np.empty((len(ctrls), self.controller.output_dim))
-
-        for _ in tqdm.tqdm(range(self._env_max_h), total=self._env_max_h):
-            for i in range(len(ctrls)):
-                # A[i, :] = controller_list[i](S[i,:])
-                if use_particules:
-                    A[i*ens_size:i*ens_size+ens_size] = \
-                        controller_list[i](S[i*ens_size:i*ens_size+ens_size])
-                else:
-                    A[i] = controller_list[i](S[i])
-                
-            start = time.time()
-            if use_particules:
-                batch_pred_delta_ns, batch_disagreement = self.forward(A, S, mean=mean,
-                                                                       disagr=disagr,
-                                                                       multiple=True)
-            else:
-                batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S,
-                                                                                mean=True,
-                                                                                disagr=True)
-            # print(f"Time for inference {time.time()-start}")
-            for i in range(len(ctrls)):
-                if use_particules:
-                    ## Don't use mean predictions and keep each particule trajectory
-                    # Be careful, in that case there is no need to repeat each state in
-                    # forward multiple function
-                    disagreement = self.compute_abs_disagreement(S[i*ens_size:i*ens_size+ens_size]
-                                                                 , batch_pred_delta_ns[i])
-                    # print("Disagreement: ", disagreement.shape)
-                    # print("Disagreement: ", disagreement)
-                    disagreement = ptu.get_numpy(disagreement)
-                    
-                    disagreements_list[i].append(disagreement.copy())
-                    
-                    S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[i]
-                    traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
-
-                    # disagreements_list[i].append(batch_disagreement[i])
-                    actions_list[i].append(A[i*ens_size:i*ens_size+ens_size])
-
-                else:
-                    ## Compute mean prediction from model samples
-                    next_step_pred = batch_pred_delta_ns[i]
-                    mean_pred = [np.mean(next_step_pred[:,i]) for i
-                                 in range(len(next_step_pred[0]))]
-                    S[i,:] += mean_pred.copy()
-                    traj_list[i].append(S[i,:].copy())
-                    disagreements_list[i].append(batch_disagreement[i])
-                    actions_list[i].append(A[i,:])
-
-        bd_list = []
-        fit_list = []
-
-        obs_trajs = np.array(traj_list)
-        act_trajs = np.array(actions_list)
-        disagr_trajs = np.array(disagreements_list)
-
-        for i in range(len(ctrls)):
-            obs_traj = obs_trajs[i]
-            act_traj = act_trajs[i]
-            disagr_traj = disagr_trajs[i]
-
-            desc = self.compute_bd(obs_traj, ensemble=True)
-            fitness = self.compute_fitness(obs_traj, act_traj,
-                                           disagr_traj=disagr_traj,
-                                           ensemble=True)
-
-            fit_list.append(fitness)
-            bd_list.append(desc)
-            
-        return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def forward_multiple(self, A, S, mean=True, disagr=True):
         ## Takes a list of actions A and a list of states S we want to query the model from
