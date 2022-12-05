@@ -11,33 +11,9 @@ from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsem
 from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
 
 
-#----------Init methods imports--------#
-from model_init_study.initializers.random_policy_initializer \
-    import RandomPolicyInitializer
-from model_init_study.initializers.random_actions_initializer \
-    import RandomActionsInitializer
-from model_init_study.initializers.random_actions_random_policies_hybrid_initializer \
-    import RARPHybridInitializer
-from model_init_study.initializers.brownian_motion \
-    import BrownianMotion
-from model_init_study.initializers.colored_noise_motion \
-    import ColoredNoiseMotion
-
 #----------controller imports--------#
 from model_init_study.controller.nn_controller \
     import NeuralNetworkController
-
-#----------Separator imports--------#
-from model_init_study.visualization.fetch_pick_and_place_separator \
-    import FetchPickAndPlaceSeparator
-from model_init_study.visualization.ant_separator \
-    import AntSeparator
-from model_init_study.visualization.ball_in_cup_separator \
-    import BallInCupSeparator
-from model_init_study.visualization.redundant_arm_separator \
-    import RedundantArmSeparator
-from model_init_study.visualization.fastsim_separator \
-    import FastsimSeparator
 
 #----------Environment imports--------#
 import gym
@@ -675,44 +651,37 @@ def main(args):
     is_local_env = False
     if args.environment == 'ball_in_cup':
         env_register_id = 'BallInCup3d-v0'
-        separator = BallInCupSeparator
         ss_min = -0.4
         ss_max = 0.4
         dim_map = 3
     elif args.environment == 'redundant_arm':
         env_register_id = 'RedundantArmPos-v0'
-        separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls':
         env_register_id = 'RedundantArmPosNoWalls-v0'
-        separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls_no_collision':
         env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
-        separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls_limited_angles':
         env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
-        separator = RedundantArmSeparator
         ss_min = -1
         ss_max = 1
         dim_map = 2
         gym_args['dof'] = 100
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
-        separator = FastsimSeparator
         ss_min = -10
         ss_max = 10
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
-        separator = FastsimSeparator
         ss_min = -10
         ss_max = 10
         dim_map = 2
@@ -723,7 +692,6 @@ def main(args):
         obs_dim = 48
         act_dim = 18
         dim_x = 36
-        separator = None
         ss_min = -1
         ss_max = 1
         dim_map = 2
@@ -774,8 +742,6 @@ def main(args):
         'obs_dim': obs_dim,
         'action_dim': act_dim,
 
-        'separator': separator,
-        
         'n_init_episodes': args.init_episodes,
         # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
         'n_test_episodes': 2,
@@ -822,19 +788,6 @@ def main(args):
     obs_dim = obs_dim
     action_dim = act_dim
 
-    ## Get env(s) parameters; important params: state and action dim, gen dim, bd and fit dim
-    # Need to wrap everything above in a single function that process params
-    # Need to put the thing that extract gen dim inside it (see random policy initializer)
-
-    ## Create the model that we'll search on: need a direct model (predicts bd and f from gen) and a dynamics model(det, st+1 from at st)
-
-    ## Do the search on the model
-    # map elites with curiosity
-
-    ## Evaluate solutions on real environment
-
-    ## Gather results, format and save them
-    
     # Deterministic = "det", Probablistic = "prob"
     dynamics_model_type = "prob"
 
@@ -842,21 +795,6 @@ def main(args):
     dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_type,
                                                                 action_dim, obs_dim)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
-
-    ## Initialize model with wnb from previous run if an init method is to be used
-    if args.init_method != 'no-init' and args.init_method != 'vanilla':
-        if args.init_data_path is not None:
-            data_path = args.init_data_path
-            path = f'{data_path}/{args.environment}_results/{args.rep}/'\
-                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
-        else:
-            import src
-            path_to_src = src.__path__[0]
-            module_path = f'{path_to_src}/..'
-            path = f'{module_path}/data/{args.environment}_results/{args.rep}/'\
-                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
-        dynamics_model.load_state_dict(torch.load(path))
-        dynamics_model.eval()
 
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
@@ -940,9 +878,6 @@ if __name__ == "__main__":
 
     #----------model init study params--------#
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
-    parser.add_argument('--init-method', type=str, default='random-policies')
-    parser.add_argument('--init-episodes', type=int, default='20')
-    parser.add_argument('--init-data-path', type=str, default=None)
     parser.add_argument('--rep', type=int, default='1')
     
     args = parser.parse_args()
