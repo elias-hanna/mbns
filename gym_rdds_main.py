@@ -789,11 +789,12 @@ def main(args):
     action_dim = act_dim
 
     # Deterministic = "det", Probablistic = "prob"
-    dynamics_model_type = "prob"
+    dynamics_model_type = "det"
 
     print("Dynamics model type: ", dynamics_model_type)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_type,
                                                                 action_dim, obs_dim)
+
     surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
 
     if not is_local_env:

@@ -29,7 +29,8 @@ class DeterministicDynModel(nn.Module):
         
         self.fc1 = nn.Linear(self.input_dim, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.fc3 = nn.Linear(self.hidden_size, self.output_dim)
+        self.fc3 = nn.Linear(self.hidden_size, self.hidden_size)
+        self.fc4 = nn.Linear(self.hidden_size, self.output_dim)
 
         self.MSEcriterion = nn.MSELoss()
         self.L1criterion = nn.L1Loss()
@@ -46,6 +47,7 @@ class DeterministicDynModel(nn.Module):
         nn.init.xavier_uniform_(self.fc1.weight)
         nn.init.xavier_uniform_(self.fc2.weight)
         nn.init.xavier_uniform_(self.fc3.weight)
+        nn.init.xavier_uniform_(self.fc4.weight)
 
         
     def forward(self, x_input):
@@ -56,7 +58,8 @@ class DeterministicDynModel(nn.Module):
         #h = x_input
         x = torch.relu(self.fc1(h))
         x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = torch.relu(self.fc3(x))
+        x = self.fc4(x)
 
         return x
 
