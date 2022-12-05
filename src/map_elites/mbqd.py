@@ -810,7 +810,7 @@ class ModelBasedQD:
         
             pred = self.model.output_pred(x)            
             fitness = pred[0,0]
-            desc = [pred[0,1:3]]
+            desc = [pred[0,1:1+self.dim_map]]
             
         obs_traj = None
         act_traj = None

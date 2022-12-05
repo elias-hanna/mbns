@@ -78,7 +78,7 @@ class WrappedEnv():
         ## Get size of policy parameter vector
         self.policy_representation_dim = len(self.controller.get_parameters())
         self.dynamics_model = None
-        
+        self.time_open_loop = params['time_open_loop']
         
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
@@ -103,6 +103,8 @@ class WrappedEnv():
         for t in range(self._env_max_h):
             if self._is_goal_env:
                 obs = obs['observation']
+            if self.time_open_loop:
+                obs = t
             action = controller(obs)
             action[action>self._action_max] = self._action_max
             action[action<self._action_min] = self._action_min
@@ -141,6 +143,8 @@ class WrappedEnv():
         obs_traj = []
         ## WARNING: need to get previous obs
         for t in range(self._env_max_h):
+            if self.time_open_loop:
+                obs = t
             action = controller(obs)
             action[action>self._action_max] = self._action_max
             action[action<self._action_min] = self._action_min
@@ -544,7 +548,8 @@ def main(args):
 
         'controller_type': NeuralNetworkController,
         'controller_params': controller_params,
-
+        'time_open_loop': True,
+        
         'dynamics_model_params': dynamics_model_params,
 
         'action_min': -1,
@@ -561,7 +566,10 @@ def main(args):
         'env_max_h': max_step,
         'fitness_func': args.fitness_func,
     }
-
+    ## Correct obs dim for controller if open looping on time
+    if params['time_open_loop']:
+        controller_params['obs_dim'] = 1
+        
     #########################################################################
     ####################### End of Preparation of run #######################
     #########################################################################
