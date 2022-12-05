@@ -26,7 +26,7 @@ class DeterministicQDSurrogate(nn.Module):
         self.input_dim = self.gen_dim
         self.output_dim = self.bd_dim + 1 # fitness always a scalar
         self.hidden_size = hidden_size
-        
+
         self.fc1 = nn.Linear(self.input_dim, self.hidden_size)
         #self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, self.output_dim)

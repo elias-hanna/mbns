@@ -62,10 +62,11 @@ def evaluate_(t):
     # t is the tuple from the to_evaluate list
     z, f = t
     fit, desc, obs_traj, act_traj = f(z) 
-    
+
+    ## warning: commented the lines below, as in my case I don't see the use..
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
-    desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
-    desc_ground = desc
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    # desc_ground = desc
     
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
@@ -116,7 +117,7 @@ class QD:
                 c = cm.grid_centroids(self.bins)
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
-            cm.__write_centroids(c)
+            cm._write_centroids(c)
 
             
         if (self.qd_type == "cvt") or (self.qd_type=="grid"):
@@ -194,8 +195,8 @@ class QD:
         else:
             num_cores = num_cores_set
             
-        #pool = multiprocessing.Pool(num_cores)
-        pool = get_context("spawn").Pool(num_cores)
+        pool = multiprocessing.Pool(num_cores)
+        # pool = get_context("spawn").Pool(num_cores)
         #pool = ThreadPool(num_cores)
         
         gen = 0 # generation
@@ -242,9 +243,10 @@ class QD:
             b_evals += len(to_evaluate) # number of evals since last dump
             
             #print("n_evals: ", n_evals)
-            print("b_evals: ", b_evals)
+            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}")
 
             # write archive during dump period
+            
             if b_evals >= params['dump_period'] and params['dump_period'] != -1:
                 # write archive
                 print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
@@ -256,7 +258,7 @@ class QD:
                 fit_list = np.array([x.fitness for x in self.archive.values()])
                 self.log_file.write("{} {} {} {} {} {} {} {} {} {}\n".format(gen,
                                          n_evals,
-                                         n_model_evals, 
+                                         # n_model_evals, 
                                          len(self.archive.keys()),
                                          fit_list.max(),
                                          np.sum(fit_list),

@@ -91,7 +91,7 @@ def compute(dim_map, dim_x, f,
     c = cm.cvt(n_niches, dim_map,
               params['cvt_samples'], params['cvt_use_cache'])
     kdt = KDTree(c, leaf_size=30, metric='euclidean')
-    cm.__write_centroids(c)
+    cm._write_centroids(c)
 
     if params["type"] == "cvt" or "grid":
         archive = {} # init archive as dic (empty)

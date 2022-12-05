@@ -200,13 +200,13 @@ def variation(x, z, params):
 
     return y
 
-def __centroids_filename(k, dim):
+def _centroids_filename(k, dim):
     return 'centroids_' + str(k) + '_' + str(dim) + '.dat'
 
-def __write_centroids(centroids):
+def _write_centroids(centroids):
     k = centroids.shape[0]
     dim = centroids.shape[1]
-    filename = __centroids_filename(k, dim)
+    filename = _centroids_filename(k, dim)
     with open(filename, 'w') as f:
         for p in centroids:
             for item in p:
@@ -215,7 +215,7 @@ def __write_centroids(centroids):
 
 def cvt(k, dim, samples, cvt_use_cache=True):
     # check if we have cached values
-    fname = __centroids_filename(k, dim)
+    fname = _centroids_filename(k, dim)
     if cvt_use_cache:
         if Path(fname).is_file():
             print("WARNING: using cached CVT:", fname)
@@ -307,7 +307,8 @@ def save_archive(archive, gen, params, log_dir):
                 # ind_string += str(k.model_dis) + ','
                 ## Above doesn't work actually, only works when model_dis = scalar
                 ## so we take the mean
-                ind_string += str(np.mean(k.model_dis)) + ','
+                if k.model_dis is not None:
+                    ind_string += str(np.mean(k.model_dis)) + ','
                 ind_string += get_array_string(k.x)
 
                 f.write(ind_string + "\n")
@@ -315,7 +316,7 @@ def save_archive(archive, gen, params, log_dir):
                 '''
                 f.write(str(k.fitness) + ',') # write fitness
                 write_array(k.desc, f) # write desriptor
-                f.write(str(k.model_dis) + ',') # model_dis
+                f.write(str(k.model_dis) + ',') # model_dis IF IT EXISTS
                 #write_array(k.desc_ground, f) # write ground truth desriptor
                 write_array(k.x, f) # write genotype
                 #write_array(k.obs_traj, f) # write obervation trajectory

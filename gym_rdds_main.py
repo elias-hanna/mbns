@@ -4,10 +4,9 @@ import numpy as np
 
 import src.torch.pytorch_util as ptu
 
-from src.map_elites.mbqd import ModelBasedQD
+from src.map_elites.qd import QD
 
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
-from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
 from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
 
 
@@ -18,9 +17,6 @@ from model_init_study.controller.nn_controller \
 #----------Environment imports--------#
 import gym
 import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
-import mb_ge ## Contains ball in cup
-import redundant_arm ## contains redundant arm
-from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
 
 #----------Utils imports--------#
 from multiprocessing import cpu_count
@@ -104,8 +100,9 @@ class WrappedEnv():
             if self._is_goal_env:
                 obs = obs['observation']
             if self.time_open_loop:
-                obs = t
-            action = controller(obs)
+                action = controller([t])
+            else:
+                action = controller(obs)
             action[action>self._action_max] = self._action_max
             action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
@@ -126,7 +123,7 @@ class WrappedEnv():
         return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     ## Evaluate the individual on the DYNAMICS MODEL
-    def evaluate_solution_model(self, ctrl, mean=False, det=True, render=False):
+    def evaluate_solution_model(self, ctrl, render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
         Output: Trajectory and actions taken
@@ -144,8 +141,9 @@ class WrappedEnv():
         ## WARNING: need to get previous obs
         for t in range(self._env_max_h):
             if self.time_open_loop:
-                obs = t
-            action = controller(obs)
+                action = controller([t])
+            else:
+                action = controller(obs)
             action[action>self._action_max] = self._action_max
             action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
@@ -156,14 +154,10 @@ class WrappedEnv():
             s = s.view(1,-1)
             a = a.view(1,-1)
 
-            if det:
-                # if deterministic dynamics model
-                pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
-            else:
-                # if probalistic dynamics model - choose output mean or sample
-                pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1), mean=mean)
+            # Deterministic dynamics model
+            pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
+
             obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
-            
         obs_traj.append(obs)
 
         desc = self.compute_bd(obs_traj)
@@ -174,114 +168,9 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj
 
-
-    def forward_multiple(self, A, S, mean=True, disagr=True):
-        ## Takes a list of actions A and a list of states S we want to query the model from
-        ## Returns a list of the return of a forward call for each couple (action, state)
-        assert len(A) == len(S)
-        batch_len = len(A)
-        ens_size = self.dynamics_model.ensemble_size
-
-        S_0 = np.empty((batch_len*ens_size, S.shape[1]))
-        A_0 = np.empty((batch_len*ens_size, A.shape[1]))
-
-        batch_cpt = 0
-        for a, s in zip(A, S):
-            S_0[batch_cpt*ens_size:batch_cpt*ens_size+ens_size,:] = \
-            np.tile(s,(self.dynamics_model.ensemble_size, 1))
-            # np.tile(copy.deepcopy(s),(self._dynamics_model.ensemble_size, 1))
-
-            A_0[batch_cpt*ens_size:batch_cpt*ens_size+ens_size,:] = \
-            np.tile(a,(self.dynamics_model.ensemble_size, 1))
-            # np.tile(copy.deepcopy(a),(self._dynamics_model.ensemble_size, 1))
-            batch_cpt += 1
-        # import pdb; pdb.set_trace()
-        return self.forward(A_0, S_0, mean=mean, disagr=disagr, multiple=True)
-
-        # return batch_pred_delta_ns, batch_disagreement
-
-    def forward(self, a, s, mean=True, disagr=True, multiple=False):
-        s_0 = copy.deepcopy(s)
-        a_0 = copy.deepcopy(a)
-
-        if not multiple:
-            s_0 = np.tile(s_0,(self.dynamics_model.ensemble_size, 1))
-            a_0 = np.tile(a_0,(self.dynamics_model.ensemble_size, 1))
-
-        s_0 = ptu.from_numpy(s_0)
-        a_0 = ptu.from_numpy(a_0)
-
-        # a_0 = a_0.repeat(self._dynamics_model.ensemble_size,1)
-
-        # if probalistic dynamics model - choose output mean or sample
-        if disagr:
-            if not multiple:
-                pred_delta_ns, disagreement = self.dynamics_model.sample_with_disagreement(
-                    torch.cat((
-                        self.dynamics_model._expand_to_ts_form(s_0),
-                        self.dynamics_model._expand_to_ts_form(a_0)), dim=-1
-                    ))#, disagreement_type="mean" if mean else "var")
-                pred_delta_ns = ptu.get_numpy(pred_delta_ns)
-                return pred_delta_ns, disagreement
-            else:
-                pred_delta_ns_list, disagreement_list = \
-                self.dynamics_model.sample_with_disagreement_multiple(
-                    torch.cat((
-                        self.dynamics_model._expand_to_ts_form(s_0),
-                        self.dynamics_model._expand_to_ts_form(a_0)), dim=-1
-                    ))#, disagreement_type="mean" if mean else "var")
-                for i in range(len(pred_delta_ns_list)):
-                    pred_delta_ns_list[i] = ptu.get_numpy(pred_delta_ns_list[i])
-                return pred_delta_ns_list, disagreement_list
-        else:
-            pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s_0, a_0, mean=mean)
-        return pred_delta_ns, 0
-
-    
-    def compute_abs_disagreement(self, cur_state, pred_delta_ns):
-        '''
-        Computes absolute state dsiagreement between models in the ensemble
-        cur state is [4,48]
-        pred delta ns [4,48]
-        '''
-        next_state = pred_delta_ns + cur_state
-        next_state = ptu.from_numpy(next_state)
-        mean = next_state
-
-        sample=False
-        if sample: 
-            inds = torch.randint(0, mean.shape[0], next_state.shape[:1]) #[4]
-            inds_b = torch.randint(0, mean.shape[0], next_state.shape[:1]) #[4]
-            inds_b[inds == inds_b] = torch.fmod(inds_b[inds == inds_b] + 1, mean.shape[0]) 
-        else:
-            inds = torch.tensor(np.array([0,0,0,1,1,2]))
-            inds_b = torch.tensor(np.array([1,2,3,2,3,3]))
-
-        # Repeat for multiplication
-        inds = inds.unsqueeze(dim=-1).to(device=ptu.device)
-        inds = inds.repeat(1, mean.shape[1])
-        inds_b = inds_b.unsqueeze(dim=-1).to(device=ptu.device)
-        inds_b = inds_b.repeat(1, mean.shape[1])
-
-        means_a = (inds == 0).float() * mean[0]
-        means_b = (inds_b == 0).float() * mean[0]
-        for i in range(1, mean.shape[0]):
-            means_a += (inds == i).float() * mean[i]
-            means_b += (inds_b == i).float() * mean[i]
-            
-        disagreements = torch.mean(torch.sqrt((means_a - means_b)**2), dim=-2, keepdim=True)
-        #disagreements = torch.mean((means_a - means_b) ** 2, dim=-1, keepdim=True)
-
-        return disagreements
-
-    def compute_bd(self, obs_traj, ensemble=False, mean=True):
+    def compute_bd(self, obs_traj):
         bd = None
         last_obs = obs_traj[-1]
-        if ensemble:
-            if mean:
-                last_obs = np.mean(last_obs, axis=0)
-            else:
-                last_obs = last_obs[np.random.randint(self.dynamics_model.ensemble_size)]
                 
         if self._env_name == 'ball_in_cup':
             bd = last_obs[:3]
@@ -371,7 +260,6 @@ def main(args):
         "eps": 0.1, # usually 10%
         "k": 15,  # from novelty search
 
-
         #--------MODEL BASED PARAMS-------#
         "t_nov": 0.03,
         "t_qua": 0.0, 
@@ -383,14 +271,8 @@ def main(args):
         # fitness is always positive - so t_qua
 
         "model_variant": args.model_variant, # "dynamics" or "direct" or "all_dynamics"  
-        "train_model_on": not args.no_training,
         "perfect_model_on": args.perfect_model,
         
-        # "train_freq": 40, # train at a or condition between train freq and evals_per_train
-        # "evals_per_train": 500,
-        "train_freq": args.train_freq_gen, # train at a or condition between train freq and evals_per_train
-        "evals_per_train": args.train_freq_eval,
-
         "log_model_stats": False,
         "log_time_stats": False, 
 
@@ -398,11 +280,9 @@ def main(args):
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
 
-        "min_found_model": args.min_found_model,
         "transfer_selection": args.transfer_selection,
         "nb_transfer": args.nb_transfer,
         'env_name': args.environment,
-        'init_method': args.init_method,
     }
 
     
@@ -410,46 +290,18 @@ def main(args):
     ####################### Preparation of run ##############################
     #########################################################################
     
-    noise_beta = 2
-    if args.init_method == 'random-policies':
-        Initializer = RandomPolicyInitializer
-    elif args.init_method == 'random-actions':
-        Initializer = RandomActionsInitializer
-    elif args.init_method == 'rarph':
-        Initializer = RARPHybridInitializer
-    elif args.init_method == 'brownian-motion':
-        Initializer = BrownianMotion
-    elif args.init_method == 'levy-flight':
-        Initializer = LevyFlight
-    elif args.init_method == 'colored-noise-beta-0':
-        Initializer = ColoredNoiseMotion
-        noise_beta = 0
-    elif args.init_method == 'colored-noise-beta-1':
-        Initializer = ColoredNoiseMotion
-        noise_beta = 1
-    elif args.init_method == 'colored-noise-beta-2':
-        Initializer = ColoredNoiseMotion
-        noise_beta = 2
-    elif args.init_method == 'no-init':
-        ## this will do uninitialized model daqd
-        pass
-    elif args.init_method == 'vanilla':
-        ## This will do vanilla daqd
-        pass
-    else:
-        raise Exception(f"Warning {args.init_method} isn't a valid initializer")
-    
-    
     ### Environment initialization ###
     env_register_id = 'BallInCup3d-v0'
     gym_args = {}
     is_local_env = False
     if args.environment == 'ball_in_cup':
+        import mb_ge ## Contains ball in cup
         env_register_id = 'BallInCup3d-v0'
         ss_min = -0.4
         ss_max = 0.4
         dim_map = 3
     elif args.environment == 'redundant_arm':
+        import redundant_arm ## contains redundant arm
         env_register_id = 'RedundantArmPos-v0'
         ss_min = -1
         ss_max = 1
@@ -482,6 +334,7 @@ def main(args):
         dim_map = 2
         gym_args['physical_traps'] = True
     elif args.environment == 'hexapod_omni':
+        from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
         is_local_env = True
         max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
         obs_dim = 48
@@ -519,7 +372,8 @@ def main(args):
         'controller_input_dim': obs_dim,
         'controller_output_dim': act_dim,
         'n_hidden_layers': 2,
-        'n_neurons_per_hidden': 10
+        'n_neurons_per_hidden': 10,
+        'time_open_loop': False,
     }
     dynamics_model_params = \
     {
@@ -532,7 +386,6 @@ def main(args):
     }
     surrogate_model_params = \
     {
-        'gen_dim': dim_x,
         'bd_dim': dim_map,
         'obs_dim': obs_dim,
         'action_dim': act_dim,
@@ -548,7 +401,7 @@ def main(args):
 
         'controller_type': NeuralNetworkController,
         'controller_params': controller_params,
-        'time_open_loop': True,
+        'time_open_loop': controller_params['time_open_loop'],
         
         'dynamics_model_params': dynamics_model_params,
 
@@ -578,15 +431,12 @@ def main(args):
     if not is_local_env:
         env = WrappedEnv(params)
         dim_x = env.policy_representation_dim
-    obs_dim = obs_dim
-    action_dim = act_dim
 
-    dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_type,
-                                                                action_dim, obs_dim,
-                                                                dynamics_model_params)
+    surrogate_model_params['gen_dim'] = dim_x
 
-    surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x, dim_map,
-                                                                   surrogate_model_params)
+
+    dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
+    surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
@@ -602,27 +452,27 @@ def main(args):
         f_model = f_real
     elif args.model_variant == "dynamics":
         f_model = env.evaluate_solution_model 
-    elif args.model_variant == "direct":
-        f_model = env.evaluate_solution_model 
+    # elif args.model_variant == "direct":
+        # f_model = env.evaluate_solution_model 
         
-    # initialize replay buffer
-    replay_buffer = SimpleReplayBuffer(
-        max_replay_buffer_size=1000000,
-        observation_dim=obs_dim,
-        action_dim=action_dim,
-        env_info_sizes=dict(),
-    )
-    
-    mbqd = ModelBasedQD(dim_map, dim_x,
-                        f_real, f_model,
-                        surrogate_model, surrogate_model_trainer,
-                        dynamics_model, dynamics_model_trainer,
-                        replay_buffer, 
-                        n_niches=args.n_niches,
-                        params=px, log_dir=args.log_dir)
+    qd = QD(dim_map, dim_x,
+            f_model,
+            n_niches=1000,
+            params=px,
+            log_dir=args.log_dir)
 
-    #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
-    mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    archive = qd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    
+    # mbqd = ModelBasedQD(dim_map, dim_x,
+    #                     f_real, f_model,
+    #                     surrogate_model, surrogate_model_trainer,
+    #                     dynamics_model, dynamics_model_trainer,
+    #                     replay_buffer, 
+    #                     n_niches=args.n_niches,
+    #                     params=px, log_dir=args.log_dir)
+
+    # #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
+    # mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
         
 
 if __name__ == "__main__":
@@ -635,7 +485,7 @@ if __name__ == "__main__":
     parser.add_argument("--qd_type", type=str, default="unstructured")
     
     #---------------CPU usage-------------------#
-    parser.add_argument("--num_cores", type=int, default=8)
+    parser.add_argument("--num_cores", type=int, default=6)
     
     #-----------Store results + analysis-----------#
     parser.add_argument("--log_dir", type=str)
@@ -657,13 +507,9 @@ if __name__ == "__main__":
     #-------------DAQD params-----------#
     parser.add_argument('--transfer-selection', type=str, default='all')
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
-    parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--nb-transfer', type=int, default=1)
-    parser.add_argument('--train-freq-gen', type=int, default=5)
-    parser.add_argument('--train-freq-eval', type=int, default=500)
 
-    parser.add_argument('--model-variant', type=str, default='all_dynamics')
-    parser.add_argument('--no-training', action='store_true')
+    parser.add_argument('--model-variant', type=str, default='dynamics')
     parser.add_argument('--perfect-model', action='store_true')
 
     #----------model init study params--------#
