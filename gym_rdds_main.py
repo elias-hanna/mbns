@@ -32,27 +32,27 @@ import tqdm
 
 from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
 
-def get_dynamics_model(dynamics_model_type, act_dim, obs_dim):
-    obs_dim = obs_dim
-    action_dim = act_dim
+def get_dynamics_model(dynamics_model_params):
+    obs_dim = dynamics_model_params['obs_dim']
+    action_dim = dynamics_model_params['action_dim']
     
     from src.trainers.mbrl.mbrl_det import MBRLTrainer 
     dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
                                            action_dim=action_dim,
-                                           hidden_size=500)
+                                           hidden_size=dynamics_model_params['layer_size'])
     dynamics_model_trainer = MBRLTrainer(model=dynamics_model,
-                                         batch_size=512,)
+                                         batch_size=dynamics_model_params['batch_size'],)
 
     return dynamics_model, dynamics_model_trainer
 
-def get_surrogate_model(dim):
+def get_surrogate_model(surrogate_model_params):
     from src.trainers.qd.surrogate import SurrogateTrainer
-    dim_x=dim # genotype dimnesion    
-    model = DeterministicQDSurrogate(gen_dim=dim_x, bd_dim=2, hidden_size=64)
-    model_trainer = SurrogateTrainer(model, batch_size=32)
+    model = DeterministicQDSurrogate(gen_dim=surrogate_model_params['gen_dim'],
+                                     bd_dim=surrogate_model_params['bd_dim'],
+                                     hidden_size=surrogate_model_params['layer_size'])
+    model_trainer = SurrogateTrainer(model, batch_size=surrogate_model_params['batch_size'])
 
     return model, model_trainer
-
 
 class WrappedEnv():
     def __init__(self, params):
@@ -82,10 +82,8 @@ class WrappedEnv():
         
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
-        
-    ## For each env, do a BD + Fitness based on traj
-    ## mb best solution is to put it in the envs directly
-    ## check what obs_traj and act_traj looks like in src/envs/hexapod_env.py
+
+    ## Evaluate the individual on the REAL ENVIRONMENT
     def evaluate_solution(self, ctrl, render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
@@ -125,6 +123,7 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
+    ## Evaluate the individual on the DYNAMICS MODEL
     def evaluate_solution_model(self, ctrl, mean=False, det=True, render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
@@ -522,10 +521,19 @@ def main(args):
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'dynamics_model_type': 'prob', # possible values: prob, det
-        'ensemble_size': 4, # only used if dynamics_model_type == prob
         'layer_size': 500,
         'batch_size': 512,
+        'learning_rate': 1e-3,
+        'train_unique_trans': False,
+    }
+    surrogate_model_params = \
+    {
+        'gen_dim': dim_x,
+        'bd_dim': dim_map,
+        'obs_dim': obs_dim,
+        'action_dim': act_dim,
+        'layer_size': 64,
+        'batch_size': 32,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
     }
@@ -534,10 +542,6 @@ def main(args):
         'obs_dim': obs_dim,
         'action_dim': act_dim,
 
-        'n_init_episodes': args.init_episodes,
-        # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
-        'n_test_episodes': 2,
-        
         'controller_type': NeuralNetworkController,
         'controller_params': controller_params,
 
@@ -545,13 +549,6 @@ def main(args):
 
         'action_min': -1,
         'action_max': 1,
-        'action_init': 0,
-
-        ## Random walks parameters
-        'step_size': 0.1,
-        'noise_beta': noise_beta,
-        
-        'action_lasting_steps': 5,
 
         'state_min': ss_min,
         'state_max': ss_max,
@@ -559,10 +556,6 @@ def main(args):
         'policy_param_init_min': -5,
         'policy_param_init_max': 5,
         
-        # 'dump_path': args.dump_path,
-        # 'path_to_test_trajectories': 'examples/'+args.environment+'_example_trajectories.npz',
-        # 'path_to_test_trajectories': path_to_examples,
-
         'env': gym_env,
         'env_name': args.environment,
         'env_max_h': max_step,
@@ -580,14 +573,12 @@ def main(args):
     obs_dim = obs_dim
     action_dim = act_dim
 
-    # Deterministic = "det", Probablistic = "prob"
-    dynamics_model_type = "det"
-
-    print("Dynamics model type: ", dynamics_model_type)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_type,
-                                                                action_dim, obs_dim)
+                                                                action_dim, obs_dim,
+                                                                dynamics_model_params)
 
-    surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
+    surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x, dim_map,
+                                                                   surrogate_model_params)
 
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
@@ -601,13 +592,11 @@ def main(args):
 
     if args.perfect_model:
         f_model = f_real
-    elif dynamics_model_type == "det":
+    elif args.model_variant == "dynamics":
         f_model = env.evaluate_solution_model 
-    elif dynamics_model_type == "prob":
-        f_model = env.evaluate_solution_model_ensemble
-        if px["model_variant"] == "all_dynamics":
-            f_model = env.evaluate_solution_model_ensemble_all
-
+    elif args.model_variant == "direct":
+        f_model = env.evaluate_solution_model 
+        
     # initialize replay buffer
     replay_buffer = SimpleReplayBuffer(
         max_replay_buffer_size=1000000,
