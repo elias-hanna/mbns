@@ -44,10 +44,10 @@ class DeterministicDynModel(nn.Module):
         self.output_std = nn.Parameter(ptu.ones(1,self.output_dim), requires_grad=False).float()
 
         # xavier intialization of weights
-        nn.init.xavier_uniform_(self.fc1.weight)
-        nn.init.xavier_uniform_(self.fc2.weight)
-        nn.init.xavier_uniform_(self.fc3.weight)
-        nn.init.xavier_uniform_(self.fc4.weight)
+        # nn.init.xavier_uniform_(self.fc1.weight)
+        # nn.init.xavier_uniform_(self.fc2.weight)
+        # nn.init.xavier_uniform_(self.fc3.weight)
+        # nn.init.xavier_uniform_(self.fc4.weight)
         
     def forward(self, x_input):
 

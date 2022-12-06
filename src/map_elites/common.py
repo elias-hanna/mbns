@@ -262,10 +262,13 @@ def make_hashable(array):
 def parallel_eval(evaluate_function, to_evaluate, pool, params):
     if params['parallel'] == True:
         print("Starting parallel eval")
-        s_list = pool.map(evaluate_function, to_evaluate)
+        # s_list = pool.map(evaluate_function, to_evaluate)
         # s_list = []
-        #for result in tqdm.tqdm(pool.map(evaluate_function, to_evaluate), total=len(to_evaluate)):
-        #     s_list.append(result)
+        # for result in tqdm.tqdm(pool.map(evaluate_function, to_evaluate), total=len(to_evaluate)):
+            # s_list.append(result)
+        s_list = []
+        for result in tqdm.tqdm(pool.imap_unordered(evaluate_function, to_evaluate), total=len(to_evaluate)):
+            s_list.append(result)
     else:
         print("Starting sequential eval")
         s_list = map(evaluate_function, to_evaluate)
@@ -285,6 +288,8 @@ def save_archive(archive, gen, params, log_dir):
             f.write(str(i) + ',') # save comma inbetween so easier to read as pandas
 
     def get_array_string(a):
+        if hasattr(a[0], "__len__"):
+            a = a[0]
         array_str = ''
         for i in a:
             array_str += str(i) + ','

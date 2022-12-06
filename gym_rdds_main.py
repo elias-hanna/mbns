@@ -4,11 +4,13 @@ import numpy as np
 
 import src.torch.pytorch_util as ptu
 
+from src.map_elites import common as cm
+from src.map_elites import unstructured_container, cvt
 from src.map_elites.qd import QD
 
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
+from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
 from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
-
 
 #----------controller imports--------#
 from model_init_study.controller.nn_controller \
@@ -19,6 +21,7 @@ import gym
 import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
 
 #----------Utils imports--------#
+import multiprocessing
 from multiprocessing import cpu_count
 import copy
 import numpy as np
@@ -28,16 +31,77 @@ import tqdm
 
 from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
 
+################################################################################
+################################ QD methods ####################################
+################################################################################
+def addition_condition(s_list, archive, params):
+        add_list = [] # list of solutions that were added
+        discard_list = []
+        for s in s_list:
+            if params['type'] == "unstructured":
+                success = unstructured_container.add_to_archive(s, archive, params)
+            else:
+                success = cvt.add_to_archive(s, s.desc, archive, kdt)
+            if success:
+                add_list.append(s)
+            else:
+                discard_list.append(s) #not important for alogrithm but to collect stats
+                
+        return archive, add_list, discard_list
+
+def evaluate_(t):
+    # evaluate a single vector (x) with a function f and return a species
+    # evaluate z with function f - z is the genotype and f is the evalution function
+    # t is the tuple from the to_evaluate list
+    z, f = t
+    fit, desc, obs_traj, act_traj, disagr = f(z) 
+    ## warning: commented the lines below, as in my case I don't see the use..
+    # becasue it somehow returns a list in a list (have to keep checking sometimes)
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    # desc_ground = desc
+    # return a species object (containing genotype, descriptor and fitness)
+    return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
+
+################################################################################
+############################## Model methods ###################################
+################################################################################
+
 def get_dynamics_model(dynamics_model_params):
     obs_dim = dynamics_model_params['obs_dim']
     action_dim = dynamics_model_params['action_dim']
-    
-    from src.trainers.mbrl.mbrl_det import MBRLTrainer 
-    dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
-                                           action_dim=action_dim,
-                                           hidden_size=dynamics_model_params['layer_size'])
-    dynamics_model_trainer = MBRLTrainer(model=dynamics_model,
-                                         batch_size=dynamics_model_params['batch_size'],)
+    dynamics_model_type = dynamics_model_params['model_type']
+
+    ## INIT MODEL ##
+    if dynamics_model_type == "prob":
+        from src.trainers.mbrl.mbrl import MBRLTrainer
+        variant = dict(
+            mbrl_kwargs=dict(
+                ensemble_size=4,
+                layer_size=dynamics_model_params['layer_size'],
+                learning_rate=1e-3,
+                batch_size=dynamics_model_params['batch_size'],
+            )
+        )
+        M = variant['mbrl_kwargs']['layer_size']
+        dynamics_model = ProbabilisticEnsemble(
+            ensemble_size=variant['mbrl_kwargs']['ensemble_size'],
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+            hidden_sizes=[M, M]
+        )
+        dynamics_model_trainer = MBRLTrainer(
+            ensemble=dynamics_model,
+            **variant['mbrl_kwargs'],
+        )
+
+        # ensemble somehow cant run in parallel evaluations
+    elif dynamics_model_type == "det":
+        from src.trainers.mbrl.mbrl_det import MBRLTrainer 
+        dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
+                                               action_dim=action_dim,
+                                               hidden_size=dynamics_model_params['layer_size'])
+        dynamics_model_trainer = MBRLTrainer(model=dynamics_model,
+                                             batch_size=dynamics_model_params['batch_size'],)
 
     return dynamics_model, dynamics_model_trainer
 
@@ -168,6 +232,212 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj
 
+    def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
+                                                 render=False, use_particules=True):
+        """
+        Input: ctrl (array of floats) the genome of the individual
+        Output: Trajectory and actions taken
+        """
+        controller_list = []
+        traj_list = []
+        actions_list = []
+        disagreements_list = []
+        obs_list = []
+
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+
+        for ctrl in ctrls:
+            ## Create a copy of the controller
+            controller_list.append(self.controller.copy())
+            ## Set controller parameters
+            controller_list[-1].set_parameters(ctrl)
+            traj_list.append([])
+            actions_list.append([])
+            disagreements_list.append([])
+            obs_list.append(obs.copy())
+
+        ens_size = self.dynamics_model.ensemble_size
+
+        if use_particules:
+            S = np.tile(obs, (ens_size*len(ctrls), 1))
+            A = np.empty((ens_size*len(ctrls),
+                          self.controller.output_dim))
+        else:
+            ## WARNING: need to get previous obs
+            # S = np.tile(prev_element.trajectory[-1].copy(), (len(X)))
+            S = np.tile(obs, (len(ctrls), 1))
+            A = np.empty((len(ctrls), self.controller.output_dim))
+
+        for _ in tqdm.tqdm(range(self._env_max_h), total=self._env_max_h):
+            for i in range(len(ctrls)):
+                # A[i, :] = controller_list[i](S[i,:])
+                if use_particules:
+                    A[i*ens_size:i*ens_size+ens_size] = \
+                        controller_list[i](S[i*ens_size:i*ens_size+ens_size])
+                else:
+                    A[i] = controller_list[i](S[i])
+                
+            start = time.time()
+            if use_particules:
+                batch_pred_delta_ns, batch_disagreement = self.forward(A, S, mean=mean,
+                                                                       disagr=disagr,
+                                                                       multiple=True)
+            else:
+                batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S,
+                                                                                mean=True,
+                                                                                disagr=True)
+            # print(f"Time for inference {time.time()-start}")
+            for i in range(len(ctrls)):
+                if use_particules:
+                    ## Don't use mean predictions and keep each particule trajectory
+                    # Be careful, in that case there is no need to repeat each state in
+                    # forward multiple function
+                    disagreement = self.compute_abs_disagreement(S[i*ens_size:i*ens_size+ens_size]
+                                                                 , batch_pred_delta_ns[i])
+                    # print("Disagreement: ", disagreement.shape)
+                    # print("Disagreement: ", disagreement)
+                    disagreement = ptu.get_numpy(disagreement)
+                    
+                    disagreements_list[i].append(disagreement.copy())
+                    
+                    S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[i]
+                    traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
+
+                    # disagreements_list[i].append(batch_disagreement[i])
+                    actions_list[i].append(A[i*ens_size:i*ens_size+ens_size])
+
+                else:
+                    ## Compute mean prediction from model samples
+                    next_step_pred = batch_pred_delta_ns[i]
+                    mean_pred = [np.mean(next_step_pred[:,i]) for i
+                                 in range(len(next_step_pred[0]))]
+                    S[i,:] += mean_pred.copy()
+                    traj_list[i].append(S[i,:].copy())
+                    disagreements_list[i].append(batch_disagreement[i])
+                    actions_list[i].append(A[i,:])
+
+        bd_list = []
+        fit_list = []
+
+        obs_trajs = np.array(traj_list)
+        act_trajs = np.array(actions_list)
+        disagr_trajs = np.array(disagreements_list)
+
+        for i in range(len(ctrls)):
+            obs_traj = obs_trajs[i]
+            act_traj = act_trajs[i]
+            disagr_traj = disagr_trajs[i]
+
+            desc = self.compute_bd(obs_traj, ensemble=True)
+            fitness = self.compute_fitness(obs_traj, act_traj,
+                                           disagr_traj=disagr_traj,
+                                           ensemble=True)
+
+            fit_list.append(fitness)
+            bd_list.append(desc)
+            
+        return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
+
+    def forward_multiple(self, A, S, mean=True, disagr=True):
+        ## Takes a list of actions A and a list of states S we want to query the model from
+        ## Returns a list of the return of a forward call for each couple (action, state)
+        assert len(A) == len(S)
+        batch_len = len(A)
+        ens_size = self.dynamics_model.ensemble_size
+
+        S_0 = np.empty((batch_len*ens_size, S.shape[1]))
+        A_0 = np.empty((batch_len*ens_size, A.shape[1]))
+
+        batch_cpt = 0
+        for a, s in zip(A, S):
+            S_0[batch_cpt*ens_size:batch_cpt*ens_size+ens_size,:] = \
+            np.tile(s,(self.dynamics_model.ensemble_size, 1))
+            # np.tile(copy.deepcopy(s),(self._dynamics_model.ensemble_size, 1))
+
+            A_0[batch_cpt*ens_size:batch_cpt*ens_size+ens_size,:] = \
+            np.tile(a,(self.dynamics_model.ensemble_size, 1))
+            # np.tile(copy.deepcopy(a),(self._dynamics_model.ensemble_size, 1))
+            batch_cpt += 1
+        # import pdb; pdb.set_trace()
+        return self.forward(A_0, S_0, mean=mean, disagr=disagr, multiple=True)
+
+        # return batch_pred_delta_ns, batch_disagreement
+
+    def forward(self, a, s, mean=True, disagr=True, multiple=False):
+        s_0 = copy.deepcopy(s)
+        a_0 = copy.deepcopy(a)
+
+        if not multiple:
+            s_0 = np.tile(s_0,(self.dynamics_model.ensemble_size, 1))
+            a_0 = np.tile(a_0,(self.dynamics_model.ensemble_size, 1))
+
+        s_0 = ptu.from_numpy(s_0)
+        a_0 = ptu.from_numpy(a_0)
+
+        # a_0 = a_0.repeat(self._dynamics_model.ensemble_size,1)
+
+        # if probalistic dynamics model - choose output mean or sample
+        if disagr:
+            if not multiple:
+                pred_delta_ns, disagreement = self.dynamics_model.sample_with_disagreement(
+                    torch.cat((
+                        self.dynamics_model._expand_to_ts_form(s_0),
+                        self.dynamics_model._expand_to_ts_form(a_0)), dim=-1
+                    ))#, disagreement_type="mean" if mean else "var")
+                pred_delta_ns = ptu.get_numpy(pred_delta_ns)
+                return pred_delta_ns, disagreement
+            else:
+                pred_delta_ns_list, disagreement_list = \
+                self.dynamics_model.sample_with_disagreement_multiple(
+                    torch.cat((
+                        self.dynamics_model._expand_to_ts_form(s_0),
+                        self.dynamics_model._expand_to_ts_form(a_0)), dim=-1
+                    ))#, disagreement_type="mean" if mean else "var")
+                for i in range(len(pred_delta_ns_list)):
+                    pred_delta_ns_list[i] = ptu.get_numpy(pred_delta_ns_list[i])
+                return pred_delta_ns_list, disagreement_list
+        else:
+            pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s_0, a_0, mean=mean)
+        return pred_delta_ns, 0
+
+    
+    def compute_abs_disagreement(self, cur_state, pred_delta_ns):
+        '''
+        Computes absolute state dsiagreement between models in the ensemble
+        cur state is [4,48]
+        pred delta ns [4,48]
+        '''
+        next_state = pred_delta_ns + cur_state
+        next_state = ptu.from_numpy(next_state)
+        mean = next_state
+
+        sample=False
+        if sample: 
+            inds = torch.randint(0, mean.shape[0], next_state.shape[:1]) #[4]
+            inds_b = torch.randint(0, mean.shape[0], next_state.shape[:1]) #[4]
+            inds_b[inds == inds_b] = torch.fmod(inds_b[inds == inds_b] + 1, mean.shape[0]) 
+        else:
+            inds = torch.tensor(np.array([0,0,0,1,1,2]))
+            inds_b = torch.tensor(np.array([1,2,3,2,3,3]))
+
+        # Repeat for multiplication
+        inds = inds.unsqueeze(dim=-1).to(device=ptu.device)
+        inds = inds.repeat(1, mean.shape[1])
+        inds_b = inds_b.unsqueeze(dim=-1).to(device=ptu.device)
+        inds_b = inds_b.repeat(1, mean.shape[1])
+
+        means_a = (inds == 0).float() * mean[0]
+        means_b = (inds_b == 0).float() * mean[0]
+        for i in range(1, mean.shape[0]):
+            means_a += (inds == i).float() * mean[i]
+            means_b += (inds_b == i).float() * mean[i]
+            
+        disagreements = torch.mean(torch.sqrt((means_a - means_b)**2), dim=-2, keepdim=True)
+        #disagreements = torch.mean((means_a - means_b) ** 2, dim=-1, keepdim=True)
+
+        return disagreements
+
     def compute_bd(self, obs_traj):
         bd = None
         last_obs = obs_traj[-1]
@@ -207,6 +477,9 @@ class WrappedEnv():
             fit = fit_func(act_traj, disagr_traj)
         return fit
 
+################################################################################
+################################### MAIN #######################################
+################################################################################
 def main(args):
 
     px = \
@@ -383,6 +656,7 @@ def main(args):
         'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
+        'model_type': args.model_type,
     }
     surrogate_model_params = \
     {
@@ -451,7 +725,13 @@ def main(args):
     if args.perfect_model:
         f_model = f_real
     elif args.model_variant == "dynamics":
-        f_model = env.evaluate_solution_model 
+        if args.model_type == "det":
+            f_model = env.evaluate_solution_model 
+        elif args.model_type == "prob" and args.environment == 'hexapod_omni':
+            f_model = env.evaluate_solution_model_ensemble
+        elif args.model_type == "prob":
+            f_model = env.evaluate_solution_model_ensemble_all
+            
     # elif args.model_variant == "direct":
         # f_model = env.evaluate_solution_model 
         
@@ -461,20 +741,41 @@ def main(args):
             params=px,
             log_dir=args.log_dir)
 
-    archive = qd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
-    
-    # mbqd = ModelBasedQD(dim_map, dim_x,
-    #                     f_real, f_model,
-    #                     surrogate_model, surrogate_model_trainer,
-    #                     dynamics_model, dynamics_model_trainer,
-    #                     replay_buffer, 
-    #                     n_niches=args.n_niches,
-    #                     params=px, log_dir=args.log_dir)
+    if not args.random_policies:
+        model_archive = qd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    else:
+        to_evaluate = []
+        for i in range(0, args.max_evals):
+            x = np.random.uniform(low=px['min'], high=px['max'], size=dim_x)
+            to_evaluate += [(x, f_real)]
 
-    # #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
-    # mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    ## If search was done on the real system already then no need to test the
+    ## found behaviors
+    if args.perfect_model:
+        exit()
         
+    pool = multiprocessing.Pool(args.num_cores)
 
+    ## Select the individuals to transfer onto real system
+    import itertools
+    ## Create to evaluate vector
+    if not args.random_policies:
+        to_evaluate = list(zip([ind.x.copy() for ind in model_archive], itertools.repeat(f_real)))
+    ## Evaluate on real sys
+    s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
+
+    pool.close()
+    
+    real_archive = []
+            
+    real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
+
+    cm.save_archive(real_archive, f"{len(to_evaluate)}_real_added", px, args.log_dir)
+    cm.save_archive(s_list, f"{len(to_evaluate)}_real_all", px, args.log_dir)
+    
+################################################################################
+############################## Params parsing ##################################
+################################################################################
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
@@ -509,13 +810,14 @@ if __name__ == "__main__":
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--nb-transfer', type=int, default=1)
 
-    parser.add_argument('--model-variant', type=str, default='dynamics')
+    parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
+    parser.add_argument('--model-type', type=str, default='det') # prob, det
     parser.add_argument('--perfect-model', action='store_true')
 
     #----------model init study params--------#
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
     parser.add_argument('--rep', type=int, default='1')
-    
+    parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
     args = parser.parse_args()
 
     main(args)

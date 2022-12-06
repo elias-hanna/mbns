@@ -61,13 +61,11 @@ def evaluate_(t):
     # evaluate z with function f - z is the genotype and f is the evalution function
     # t is the tuple from the to_evaluate list
     z, f = t
-    fit, desc, obs_traj, act_traj = f(z) 
-
+    fit, desc, obs_traj, act_traj, disagr = f(z) 
     ## warning: commented the lines below, as in my case I don't see the use..
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     # desc_ground = desc
-    
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
 
@@ -220,7 +218,7 @@ class QD:
                 to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
                 s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
-                self.eval_time = time.time() - start 
+                self.eval_time = time.time() - start
                 self.archive, add_list, _ = self.addition_condition(s_list, self.archive, params)
                 
             else:
@@ -242,9 +240,6 @@ class QD:
             n_evals += len(to_evaluate) # total number of  real evals
             b_evals += len(to_evaluate) # number of evals since last dump
             
-            #print("n_evals: ", n_evals)
-            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}")
-
             # write archive during dump period
             
             if b_evals >= params['dump_period'] and params['dump_period'] != -1:
@@ -284,11 +279,12 @@ class QD:
 
             self.gen_time = time.time() - gen_start_time 
 
-            #print("Archive size: ", len(self.archive))
+            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
         print("End of QD algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
+        pool.close()
         return self.archive
 
 

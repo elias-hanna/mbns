@@ -157,7 +157,7 @@ class HexapodEnv:
                     beta[i] = beta[i] + 2*np.pi
                 while beta[i] > np.pi:
                     beta[i] = beta[i] - 2*np.pi
-        else: 
+        else:
             if x < 0:
                 beta = beta - np.pi
             # if angles out of 360 range, bring it back in
@@ -165,7 +165,6 @@ class HexapodEnv:
                 beta = beta + 2*np.pi
             while beta > np.pi:
                 beta = beta - 2*np.pi
-
         return beta
 
     def angle_dist(self, a,b, batch=False):
@@ -178,6 +177,12 @@ class HexapodEnv:
                     dist[i] = dist[i] - 2*np.pi
         # if the angles out of the 360 range, bring it back in
         else:
+            import os
+            import math
+            if dist + 2*np.pi < -np.pi:
+                dist += abs(math.floor(dist/(2*np.pi)))*2*np.pi
+            if dist - 2*np.pi > np.pi:
+                dist -= abs(math.floor(dist/(2*np.pi)))*2*np.pi
             while dist < -np.pi:
                 dist = dist + 2*np.pi
             while dist > np.pi:
@@ -234,7 +239,7 @@ class HexapodEnv:
         # initial state - everything zero except z position (have to make it correspond to what the model is trained on) 
         state = np.zeros(48)
         state[5] = -0.014 # robot com height when feet on ground is 0.136m 
-        
+
         for t in np.arange(0.0, sim_time, 1/self.ctrl_freq):
             action = controller.commanded_jointpos(t)
             states_recorded.append(state)
@@ -269,7 +274,6 @@ class HexapodEnv:
         #--------Compute BD (final x-y pos)-----------#
         x_pos = final_pos[3]
         y_pos = final_pos[4]
-        
         # normalize BD
         offset = 1.5 # in this case the offset is the saem for both x and y descriptors
         fullmap_size = 3 # 8m for full map size 
@@ -287,7 +291,8 @@ class HexapodEnv:
         obs_traj = states_rec
         act_traj = actions_rec
 
-        disagr = 0 
+        disagr = 0
+        
         return fitness, desc, obs_traj, act_traj, disagr
     
     def simulate_model_ensemble(self, ctrl, sim_time, mean, disagr):
