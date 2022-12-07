@@ -230,7 +230,8 @@ class WrappedEnv():
         if render:
             print("Desc from model", desc)
 
-        return fitness, desc, obs_traj, act_traj
+        disagr = 0
+        return fitness, desc, obs_traj, act_traj, disagr
 
     def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
                                                  render=False, use_particules=True):
@@ -748,7 +749,9 @@ def main(args):
         for i in range(0, args.max_evals):
             x = np.random.uniform(low=px['min'], high=px['max'], size=dim_x)
             to_evaluate += [(x, f_real)]
-
+            # fit, desc, obs, act, disagr = f_real(x, render=False)
+            # import pdb; pdb.set_trace()
+            # exit()
     ## If search was done on the real system already then no need to test the
     ## found behaviors
     if args.perfect_model:
