@@ -5,7 +5,7 @@ dist/
 *.egg-info/**
 *.out
 *~
-data/
+data/*
 !data/show_archive.py
 *#*
 */__pycache__/*
