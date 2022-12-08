@@ -151,6 +151,7 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             yellow = Color("yellow")
 
             colors = []
+            import pdb; pdb.set_trace()
             colors += list(red.range_to(green,len(data)//3))
             colors += list(green.range_to(blue,len(data)//3))
             colors += list(blue.range_to(yellow,len(data)//3))
@@ -263,11 +264,11 @@ def get_most_nov_data(data, n=100):
 def main(args):
     
     gym_env, max_step, ss_min, ss_max, dim_map = process_env(args)
-    dim_x = 36
+    # dim_x = 36
     
     data = pd.read_csv(args.filename)
     data = data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-    
+    dim_x = len([col for col in data.columns if 'x' in col])
     rename_df(data, dim_map)
 
     if args.model_and_real:
@@ -293,7 +294,8 @@ def main(args):
         ## reorder the dfs
         # Merge the two dataframes on the "id" and "name" columns
         gen_cols = [f'x{i}' for i in range(dim_x)]
-        
+
+        import pdb; pdb.set_trace()
         df_merged_all = data.merge(data_real_all, on=gen_cols,
                                    suffixes=('_model','_real_all'))
 

@@ -138,6 +138,7 @@ class WrappedEnv():
         ## Get size of policy parameter vector
         self.policy_representation_dim = len(self.controller.get_parameters())
         self.dynamics_model = None
+        self._model_max_h = params['dynamics_model_params']['model_horizon']
         self.time_open_loop = params['time_open_loop']
         
     def set_dynamics_model(self, dynamics_model):
@@ -203,7 +204,8 @@ class WrappedEnv():
         act_traj = []
         obs_traj = []
         ## WARNING: need to get previous obs
-        for t in range(self._env_max_h):
+        # for t in range(self._env_max_h):
+        for t in range(self._model_max_h):
             if self.time_open_loop:
                 action = controller([t])
             else:
@@ -270,7 +272,7 @@ class WrappedEnv():
             S = np.tile(obs, (len(ctrls), 1))
             A = np.empty((len(ctrls), self.controller.output_dim))
 
-        for _ in tqdm.tqdm(range(self._env_max_h), total=self._env_max_h):
+        for _ in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
             for i in range(len(ctrls)):
                 # A[i, :] = controller_list[i](S[i,:])
                 if use_particules:
@@ -439,9 +441,14 @@ class WrappedEnv():
 
         return disagreements
 
-    def compute_bd(self, obs_traj):
+    def compute_bd(self, obs_traj, ensemble=False, mean=True):
         bd = None
         last_obs = obs_traj[-1]
+        if ensemble:
+            if mean:
+                last_obs = np.mean(last_obs, axis=0)
+            else:
+                last_obs = last_obs[np.random.randint(self.dynamics_model.ensemble_size)]
                 
         if self._env_name == 'ball_in_cup':
             bd = last_obs[:3]
@@ -658,6 +665,7 @@ def main(args):
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
+        'model_horizon': 20,
     }
     surrogate_model_params = \
     {
@@ -725,7 +733,7 @@ def main(args):
 
     if args.perfect_model:
         f_model = f_real
-    elif args.model_variant == "dynamics":
+    elif args.model_variant == "dynamics" or args.model_variant == "all_dynamics":
         if args.model_type == "det":
             f_model = env.evaluate_solution_model 
         elif args.model_type == "prob" and args.environment == 'hexapod_omni':

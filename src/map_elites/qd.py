@@ -69,6 +69,23 @@ def evaluate_(t):
     # return a species object (containing genotype, descriptor and fitness)
     return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
 
+def evaluate_all_(T):
+    # same as the above evaluate but this takes in the disagreement also
+    # - useful if you want to make use disargeement value
+    # needs two types because no such thing as disagreemnt for real eval
+    Z = [T[i][0] for i in range(len(T))]
+    f = T[0][1]
+    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z) 
+    
+    # becasue it somehow returns a list in a list (have to keep checking sometimes)
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    
+    # return a species object (containing genotype, descriptor and fitness)
+    inds = []
+    for i in range(len(T)):
+        inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=obs_traj_list[i],
+                               act_traj=act_traj_list[i], model_dis=disagr_list[i]))
+    return inds
 
 class QD:
     def __init__(self,
@@ -217,7 +234,10 @@ class QD:
             if len(self.archive) <= params['random_init']*self.n_niches:
                 to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
-                s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
+                if params["model_variant"]=="all_dynamics":
+                    s_list = evaluate_all_(to_evaluate)
+                else:
+                    s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
                 self.eval_time = time.time() - start
                 self.archive, add_list, _ = self.addition_condition(s_list, self.archive, params)
                 
@@ -295,7 +315,10 @@ class QD:
         all_eval = []
         
         to_model_evaluate = self.select_and_mutate(to_evaluate, self.archive, self.f_real, params)
-        s_list = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+        if params["model_variant"]=="all_dynamics":
+            s_list = evaluate_all_(to_evaluate)
+        else:
+            s_list = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
         self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
         add_list_final += add_list
         all_eval += to_evaluate # count all inds evaluated by model
@@ -331,8 +354,10 @@ class QD:
             solutions = es.ask()
             for sol in solutions:
                 to_model_evaluate += [(sol, self.f_real)]
-            s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
-
+            if params["model_variant"]=="all_dynamics":
+                s_list_model = evaluate_all_(to_evaluate)
+            else:
+                s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
             self.archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.archive, params)
             add_list_model_final += add_list_model
             all_model_eval += to_model_evaluate # count all inds evaluated by model
@@ -386,7 +411,10 @@ class QD:
             solutions = es.ask()
             for sol in solutions:
                 to_model_evaluate += [(sol, self.f_real)]
-            s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+            if params["model_variant"]=="all_dynamics":
+                s_list_model = evaluate_all_(to_evaluate)
+            else:
+                s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
 
             self.archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.archive, params)
             add_list_model_final += add_list_model
