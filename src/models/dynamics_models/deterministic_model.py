@@ -15,7 +15,8 @@ class DeterministicDynModel(nn.Module):
             self,
             obs_dim,              # Observation dim of environment
             action_dim,           # Action dim of environment
-            hidden_size,         # Hidden size for model
+            hidden_size,          # Hidden size for model
+            init_method='kaiming', # weight init method
     ):
         super(DeterministicDynModel, self).__init__()
 
@@ -43,11 +44,30 @@ class DeterministicDynModel(nn.Module):
         self.output_mu = nn.Parameter(ptu.zeros(1,self.output_dim), requires_grad=False).float()
         self.output_std = nn.Parameter(ptu.ones(1,self.output_dim), requires_grad=False).float()
 
-        # xavier intialization of weights
-        # nn.init.xavier_uniform_(self.fc1.weight)
-        # nn.init.xavier_uniform_(self.fc2.weight)
-        # nn.init.xavier_uniform_(self.fc3.weight)
-        # nn.init.xavier_uniform_(self.fc4.weight)
+        if init_method == 'uniform':
+            # uniform intialization of weights
+            nn.init.uniform_(self.fc1.weight, a=-0.5, b=0.5)
+            nn.init.uniform_(self.fc2.weight, a=-0.5, b=0.5)
+            nn.init.uniform_(self.fc3.weight, a=-0.5, b=0.5)
+            nn.init.uniform_(self.fc4.weight, a=-0.5, b=0.5)
+        elif init_method == 'xavier':
+            # xavier uniform intialization of weights
+            nn.init.xavier_uniform_(self.fc1.weight)
+            nn.init.xavier_uniform_(self.fc2.weight)
+            nn.init.xavier_uniform_(self.fc3.weight)
+            nn.init.xavier_uniform_(self.fc4.weight)
+        elif init_method == 'kaiming':
+            # kaiming uniform intialization of weights
+            nn.init.kaiming_uniform_(self.fc1.weight)
+            nn.init.kaiming_uniform_(self.fc2.weight)
+            nn.init.kaiming_uniform_(self.fc3.weight)
+            nn.init.kaiming_uniform_(self.fc4.weight)
+        elif init_method == 'orthogonal':
+            # orthogonal intialization of weights
+            nn.init.orthogonal_(self.fc1.weight)
+            nn.init.orthogonal_(self.fc2.weight)
+            nn.init.orthogonal_(self.fc3.weight)
+            nn.init.orthogonal_(self.fc4.weight)
         
     def forward(self, x_input):
 

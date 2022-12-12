@@ -67,7 +67,8 @@ def evaluate_(t):
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     # desc_ground = desc
     # return a species object (containing genotype, descriptor and fitness)
-    return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
+    # return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
+    return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj)
 
 def evaluate_all_(T):
     # same as the above evaluate but this takes in the disagreement also
@@ -305,7 +306,7 @@ class QD:
         print("End of QD algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         pool.close()
-        return self.archive
+        return self.archive, n_evals
 
 
     ##################### Emitters ##############################

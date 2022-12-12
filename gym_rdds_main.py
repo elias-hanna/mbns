@@ -60,7 +60,8 @@ def evaluate_(t):
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     # desc_ground = desc
     # return a species object (containing genotype, descriptor and fitness)
-    return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
+    # return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
+    return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj)
 
 ################################################################################
 ############################## Model methods ###################################
@@ -140,6 +141,7 @@ class WrappedEnv():
         self.dynamics_model = None
         self._model_max_h = params['dynamics_model_params']['model_horizon']
         self.time_open_loop = params['time_open_loop']
+        self.n_wps = params['n_waypoints']
         
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
@@ -231,9 +233,76 @@ class WrappedEnv():
 
         if render:
             print("Desc from model", desc)
-
+            
         disagr = 0
         return fitness, desc, obs_traj, act_traj, disagr
+
+    def evaluate_solution_model_all(self, ctrls, render=False):
+        """
+        Input: ctrl (array of floats) the genome of the individual
+        Output: Trajectory and actions taken
+        """
+        controller_list = []
+        traj_list = []
+        actions_list = []
+        disagreements_list = []
+        obs_list = []
+
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+
+        for ctrl in ctrls:
+            ## Create a copy of the controller
+            controller_list.append(self.controller.copy())
+            ## Set controller parameters
+            controller_list[-1].set_parameters(ctrl)
+            traj_list.append([])
+            actions_list.append([])
+            disagreements_list.append([])
+            obs_list.append(obs.copy())
+
+        ## WARNING: need to get previous obs
+        # S = np.tile(prev_element.trajectory[-1].copy(), (len(X)))
+        S = np.tile(obs, (len(ctrls), 1))
+        A = np.empty((len(ctrls), self.controller.output_dim))
+
+        for _ in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+            for i in range(len(ctrls)):
+                if self.time_open_loop:
+                    A[i] = controller_list[i]([t])
+                else:
+                    A[i] = controller_list[i](S[i])
+                
+            start = time.time()
+            batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S, ensemble=False)
+            for i in range(len(ctrls)):
+                ## Compute mean prediction from model samples
+                next_step_pred = batch_pred_delta_ns[i]
+                S[i,:] += next_step_pred.copy()
+                traj_list[i].append(S[i,:].copy())
+                disagreements_list[i].append(batch_disagreement[i])
+                actions_list[i].append(A[i,:])
+
+        bd_list = []
+        fit_list = []
+
+        obs_trajs = np.array(traj_list)
+        act_trajs = np.array(actions_list)
+        disagr_trajs = np.array(disagreements_list)
+
+        for i in range(len(ctrls)):
+            obs_traj = obs_trajs[i]
+            act_traj = act_trajs[i]
+            disagr_traj = disagr_trajs[i]
+
+            desc = self.compute_bd(obs_traj)
+            fitness = self.compute_fitness(obs_traj, act_traj,
+                                           disagr_traj=disagr_traj)
+
+            fit_list.append(fitness)
+            bd_list.append(desc)
+            
+        return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
                                                  render=False, use_particules=True):
@@ -276,10 +345,17 @@ class WrappedEnv():
             for i in range(len(ctrls)):
                 # A[i, :] = controller_list[i](S[i,:])
                 if use_particules:
-                    A[i*ens_size:i*ens_size+ens_size] = \
+                    if self.time_open_loop:
+                        A[i*ens_size:i*ens_size+ens_size] = \
+                        controller_list[i]([t])
+                    else:
+                        A[i*ens_size:i*ens_size+ens_size] = \
                         controller_list[i](S[i*ens_size:i*ens_size+ens_size])
                 else:
-                    A[i] = controller_list[i](S[i])
+                    if self.time_open_loop:
+                        A[i] = controller_list[i]([t])
+                    else:
+                        A[i] = controller_list[i](S[i])
                 
             start = time.time()
             if use_particules:
@@ -342,30 +418,34 @@ class WrappedEnv():
             
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
-    def forward_multiple(self, A, S, mean=True, disagr=True):
+    def forward_multiple(self, A, S, mean=True, disagr=True, ensemble=True):
         ## Takes a list of actions A and a list of states S we want to query the model from
         ## Returns a list of the return of a forward call for each couple (action, state)
         assert len(A) == len(S)
         batch_len = len(A)
-        ens_size = self.dynamics_model.ensemble_size
-
+        if ensemble:
+            ens_size = self.dynamics_model.ensemble_size
+        else:
+            ens_size = 1
         S_0 = np.empty((batch_len*ens_size, S.shape[1]))
         A_0 = np.empty((batch_len*ens_size, A.shape[1]))
 
         batch_cpt = 0
         for a, s in zip(A, S):
             S_0[batch_cpt*ens_size:batch_cpt*ens_size+ens_size,:] = \
-            np.tile(s,(self.dynamics_model.ensemble_size, 1))
-            # np.tile(copy.deepcopy(s),(self._dynamics_model.ensemble_size, 1))
+            np.tile(s,(ens_size, 1))
 
             A_0[batch_cpt*ens_size:batch_cpt*ens_size+ens_size,:] = \
-            np.tile(a,(self.dynamics_model.ensemble_size, 1))
-            # np.tile(copy.deepcopy(a),(self._dynamics_model.ensemble_size, 1))
+            np.tile(a,(ens_size, 1))
             batch_cpt += 1
-        # import pdb; pdb.set_trace()
-        return self.forward(A_0, S_0, mean=mean, disagr=disagr, multiple=True)
-
-        # return batch_pred_delta_ns, batch_disagreement
+        if ensemble:
+            return self.forward(A_0, S_0, mean=mean, disagr=disagr, multiple=True)
+        else:
+            s_0 = copy.deepcopy(S_0)
+            a_0 = copy.deepcopy(A_0)
+            s_0 = ptu.from_numpy(s_0)
+            a_0 = ptu.from_numpy(a_0)
+            return self.dynamics_model.output_pred(torch.cat((s_0, a_0), dim=-1)), [0]*len(s_0)
 
     def forward(self, a, s, mean=True, disagr=True, multiple=False):
         s_0 = copy.deepcopy(s)
@@ -403,7 +483,6 @@ class WrappedEnv():
         else:
             pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s_0, a_0, mean=mean)
         return pred_delta_ns, 0
-
     
     def compute_abs_disagreement(self, cur_state, pred_delta_ns):
         '''
@@ -443,23 +522,29 @@ class WrappedEnv():
 
     def compute_bd(self, obs_traj, ensemble=False, mean=True):
         bd = None
-        last_obs = obs_traj[-1]
+
+        wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
+                                    len(obs_traj)//self.n_wps)][:self.n_wps-1]
+        wp_idxs += [-1]
+
+        obs_wps = np.take(obs_traj, wp_idxs, axis=0)
+
         if ensemble:
             if mean:
-                last_obs = np.mean(last_obs, axis=0)
+                obs_wps = np.mean(obs_wps_obs, axis=0)
             else:
-                last_obs = last_obs[np.random.randint(self.dynamics_model.ensemble_size)]
+                last_obs = obs_wps[np.random.randint(self.dynamics_model.ensemble_size)]
                 
         if self._env_name == 'ball_in_cup':
-            bd = last_obs[:3]
+            bd = obs_wps[:,:3].flatten()
         if self._env_name == 'fastsim_maze':
-            bd = last_obs[:2]
+            bd = obs_wps[:,:2].flatten()
         if self._env_name == 'fastsim_maze_traps':
-            bd = last_obs[:2]
+            bd = obs_wps[:,:2].flatten()
         if self._env_name == 'redundant_arm_no_walls_limited_angles':
-            bd = last_obs[-2:]
+            bd = obs_wps[:,-2:].flatten()
         return bd
-
+        
     def energy_minimization_fit(self, actions, disagrs):
         return -np.sum(np.abs(actions))
 
@@ -563,7 +648,7 @@ def main(args):
 
         "transfer_selection": args.transfer_selection,
         "nb_transfer": args.nb_transfer,
-        'env_name': args.environment,
+        "env_name": args.environment,
     }
 
     
@@ -647,7 +732,11 @@ def main(args):
         act_dim = gym_env.action_space.shape[0]
     else:
         gym_env = None
-        
+
+    n_waypoints = 3
+    dim_map *= n_waypoints
+    px['dim_map'] = dim_map
+    
     controller_params = \
     {
         'controller_input_dim': obs_dim,
@@ -665,7 +754,7 @@ def main(args):
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
-        'model_horizon': 20,
+        'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
     }
     surrogate_model_params = \
     {
@@ -701,6 +790,7 @@ def main(args):
         'env_name': args.environment,
         'env_max_h': max_step,
         'fitness_func': args.fitness_func,
+        'n_waypoints': n_waypoints,
     }
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop']:
@@ -716,7 +806,7 @@ def main(args):
         dim_x = env.policy_representation_dim
 
     surrogate_model_params['gen_dim'] = dim_x
-
+    px['dim_x'] = dim_x
 
     dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
@@ -733,14 +823,23 @@ def main(args):
 
     if args.perfect_model:
         f_model = f_real
-    elif args.model_variant == "dynamics" or args.model_variant == "all_dynamics":
+    # elif args.model_variant == "dynamics" or args.model_variant == "all_dynamics":
+    #     if args.model_type == "det":
+    #         f_model = env.evaluate_solution_model 
+    #     elif args.model_type == "prob" and args.environment == 'hexapod_omni':
+    #         f_model = env.evaluate_solution_model_ensemble
+    #     elif args.model_type == "prob":
+    #         f_model = env.evaluate_solution_model_ensemble_all
+    elif args.model_variant == "dynamics" :
         if args.model_type == "det":
             f_model = env.evaluate_solution_model 
         elif args.model_type == "prob" and args.environment == 'hexapod_omni':
             f_model = env.evaluate_solution_model_ensemble
+    elif args.model_variant == "all_dynamics":
+        if args.model_type == "det":
+            f_model = env.evaluate_solution_model_all
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
-            
     # elif args.model_variant == "direct":
         # f_model = env.evaluate_solution_model 
         
@@ -751,27 +850,34 @@ def main(args):
             log_dir=args.log_dir)
 
     if not args.random_policies:
-        model_archive = qd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+        model_archive, n_evals = qd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
     else:
         to_evaluate = []
         for i in range(0, args.max_evals):
             x = np.random.uniform(low=px['min'], high=px['max'], size=dim_x)
             to_evaluate += [(x, f_real)]
+            n_evals = len(to_evaluate)
             # fit, desc, obs, act, disagr = f_real(x, render=False)
             # import pdb; pdb.set_trace()
             # exit()
+            
+    ## Evaluate the found solutions on the real system
+    
     ## If search was done on the real system already then no need to test the
     ## found behaviors
     if args.perfect_model:
         exit()
-        
+
     pool = multiprocessing.Pool(args.num_cores)
 
     ## Select the individuals to transfer onto real system
-    import itertools
+    ## Selection based on nov, clustering, other?
+    
     ## Create to evaluate vector
+    import itertools
     if not args.random_policies:
         to_evaluate = list(zip([ind.x.copy() for ind in model_archive], itertools.repeat(f_real)))
+        
     ## Evaluate on real sys
     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
 
@@ -781,8 +887,8 @@ def main(args):
             
     real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
 
-    cm.save_archive(real_archive, f"{len(to_evaluate)}_real_added", px, args.log_dir)
-    cm.save_archive(s_list, f"{len(to_evaluate)}_real_all", px, args.log_dir)
+    cm.save_archive(real_archive, f"{n_evals}_real_added", px, args.log_dir)
+    cm.save_archive(s_list, f"{n_evals}_real_all", px, args.log_dir)
     
 ################################################################################
 ############################## Params parsing ##################################
@@ -823,6 +929,7 @@ if __name__ == "__main__":
 
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
     parser.add_argument('--model-type', type=str, default='det') # prob, det
+    parser.add_argument('--model-horizon', type=int, default=None) # prob, det
     parser.add_argument('--perfect-model', action='store_true')
 
     #----------model init study params--------#

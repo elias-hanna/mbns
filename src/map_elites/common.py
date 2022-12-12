@@ -42,7 +42,7 @@ import numpy as np
 import multiprocessing
 import tqdm
 from pathlib import Path
-import sys
+import sys, os
 import random
 from collections import defaultdict
 from sklearn.cluster import KMeans
@@ -279,16 +279,23 @@ def parallel_eval(evaluate_function, to_evaluate, pool, params):
 
 
 
+ind_cpt = 0
 
 # format: fitness, desc, genome, centroid(optional) \n- 
 # fitness,  desc and x are vectors
 def save_archive(archive, gen, params, log_dir):
+    global ind_cpt
+    path_to_trajs = os.path.join(log_dir, 'ind_trajs')
+    os.makedirs(path_to_trajs, exist_ok=True)
+    
     def write_array(a, f):
         for i in a:
             f.write(str(i) + ',') # save comma inbetween so easier to read as pandas
 
-    def get_array_string(a):
-        if hasattr(a[0], "__len__"):
+    def get_array_string(a, np_traj=False):
+        if np_traj:
+            pass
+        elif hasattr(a[0], "__len__"):
             a = a[0]
         array_str = ''
         for i in a:
@@ -298,6 +305,15 @@ def save_archive(archive, gen, params, log_dir):
     filename = log_dir + '/' + 'archive_' + str(gen) + '.dat'
 
     with open(filename, 'w') as f:
+        headers = ''
+        headers += 'fit' + ','
+        for i in range(params['dim_map']):
+            headers += f'bd{i}' + ','
+        for i in range(params['dim_x']):
+            headers += f'x{i}' + ','
+        headers += 'ind_trajs' + ','
+        f.write(headers + "\n")
+
         if (params['type'] == "cvt") or (params["type"] == "grid"): 
             for k in archive.values():
                 f.write(str(k.fitness) + ',') # write fitness
@@ -312,12 +328,30 @@ def save_archive(archive, gen, params, log_dir):
                 # ind_string += str(k.model_dis) + ','
                 ## Above doesn't work actually, only works when model_dis = scalar
                 ## so we take the mean
-                if k.model_dis is not None:
-                    ind_string += str(np.mean(k.model_dis)) + ','
+                # if k.model_dis is not None:
+                    # ind_string += str(np.mean(k.model_dis)) + ','
                 ind_string += get_array_string(k.x)
 
+                ## Add the trajectories
+                if k.obs_traj is not None:
+                    ## Bad way
+                    # ind_string += get_array_string(k.obs_traj, np_traj=True)
+                    # ind_string += get_array_string(k.act_traj, np_traj=True)
+                    ## Good way ?
+                    ind_trajs_filename = f'ind_trajs_{ind_cpt}'
+                    ind_string += 'ind_trajs/' + ind_trajs_filename + '.npz' + ','
+                    # obs_traj_filename = f'obs_traj_{ind_cpt}'
+                    # act_traj_filename = f'act_traj_{ind_cpt}'
+                    # ind_string += obs_traj_filename + ','
+                    # ind_string += act_traj_filename + ','
+                    to_save = os.path.join(path_to_trajs, ind_trajs_filename)
+                    np.savez(to_save, obs_traj=k.obs_traj, act_traj=k.act_traj)
+                #write_array(k.obs_traj, f) # write obervation trajectory
+                #write_array(k.act_traj, f) # write action trajectory
+
                 f.write(ind_string + "\n")
-                    
+                ind_cpt += 1
+                
                 '''
                 f.write(str(k.fitness) + ',') # write fitness
                 write_array(k.desc, f) # write desriptor
