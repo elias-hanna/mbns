@@ -295,15 +295,19 @@ def main(args):
             traj_data = np.load(data.loc[idx]['ind_trajs'])
             bd_traj = np.take(traj_data['obs_traj'], bd_inds, axis=1)
             bdx = bd_traj[:,0]; bdy = bd_traj[:,1]
-            ax.plot(bdx, bdy, alpha=0.1)
-
+            ax.plot(bdx, bdy, alpha=0.1, marker='o')
+            # print(data.loc[idx]['ind_trajs'])
+            # print(traj_data['obs_traj'])
+            # print(bd_traj)
+            # exit()
         plt.title('Individuals trajectories on model')
         
     if args.model_and_real:
+        n_inds = 100 if len(data) >= 100 else len(data)
         ## Get dataframes satisfying selection condition
-        data_most_nov = get_most_nov_data(data, n=100, bd_cols=bd_cols)
+        data_most_nov = get_most_nov_data(data, n=n_inds, bd_cols=bd_cols)
     
-        data_centers = get_closest_to_cluster_centroid(data, n_clusters=100, bd_cols=bd_cols)
+        data_centers = get_closest_to_cluster_centroid(data, n_clusters=n_inds, bd_cols=bd_cols)
 
         ## Get other dataframes corresponding to real env conditions
         splitted_name = args.filename.split('.')

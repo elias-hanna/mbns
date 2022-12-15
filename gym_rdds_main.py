@@ -35,19 +35,19 @@ from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplay
 ################################ QD methods ####################################
 ################################################################################
 def addition_condition(s_list, archive, params):
-        add_list = [] # list of solutions that were added
-        discard_list = []
-        for s in s_list:
-            if params['type'] == "unstructured":
-                success = unstructured_container.add_to_archive(s, archive, params)
-            else:
-                success = cvt.add_to_archive(s, s.desc, archive, kdt)
-            if success:
-                add_list.append(s)
-            else:
-                discard_list.append(s) #not important for alogrithm but to collect stats
-                
-        return archive, add_list, discard_list
+    add_list = [] # list of solutions that were added
+    discard_list = []
+    for s in s_list:
+        if params['type'] == "unstructured":
+            success = unstructured_container.add_to_archive(s, archive, params)
+        else:
+            success = cvt.add_to_archive(s, s.desc, archive, kdt)
+        if success:
+            add_list.append(s)
+        else:
+            discard_list.append(s) #not important for alogrithm but to collect stats
+
+    return archive, add_list, discard_list
 
 def evaluate_(t):
     # evaluate a single vector (x) with a function f and return a species
@@ -67,7 +67,8 @@ def evaluate_(t):
 ############################## Model methods ###################################
 ################################################################################
 
-def get_dynamics_model(dynamics_model_params):
+def get_dynamics_model(params):
+    dynamics_model_params = params['dynamics_model_params']
     obs_dim = dynamics_model_params['obs_dim']
     action_dim = dynamics_model_params['action_dim']
     dynamics_model_type = dynamics_model_params['model_type']
@@ -100,7 +101,12 @@ def get_dynamics_model(dynamics_model_params):
         from src.trainers.mbrl.mbrl_det import MBRLTrainer 
         dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
                                                action_dim=action_dim,
-                                               hidden_size=dynamics_model_params['layer_size'])
+                                               hidden_size=dynamics_model_params['layer_size'],
+                                               sa_min=np.concatenate((params['state_min'],
+                                                                      params['action_min'])),
+                                               sa_max=np.concatenate((params['state_max'],
+                                                                      params['action_max'])),
+                                               use_minmax_norm=True)
         dynamics_model_trainer = MBRLTrainer(model=dynamics_model,
                                              batch_size=dynamics_model_params['batch_size'],)
 
@@ -119,6 +125,10 @@ class WrappedEnv():
     def __init__(self, params):
         self._action_min = params['action_min']
         self._action_max = params['action_max']
+        self._state_min = params['state_min']
+        self._state_max = params['state_max']
+        self._sa_min = np.concatenate((params['state_min'], params['action_min']))
+        self._sa_max = np.concatenate((params['state_max'], params['action_max']))
         self._env_max_h = params['env_max_h']
         self._env = params['env']
         self._env_name = params['env_name']
@@ -127,6 +137,8 @@ class WrappedEnv():
         if isinstance(self._init_obs, dict):
             self._is_goal_env = True
             self._init_obs = self._init_obs['observation']
+        if 'init_obs' in params:
+            self._init_obs = params['init_obs']
         self._obs_dim = params['obs_dim']
         self._act_dim = params['action_dim']
         self.fitness_func = params['fitness_func']
@@ -141,6 +153,7 @@ class WrappedEnv():
         self.dynamics_model = None
         self._model_max_h = params['dynamics_model_params']['model_horizon']
         self.time_open_loop = params['time_open_loop']
+        self._norm_c_input = params['controller_params']['norm_input']
         self.n_wps = params['n_waypoints']
         
     def set_dynamics_model(self, dynamics_model):
@@ -167,14 +180,25 @@ class WrappedEnv():
             if self._is_goal_env:
                 obs = obs['observation']
             if self.time_open_loop:
-                action = controller([t])
+                if self._norm_c_input:
+                    norm_t = (t/self._env_max_h)*(1+1) - 1
+                    action = controller([norm_t])
+                else:
+                    action = controller([t])
             else:
-                action = controller(obs)
-            action[action>self._action_max] = self._action_max
-            action[action<self._action_min] = self._action_min
+                if self._norm_c_input:
+                    norm_obs = self.normalize_inputs_s_minmax(obs)
+                    action = controller(norm_obs)
+                else:
+                    action = controller(obs)
+            action = np.clip(action, self._action_min, self._action_max)
+            # action = np.random.uniform(low=-1, high=1, size=(self._act_dim,))
+            # action[action>self._action_max] = self._action_max
+            # action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
             act_traj.append(action)
             obs, reward, done, info = self._env.step(action)
+            # print(np.array(obs_traj[-1]) - np.array(obs))
             if done:
                 break
         if self._is_goal_env:
@@ -209,11 +233,20 @@ class WrappedEnv():
         # for t in range(self._env_max_h):
         for t in range(self._model_max_h):
             if self.time_open_loop:
-                action = controller([t])
+                if self._norm_c_input:
+                    norm_t = (t/self._env_max_h)*(1+1) - 1
+                    action = controller([norm_t])
+                else:
+                    action = controller([t])
             else:
-                action = controller(obs)
-            action[action>self._action_max] = self._action_max
-            action[action<self._action_min] = self._action_min
+                if self._norm_c_input:
+                    norm_obs = self.normalize_inputs_s_minmax(obs)
+                    action = controller(norm_obs)
+                else:
+                    action = controller(obs)
+            action = np.clip(action, self._action_min, self._action_max)
+            # action[action>self._action_max] = self._action_max
+            # action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
             act_traj.append(action)
 
@@ -251,12 +284,15 @@ class WrappedEnv():
         env = copy.copy(self._env) ## need to verify this works
         obs = self._init_obs
 
+        cpt = 0
         for ctrl in ctrls:
             ## Create a copy of the controller
             controller_list.append(self.controller.copy())
             ## Set controller parameters
             controller_list[-1].set_parameters(ctrl)
             traj_list.append([])
+            traj_list[cpt].append(obs.copy())
+            cpt += 1
             actions_list.append([])
             disagreements_list.append([])
             obs_list.append(obs.copy())
@@ -266,18 +302,29 @@ class WrappedEnv():
         S = np.tile(obs, (len(ctrls), 1))
         A = np.empty((len(ctrls), self.controller.output_dim))
 
-        for _ in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+        for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
             for i in range(len(ctrls)):
                 if self.time_open_loop:
-                    A[i] = controller_list[i]([t])
+                    if self._norm_c_input:
+                        norm_t = (t/self._env_max_h)*(1+1) - 1
+                        A[i] = controller_list[i]([norm_t])
+                    else:
+                        A[i] = controller_list[i]([t])
                 else:
-                    A[i] = controller_list[i](S[i])
-                
+                    if self._norm_c_input:
+                        norm_s = self.normalize_inputs_s_minmax(S[i])
+                        A[i] = controller_list[i](norm_s)
+                    else:
+                        A[i] = controller_list[i](S[i])
+                A[i] = np.clip(A[i], self._action_min, self._action_max)
+                A[i] = np.random.uniform(low=-1, high=1, size=(self._act_dim,))
+
             start = time.time()
             batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S, ensemble=False)
             for i in range(len(ctrls)):
                 ## Compute mean prediction from model samples
                 next_step_pred = batch_pred_delta_ns[i]
+                # import pdb; pdb.set_trace()
                 S[i,:] += next_step_pred.copy()
                 traj_list[i].append(S[i,:].copy())
                 disagreements_list[i].append(batch_disagreement[i])
@@ -346,17 +393,37 @@ class WrappedEnv():
                 # A[i, :] = controller_list[i](S[i,:])
                 if use_particules:
                     if self.time_open_loop:
-                        A[i*ens_size:i*ens_size+ens_size] = \
-                        controller_list[i]([t])
+                        if self._norm_c_input:
+                            norm_t = (t/self._env_max_h)*(1+1) - 1
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i]([norm_t])
+                        else:
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i]([t])
                     else:
-                        A[i*ens_size:i*ens_size+ens_size] = \
-                        controller_list[i](S[i*ens_size:i*ens_size+ens_size])
+                        if self._norm_c_input:
+                            norm_s = self.normalize_inputs_s_minmax(
+                                    S[i*ens_size:i*ens_size+ens_size])
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](norm_s)
+                        else:
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](S[i*ens_size:i*ens_size+ens_size])
                 else:
                     if self.time_open_loop:
-                        A[i] = controller_list[i]([t])
+                        if self._norm_c_input:
+                            norm_t = (t/self._env_max_h)*(1+1) - 1
+                            A[i] = controller_list[i]([norm_t])
+                        else:
+                            A[i] = controller_list[i]([t])
                     else:
-                        A[i] = controller_list[i](S[i])
-                
+                        if self._norm_c_input:
+                            norm_s = self.normalize_inputs_s_minmax(S[i])
+                            A[i] = controller_list[i](norm_s)
+                        else:
+                            A[i] = controller_list[i](S[i])
+                A[i] = np.clip(A[i], self._action_min, self._action_max)
+
             start = time.time()
             if use_particules:
                 batch_pred_delta_ns, batch_disagreement = self.forward(A, S, mean=mean,
@@ -570,6 +637,11 @@ class WrappedEnv():
             fit = fit_func(act_traj, disagr_traj)
         return fit
 
+    def normalize_inputs_s_minmax(self, data):
+        data_norm = (data - self._state_min)/(self._state_max - self._state_min)
+        rescaled_data_norm = data_norm * (1 + 1) - 1 ## Rescale between -1 and 1
+        return rescaled_data_norm
+
 ################################################################################
 ################################### MAIN #######################################
 ################################################################################
@@ -622,7 +694,8 @@ def main(args):
         #--------UNSTURCTURED ARCHIVE PARAMS----#
         # l value - should be smaller if you want more individuals in the archive
         # - solutions will be closer to each other if this value is smaller.
-        "nov_l": 0.015,
+        # "nov_l": 0.015,
+        "nov_l": 1.5,
         "eps": 0.1, # usually 10%
         "k": 15,  # from novelty search
 
@@ -660,43 +733,63 @@ def main(args):
     env_register_id = 'BallInCup3d-v0'
     gym_args = {}
     is_local_env = False
+    init_obs = None
     if args.environment == 'ball_in_cup':
         import mb_ge ## Contains ball in cup
         env_register_id = 'BallInCup3d-v0'
+        a_min = np.array([-1, -1, -1])
+        a_max = np.array([1, 1, 1])
         ss_min = -0.4
         ss_max = 0.4
         dim_map = 3
     elif args.environment == 'redundant_arm':
         import redundant_arm ## contains redundant arm
         env_register_id = 'RedundantArmPos-v0'
+        a_min = np.array([-1]*20)
+        a_max = np.array([1]*20)
         ss_min = -1
         ss_max = 1
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls':
         env_register_id = 'RedundantArmPosNoWalls-v0'
+        a_min = np.array([-1]*20)
+        a_max = np.array([1]*20)
         ss_min = -1
         ss_max = 1
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls_no_collision':
         env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
+        a_min = np.array([-1]*20)
+        a_max = np.array([1]*20)
         ss_min = -1
         ss_max = 1
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls_limited_angles':
         env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
+        a_min = np.array([-1]*100)
+        a_max = np.array([1]*100)
         ss_min = -1
         ss_max = 1
         dim_map = 2
         gym_args['dof'] = 100
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
-        ss_min = -10
-        ss_max = 10
+        # ss_min = -10
+        # ss_max = 10
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, -1, -1, -1, -1])
+        ss_max = np.array([600, 600, 1, 1, 1, 1])
+        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
-        ss_min = -10
-        ss_max = 10
+        # ss_min = -10
+        # ss_max = 10
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, -1, -1, -1, -1])
+        ss_max = np.array([600, 600, 1, 1, 1, 1])
         dim_map = 2
         gym_args['physical_traps'] = True
     elif args.environment == 'hexapod_omni':
@@ -706,6 +799,7 @@ def main(args):
         obs_dim = 48
         act_dim = 18
         dim_x = 36
+        ## Need to check the dims for hexapod
         ss_min = -1
         ss_max = 1
         dim_map = 2
@@ -733,7 +827,7 @@ def main(args):
     else:
         gym_env = None
 
-    n_waypoints = 3
+    n_waypoints = args.n_waypoints
     dim_map *= n_waypoints
     px['dim_map'] = dim_map
     
@@ -744,12 +838,13 @@ def main(args):
         'n_hidden_layers': 2,
         'n_neurons_per_hidden': 10,
         'time_open_loop': False,
+        'norm_input': False,
     }
     dynamics_model_params = \
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'layer_size': 500,
+        'layer_size': 5000,
         'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
@@ -777,14 +872,18 @@ def main(args):
         
         'dynamics_model_params': dynamics_model_params,
 
-        'action_min': -1,
-        'action_max': 1,
+        # 'action_min': -1,
+        # 'action_max': 1,
+        'action_min': a_min,
+        'action_max': a_max,
 
         'state_min': ss_min,
         'state_max': ss_max,
         
-        'policy_param_init_min': -5,
-        'policy_param_init_max': 5,
+        'policy_param_init_min': -0.1,#-5,
+        'policy_param_init_max': 0.1, #5,
+        # 'policy_param_init_min': -5,
+        # 'policy_param_init_max': 5,
         
         'env': gym_env,
         'env_name': args.environment,
@@ -795,7 +894,8 @@ def main(args):
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop']:
         controller_params['obs_dim'] = 1
-        
+    if init_obs is not None:
+        params['init_obs'] = init_obs
     #########################################################################
     ####################### End of Preparation of run #######################
     #########################################################################
@@ -808,7 +908,8 @@ def main(args):
     surrogate_model_params['gen_dim'] = dim_x
     px['dim_x'] = dim_x
 
-    dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
+    # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
+    dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     if not is_local_env:
@@ -912,6 +1013,7 @@ if __name__ == "__main__":
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
     parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
     parser.add_argument("--n_niches", default=3000, type=int)
+    parser.add_argument("--n-waypoints", default=1, type=int) # 1 takes BD on last obs
 
     #----------population params--------#
     parser.add_argument("--random-init-batch", default=100, type=int) # Number of inds to initialize the archive

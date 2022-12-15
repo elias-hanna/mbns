@@ -16,7 +16,10 @@ class DeterministicDynModel(nn.Module):
             obs_dim,              # Observation dim of environment
             action_dim,           # Action dim of environment
             hidden_size,          # Hidden size for model
-            init_method='kaiming', # weight init method
+            init_method='kaiming',# weight init method
+            sa_min=None,          # State-Action space min values
+            sa_max=None,          # State-Action space max values
+            use_minmax_norm=False,
     ):
         super(DeterministicDynModel, self).__init__()
 
@@ -29,6 +32,7 @@ class DeterministicDynModel(nn.Module):
         self.hidden_size = hidden_size
         
         self.fc1 = nn.Linear(self.input_dim, self.hidden_size)
+        # self.fc2 = nn.Linear(self.hidden_size, self.output_dim)
         self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
         self.fc3 = nn.Linear(self.hidden_size, self.hidden_size)
         self.fc4 = nn.Linear(self.hidden_size, self.output_dim)
@@ -45,41 +49,52 @@ class DeterministicDynModel(nn.Module):
         self.output_std = nn.Parameter(ptu.ones(1,self.output_dim), requires_grad=False).float()
 
         if init_method == 'uniform':
+            a = -0.05; b = 0.05
             # uniform intialization of weights
-            nn.init.uniform_(self.fc1.weight, a=-0.5, b=0.5)
-            nn.init.uniform_(self.fc2.weight, a=-0.5, b=0.5)
-            nn.init.uniform_(self.fc3.weight, a=-0.5, b=0.5)
-            nn.init.uniform_(self.fc4.weight, a=-0.5, b=0.5)
+            nn.init.uniform_(self.fc1.weight, a=a, b=b)
+            nn.init.uniform_(self.fc2.weight, a=a, b=b)
+            # nn.init.uniform_(self.fc3.weight, a=a, b=b)
+            # nn.init.uniform_(self.fc4.weight, a=a, b=b)
         elif init_method == 'xavier':
             # xavier uniform intialization of weights
             nn.init.xavier_uniform_(self.fc1.weight)
             nn.init.xavier_uniform_(self.fc2.weight)
-            nn.init.xavier_uniform_(self.fc3.weight)
-            nn.init.xavier_uniform_(self.fc4.weight)
+            # nn.init.xavier_uniform_(self.fc3.weight)
+            # nn.init.xavier_uniform_(self.fc4.weight)
         elif init_method == 'kaiming':
             # kaiming uniform intialization of weights
             nn.init.kaiming_uniform_(self.fc1.weight)
             nn.init.kaiming_uniform_(self.fc2.weight)
-            nn.init.kaiming_uniform_(self.fc3.weight)
-            nn.init.kaiming_uniform_(self.fc4.weight)
+            # nn.init.kaiming_uniform_(self.fc3.weight)
+            # nn.init.kaiming_uniform_(self.fc4.weight)
         elif init_method == 'orthogonal':
             # orthogonal intialization of weights
             nn.init.orthogonal_(self.fc1.weight)
             nn.init.orthogonal_(self.fc2.weight)
-            nn.init.orthogonal_(self.fc3.weight)
-            nn.init.orthogonal_(self.fc4.weight)
+            # nn.init.orthogonal_(self.fc3.weight)
+            # nn.init.orthogonal_(self.fc4.weight)
+
+        self.sa_min = ptu.from_numpy(sa_min)
+        self.sa_max = ptu.from_numpy(sa_max)
+        self.use_minmax_norm = use_minmax_norm
         
     def forward(self, x_input):
 
         # normalize the inputs
-        h = self.normalize_inputs(x_input)
-
-        #h = x_input
-        x = torch.relu(self.fc1(h))
-        x = torch.relu(self.fc2(x))
-        x = torch.relu(self.fc3(x))
+        if self.use_minmax_norm:
+            h = self.normalize_inputs_sa_minmax(x_input)
+        else:
+            h = self.normalize_inputs(x_input)
+        # print('xin norm:',h)
+        # import pdb; pdb.set_trace()
+        # x = torch.relu(self.fc1(h))
+        # x = torch.relu(self.fc2(x))
+        # x = torch.relu(self.fc3(x))
+        x = torch.tanh(self.fc1(h))
+        x = torch.tanh(self.fc2(x))
+        x = torch.tanh(self.fc3(x))
         x = self.fc4(x)
-
+        # x = self.fc2(x)
         return x
     
     def get_loss(self, x, y, return_l2_error=False):
@@ -88,7 +103,10 @@ class DeterministicDynModel(nn.Module):
         pred_y = self.forward(x)
 
         # normalize the output/label as well
-        norm_y = self.normalize_outputs(y)
+        if self.use_minmax_norm:
+            norm_y = self.normalize_outputs_sa_minmax(y)
+        else:
+            norm_y = self.normalize_outputs(y)
 
         # calculate loss - we want to predict the normalized residual of next state
         loss = self.MSEcriterion(pred_y, norm_y)
@@ -124,12 +142,19 @@ class DeterministicDynModel(nn.Module):
 
     #output predictions after unnormalized
     def output_pred(self, x_input):
-        
+        # x_input = np.random.uniform(low=self.sa_min, high=self.sa_max, size=x_input.shape)
+        # x_input = ptu.from_numpy(x_input)
         # batch_preds is the normalized output from the network
+        # print('xin:', x_input)
         batch_preds = self.forward(x_input)
-        y = self.denormalize_output(batch_preds)
+        # print('xout norm:', batch_preds)
+        if self.use_minmax_norm:
+            y = self.denormalize_output_sa_minmax(batch_preds)
+            # print('xout:', y)
+        else:
+            y = self.denormalize_output(batch_preds)
         output = ptu.get_numpy(y)
-
+        # import pdb; pdb.set_trace()
         return output
     
     def normalize_inputs(self, data):
@@ -143,3 +168,24 @@ class DeterministicDynModel(nn.Module):
     def denormalize_output(self, data):
         data_denorm = data*self.output_std + self.output_mu
         return data_denorm
+
+    def normalize_inputs_sa_minmax(self, data):
+        data_norm = (data - self.sa_min)/(self.sa_max - self.sa_min)
+        rescaled_data_norm = data_norm * (1 + 1) - 1
+        return rescaled_data_norm
+        # return data_norm
+
+    def normalize_outputs_sa_minmax(self, data):
+        # data_norm = (data - self.sa_min[:self.obs_dim])/ \
+        #             (self.sa_max[:self.obs_dim] - self.sa_min[:self.obs_dim])
+        # rescaled_data_norm = data_norm * (1 + 1) - 1
+        # return rescaled_data_norm
+        return data_norm
+
+    def denormalize_output_sa_minmax(self, data):
+        # data_denorm = data*(self.sa_max[:self.obs_dim] - self.sa_min[:self.obs_dim]) + \
+                      # self.sa_min[:self.obs_dim]
+        # data_denorm = ((data + 1)*(self.sa_max[:self.obs_dim] - self.sa_min[:self.obs_dim]) / \
+                       # (1 + 1)) + self.sa_min[:self.obs_dim]
+        # return data_denorm
+        return data
