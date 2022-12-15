@@ -139,7 +139,7 @@ class QD:
         if (self.qd_type == "cvt") or (self.qd_type=="grid"):
             self.archive = {} # init archive as dic (empty)
             self.model_archive = {}
-        elif self.qd_type == "unstructured":
+        elif self.qd_type == "unstructured" or self.qd_type=="fixed":
             self.archive = [] # init archive as list
             self.model_archive = []        
 
@@ -156,7 +156,7 @@ class QD:
 
         if (self.qd_type=="cvt") or (self.qd_type=="grid"):
             keys = list(archive.keys())
-        elif (self.qd_type=="unstructured"):
+        elif (self.qd_type=="unstructured" or self.qd_type=="fixed"):
             keys = archive
                     
         # we select all the parents at the same time because randint is slow
@@ -168,7 +168,7 @@ class QD:
             if (self.qd_type == "cvt") or (self.qd_type=="grid"):
                 x = archive[keys[rand1[n]]]
                 y = archive[keys[rand2[n]]]
-            elif (self.qd_type == "unstructured"):                    
+            elif (self.qd_type == "unstructured" or self.qd_type == "fixed"):                    
                 x = archive[rand1[n]]
                 y = archive[rand2[n]]
                 
@@ -185,16 +185,23 @@ class QD:
     def addition_condition(self, s_list, archive, params):
         add_list = [] # list of solutions that were added
         discard_list = []
-        for s in s_list:
-            if self.qd_type == "unstructured":
-                success = unstructured_container.add_to_archive(s, archive, params)
-            else:
-                success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
-            if success:
-                add_list.append(s)
-            else:
-                discard_list.append(s) #not important for alogrithm but to collect stats
-                
+        if self.qd_type == "fixed":
+            ## Randomly add lambda elements to archive
+            sel_s_list = np.random.choice(s_list, size=params['lambda'], replace=False)
+            for s in sel_s_list:
+                archive.append(s)
+            pass
+        else:
+            for s in s_list:
+                if self.qd_type == "unstructured":
+                    success = unstructured_container.add_to_archive(s, archive, params)
+                else:
+                    success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
+                if success:
+                    add_list.append(s)
+                else:
+                    discard_list.append(s) #not important for alogrithm but to collect stats
+
         return archive, add_list, discard_list
     
     def compute(self,
@@ -283,7 +290,7 @@ class QD:
                                          np.percentile(fit_list, 5),
                                          np.percentile(fit_list, 95)))
 
-            elif (self.qd_type=="unstructured"):
+            elif (self.qd_type=="unstructured" or self.qd_type=="fixed"):
                 fit_list = np.array([x.fitness for x in self.archive])
                 self.log_file.write("{} {} {} {} {} {} {} {} {}\n".format(
                     gen,

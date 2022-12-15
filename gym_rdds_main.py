@@ -694,10 +694,11 @@ def main(args):
         #--------UNSTURCTURED ARCHIVE PARAMS----#
         # l value - should be smaller if you want more individuals in the archive
         # - solutions will be closer to each other if this value is smaller.
-        # "nov_l": 0.015,
-        "nov_l": 1.5,
+        "nov_l": 0.015,
+        # "nov_l": 1.5,
         "eps": 0.1, # usually 10%
         "k": 15,  # from novelty search
+        "lambda": 15, # For fixed ind add during runs (Gomes 2015)
 
         #--------MODEL BASED PARAMS-------#
         "t_nov": 0.03,
@@ -780,7 +781,7 @@ def main(args):
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
         ss_max = np.array([600, 600, 1, 1, 1, 1])
-        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        # init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
@@ -844,7 +845,7 @@ def main(args):
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'layer_size': 5000,
+        'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
@@ -924,13 +925,6 @@ def main(args):
 
     if args.perfect_model:
         f_model = f_real
-    # elif args.model_variant == "dynamics" or args.model_variant == "all_dynamics":
-    #     if args.model_type == "det":
-    #         f_model = env.evaluate_solution_model 
-    #     elif args.model_type == "prob" and args.environment == 'hexapod_omni':
-    #         f_model = env.evaluate_solution_model_ensemble
-    #     elif args.model_type == "prob":
-    #         f_model = env.evaluate_solution_model_ensemble_all
     elif args.model_variant == "dynamics" :
         if args.model_type == "det":
             f_model = env.evaluate_solution_model 
@@ -1000,7 +994,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     #-----------------Type of QD---------------------#
-    # options are 'cvt', 'grid' and 'unstructured'
+    # options are 'cvt', 'grid', 'unstructured', 'fixed'
     parser.add_argument("--qd_type", type=str, default="unstructured")
     
     #---------------CPU usage-------------------#
