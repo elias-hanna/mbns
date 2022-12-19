@@ -65,8 +65,8 @@ class DeterministicDynModel(nn.Module):
             # kaiming uniform intialization of weights
             nn.init.kaiming_uniform_(self.fc1.weight)
             nn.init.kaiming_uniform_(self.fc2.weight)
-            # nn.init.kaiming_uniform_(self.fc3.weight)
-            # nn.init.kaiming_uniform_(self.fc4.weight)
+            nn.init.kaiming_uniform_(self.fc3.weight)
+            nn.init.kaiming_uniform_(self.fc4.weight)
         elif init_method == 'orthogonal':
             # orthogonal intialization of weights
             nn.init.orthogonal_(self.fc1.weight)

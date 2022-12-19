@@ -288,7 +288,7 @@ def main(args):
     ## keep only the final two because others are waypoints
     bd_cols = bds[-2:]
     # rename_df(data, dim_map)
-
+    
     if args.show_model_trajs:
         fig, ax = plt.subplots()
         for idx in range(len(data)):

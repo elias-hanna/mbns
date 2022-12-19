@@ -321,7 +321,7 @@ def save_archive(archive, gen, params, log_dir):
                 write_array(k.x, f) # write genotype
                 #write_array(k.centroid, f)
                 f.write("\n") # newline to store new individual
-        elif (params["type"] == "unstructured"):
+        elif (params["type"] == "unstructured" or params["type"] == "fixed"):
             for k in archive:
                 ind_string = str(k.fitness) + ','
                 ind_string += get_array_string(k.desc)

@@ -781,7 +781,7 @@ def main(args):
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
         ss_max = np.array([600, 600, 1, 1, 1, 1])
-        # init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
@@ -977,7 +977,10 @@ def main(args):
     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
 
     pool.close()
-    
+
+    if px['type'] == "fixed":
+        px['type'] = "unstructured"
+        
     real_archive = []
             
     real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
@@ -995,7 +998,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     #-----------------Type of QD---------------------#
     # options are 'cvt', 'grid', 'unstructured', 'fixed'
-    parser.add_argument("--qd_type", type=str, default="unstructured")
+    parser.add_argument("--qd_type", type=str, default="fixed")
     
     #---------------CPU usage-------------------#
     parser.add_argument("--num_cores", type=int, default=6)
