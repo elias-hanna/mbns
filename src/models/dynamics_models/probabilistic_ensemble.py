@@ -158,6 +158,7 @@ class ProbabilisticEnsemble(ParallelizedEnsemble):
         
         #print("Preds shape: ", preds.shape) # [4,48] = [ensemble_size, obs_dim]
         return preds
+    
     def sample_with_disagreement_multiple(self, input, return_dist=False,
                                           disagreement_type='mean'):
         #print("input shape: ", input.shape[:-2])

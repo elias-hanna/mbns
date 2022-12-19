@@ -16,10 +16,11 @@ class DeterministicDynModel(nn.Module):
             obs_dim,              # Observation dim of environment
             action_dim,           # Action dim of environment
             hidden_size,          # Hidden size for model
-            init_method='kaiming',# weight init method
+            init_method='uniform',# weight init method
             sa_min=None,          # State-Action space min values
             sa_max=None,          # State-Action space max values
             use_minmax_norm=False,
+            hidden_activation=torch.tanh,
     ):
         super(DeterministicDynModel, self).__init__()
 
@@ -49,18 +50,18 @@ class DeterministicDynModel(nn.Module):
         self.output_std = nn.Parameter(ptu.ones(1,self.output_dim), requires_grad=False).float()
 
         if init_method == 'uniform':
-            a = -0.05; b = 0.05
+            a = -0.5; b = 0.5
             # uniform intialization of weights
             nn.init.uniform_(self.fc1.weight, a=a, b=b)
             nn.init.uniform_(self.fc2.weight, a=a, b=b)
-            # nn.init.uniform_(self.fc3.weight, a=a, b=b)
-            # nn.init.uniform_(self.fc4.weight, a=a, b=b)
+            nn.init.uniform_(self.fc3.weight, a=a, b=b)
+            nn.init.uniform_(self.fc4.weight, a=a, b=b)
         elif init_method == 'xavier':
             # xavier uniform intialization of weights
             nn.init.xavier_uniform_(self.fc1.weight)
             nn.init.xavier_uniform_(self.fc2.weight)
-            # nn.init.xavier_uniform_(self.fc3.weight)
-            # nn.init.xavier_uniform_(self.fc4.weight)
+            nn.init.xavier_uniform_(self.fc3.weight)
+            nn.init.xavier_uniform_(self.fc4.weight)
         elif init_method == 'kaiming':
             # kaiming uniform intialization of weights
             nn.init.kaiming_uniform_(self.fc1.weight)
@@ -71,9 +72,11 @@ class DeterministicDynModel(nn.Module):
             # orthogonal intialization of weights
             nn.init.orthogonal_(self.fc1.weight)
             nn.init.orthogonal_(self.fc2.weight)
-            # nn.init.orthogonal_(self.fc3.weight)
-            # nn.init.orthogonal_(self.fc4.weight)
+            nn.init.orthogonal_(self.fc3.weight)
+            nn.init.orthogonal_(self.fc4.weight)
 
+        self.hidden_activation = hidden_activation
+        
         self.sa_min = ptu.from_numpy(sa_min)
         self.sa_max = ptu.from_numpy(sa_max)
         self.use_minmax_norm = use_minmax_norm
@@ -87,12 +90,22 @@ class DeterministicDynModel(nn.Module):
             h = self.normalize_inputs(x_input)
         # print('xin norm:',h)
         # import pdb; pdb.set_trace()
+        
         # x = torch.relu(self.fc1(h))
+        
         # x = torch.relu(self.fc2(x))
         # x = torch.relu(self.fc3(x))
-        x = torch.tanh(self.fc1(h))
-        x = torch.tanh(self.fc2(x))
-        x = torch.tanh(self.fc3(x))
+        
+        # x = torch.tanh(self.fc1(h))
+        
+        # x = torch.tanh(self.fc2(x))
+        # x = torch.tanh(self.fc3(x))
+
+        x = self.hidden_activation(self.fc1(h))
+        
+        x = self.hidden_activation(self.fc2(x))
+        x = self.hidden_activation(self.fc3(x))
+        
         x = self.fc4(x)
         # x = self.fc2(x)
         return x
