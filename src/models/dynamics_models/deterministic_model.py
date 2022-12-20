@@ -154,7 +154,7 @@ class DeterministicDynModel(nn.Module):
         self.output_std.data = ptu.from_numpy(std)
 
     #output predictions after unnormalized
-    def output_pred(self, x_input):
+    def output_pred(self, x_input, mean=False):
         # x_input = np.random.uniform(low=self.sa_min, high=self.sa_max, size=x_input.shape)
         # x_input = ptu.from_numpy(x_input)
         # batch_preds is the normalized output from the network

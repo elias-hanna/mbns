@@ -143,7 +143,6 @@ class QD:
             self.archive = [] # init archive as list
             self.model_archive = []        
 
-
     def random_archive_init(self, to_evaluate):
         for i in range(0, self.params['random_init_batch']):
             x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
@@ -258,9 +257,9 @@ class QD:
                 if emitter == 0: 
                     add_list, to_evaluate = self.random_emitter(to_evaluate, pool, params, gen)
                 elif emitter == 1:
-                    add_list_model, to_evaluate = self.optimizing_emitter(to_model_evaluate, pool, params, gen)
+                    add_list_model, to_evaluate = self.optimizing_emitter(to_evaluate, pool, params, gen)
                 elif emitter == 2: 
-                    add_list_model, to_evaluate = self.random_walk_emitter(to_model_evaluate, pool, params, gen)
+                    add_list_model, to_evaluate = self.random_walk_emitter(to_evaluate, pool, params, gen)
 
 
             # count evals
@@ -313,6 +312,8 @@ class QD:
         print("End of QD algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         pool.close()
+        self.log_file.close()
+        
         return self.archive, n_evals
 
 
@@ -322,11 +323,11 @@ class QD:
         add_list_final = []
         all_eval = []
         
-        to_model_evaluate = self.select_and_mutate(to_evaluate, self.archive, self.f_real, params)
+        to_evaluate = self.select_and_mutate(to_evaluate, self.archive, self.f_real, params)
         if params["model_variant"]=="all_dynamics":
             s_list = evaluate_all_(to_evaluate)
         else:
-            s_list = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+            s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
         self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
         add_list_final += add_list
         all_eval += to_evaluate # count all inds evaluated by model

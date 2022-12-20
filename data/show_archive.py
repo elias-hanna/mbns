@@ -170,7 +170,6 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             # fig, ax = plt.subplots()
             # data.plot.scatter(x='bd0_real_all',y='bd1_real_all',c=colors,s=2, ax=ax)
             # data.plot.scatter(x='bd0_real_added',y='bd1_real_added',c=colors,s=2, ax=ax)
-
             if c_by == 'bd':
                 data.plot.scatter(x=f'{bd_cols[0]}_model',y=f'{bd_cols[1]}_model',
                                   c=f'bd{bd_col}_model',
@@ -270,14 +269,21 @@ def get_novelty_scores(data, k=15, bd_cols=['bd0', 'bd1']):
 
     return novelty_scores
 
-def get_most_nov_data(data, n=100, bd_cols=['bd0', 'bd1']):
-    data_nov = get_novelty_scores(data, bd_cols=bd_cols)
+def get_most_nov_data(data, n=100, bd_cols=['bd0', 'bd1'], ens_size=1):
+    if ens_size > 1:
+        ens_data_nov = np.empty((ens_size, len(data)))
+        for i in range(ens_size):
+            bd_cols_loc = [f"{bd_cols[k]}_m{i}" for k in range(len(bd_cols))]
+            data_nov = get_novelty_scores(data, bd_cols=bd_cols_loc)
+            ens_data_nov[i,:] = data_nov
+        data_nov = ens_data_nov.min(axis=0)
+    else:
+        data_nov = get_novelty_scores(data, bd_cols=bd_cols)
     sorted_data = data.assign(nov=data_nov)
     sorted_data = sorted_data.sort_values(by=['nov'], ascending=False)
     return sorted_data.head(n=n)
     
 def main(args):
-    
     gym_env, max_step, ss_min, ss_max, dim_map, bd_inds = process_env(args)
     # dim_x = 36
     
@@ -287,8 +293,11 @@ def main(args):
     bds = [col for col in data.columns if 'bd' in col]
     ## keep only the final two because others are waypoints
     bd_cols = bds[-2:]
-    # rename_df(data, dim_map)
-    
+    ## Need to filter the mx
+    if args.ens_size > 1:
+        splitted_cols = [bd_col.split('_') for bd_col in bd_cols]
+        no_m_bd_cols = [el[0] for el in splitted_cols]
+
     if args.show_model_trajs:
         fig, ax = plt.subplots()
         for idx in range(len(data)):
@@ -305,9 +314,16 @@ def main(args):
     if args.model_and_real:
         n_inds = 100 if len(data) >= 100 else len(data)
         ## Get dataframes satisfying selection condition
-        data_most_nov = get_most_nov_data(data, n=n_inds, bd_cols=bd_cols)
-    
-        data_centers = get_closest_to_cluster_centroid(data, n_clusters=n_inds, bd_cols=bd_cols)
+        data_most_nov = get_most_nov_data(data, n=n_inds, bd_cols=no_m_bd_cols,
+                                          ens_size=args.ens_size)
+
+        
+        data = data.rename(
+            columns={bd_cols[0]:no_m_bd_cols[0], bd_cols[1]:no_m_bd_cols[1]})
+        data_most_nov = data_most_nov.rename(
+            columns={bd_cols[0]:no_m_bd_cols[0], bd_cols[1]:no_m_bd_cols[1]})
+        bd_cols = no_m_bd_cols
+        # data_centers = get_closest_to_cluster_centroid(data, n_clusters=n_inds, bd_cols=bd_cols)
 
         ## Get other dataframes corresponding to real env conditions
         splitted_name = args.filename.split('.')
@@ -320,9 +336,6 @@ def main(args):
         data_real_added = data_real_added.iloc[:,:-1]
         data_real_all = data_real_all.iloc[:,:-1]
 
-        # rename_df(data_real_all, dim_map)
-        # rename_df(data_real_added, dim_map)
-
         ## reorder the dfs
         # Merge the two dataframes on the "id" and "name" columns
         gen_cols = [f'x{i}' for i in range(dim_x)]
@@ -330,8 +343,8 @@ def main(args):
         df_merged_all = data.merge(data_real_all, on=gen_cols,
                                    suffixes=('_model','_real_all'))
 
-        df_merged_centers = data_centers.merge(data_real_all, on=gen_cols,
-                                                   suffixes=('_model','_real_centers'))
+        # df_merged_centers = data_centers.merge(data_real_all, on=gen_cols,
+                                                   # suffixes=('_model','_real_centers'))
 
         df_merged_nov = data_most_nov.merge(data_real_all, on=gen_cols,
                                             suffixes=('_model','_real_nov'))
@@ -342,9 +355,9 @@ def main(args):
         fig, ax = plot_archive(df_merged_all, plt, args, ss_min, ss_max,
                                bounds=args.bounds, name="real_all",
                                c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
-        fig, ax = plot_archive(df_merged_centers, plt, args, ss_min, ss_max,
-                               bounds=args.bounds, name="real_centers",
-                               c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
+        # fig, ax = plot_archive(df_merged_centers, plt, args, ss_min, ss_max,
+                               # bounds=args.bounds, name="real_centers",
+                               # c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
         fig, ax = plot_archive(df_merged_nov, plt, args, ss_min, ss_max,
                                bounds=args.bounds, name="real_nov",
                                c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
@@ -375,6 +388,7 @@ if __name__ == "__main__":
     parser.add_argument('--show-model-trajs', action="store_true")
     parser.add_argument('--bounds', action="store_true")
 
+    parser.add_argument("--ens-size", type=int, default=1, help="Number of models in ensemble")
     parser.add_argument("--plot_type", type=str, default="scatter", help="scatter plot, grid plot or 3d")
     parser.add_argument("--nb_div", type=int, default=10, help="Number of equally separated bins to divide the outcome space in")
 

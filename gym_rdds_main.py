@@ -9,6 +9,7 @@ from src.map_elites import unstructured_container, cvt
 from src.map_elites.qd import QD
 
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
+from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
 from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
 from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
 
@@ -78,7 +79,7 @@ def get_dynamics_model(params):
         from src.trainers.mbrl.mbrl import MBRLTrainer
         variant = dict(
             mbrl_kwargs=dict(
-                ensemble_size=4,
+                ensemble_size=dynamics_model_params['ensemble_size'],
                 layer_size=dynamics_model_params['layer_size'],
                 learning_rate=1e-3,
                 batch_size=dynamics_model_params['batch_size'],
@@ -99,25 +100,44 @@ def get_dynamics_model(params):
         # ensemble somehow cant run in parallel evaluations
     elif dynamics_model_type == "det":
         from src.trainers.mbrl.mbrl_det import MBRLTrainer 
-        dynamics_model = DeterministicDynModel(obs_dim=obs_dim,
-                                               action_dim=action_dim,
-                                               hidden_size=dynamics_model_params['layer_size'],
-                                               sa_min=np.concatenate((params['state_min'],
-                                                                      params['action_min'])),
-                                               sa_max=np.concatenate((params['state_max'],
-                                                                      params['action_max'])),
-                                               use_minmax_norm=True)
-        dynamics_model_trainer = MBRLTrainer(model=dynamics_model,
-                                             batch_size=dynamics_model_params['batch_size'],)
+        dynamics_model = DeterministicDynModel(
+                obs_dim=obs_dim,
+                action_dim=action_dim,
+                hidden_size=dynamics_model_params['layer_size'],
+                sa_min=np.concatenate((params['state_min'],
+                                       params['action_min'])),
+                sa_max=np.concatenate((params['state_max'],
+                                       params['action_max'])),
+                use_minmax_norm=True)
+        dynamics_model_trainer = MBRLTrainer(
+                model=dynamics_model,
+                batch_size=dynamics_model_params['batch_size'],)
 
+    elif dynamics_model_type == "det_ens":
+        from src.trainers.mbrl.mbrl_det import MBRLTrainer 
+        dynamics_model = DeterministicEnsemble(
+                obs_dim=obs_dim,
+                action_dim=action_dim,
+                hidden_size=dynamics_model_params['layer_size'],
+                ensemble_size=dynamics_model_params['ensemble_size'],
+                sa_min=np.concatenate((params['state_min'],
+                                       params['action_min'])),
+                sa_max=np.concatenate((params['state_max'],
+                                       params['action_max'])),
+                use_minmax_norm=True)
+        dynamics_model_trainer = None ## Not trainable for now
+        
     return dynamics_model, dynamics_model_trainer
 
 def get_surrogate_model(surrogate_model_params):
     from src.trainers.qd.surrogate import SurrogateTrainer
-    model = DeterministicQDSurrogate(gen_dim=surrogate_model_params['gen_dim'],
-                                     bd_dim=surrogate_model_params['bd_dim'],
-                                     hidden_size=surrogate_model_params['layer_size'])
-    model_trainer = SurrogateTrainer(model, batch_size=surrogate_model_params['batch_size'])
+    model = DeterministicQDSurrogate(
+            gen_dim=surrogate_model_params['gen_dim'],
+            bd_dim=surrogate_model_params['bd_dim'],
+            hidden_size=surrogate_model_params['layer_size'])
+    model_trainer = SurrogateTrainer(
+            model,
+            batch_size=surrogate_model_params['batch_size'])
 
     return model, model_trainer
 
@@ -152,6 +172,7 @@ class WrappedEnv():
         self.policy_representation_dim = len(self.controller.get_parameters())
         self.dynamics_model = None
         self._model_max_h = params['dynamics_model_params']['model_horizon']
+        self._ens_size = params['dynamics_model_params']['ensemble_size']
         self.time_open_loop = params['time_open_loop']
         self._norm_c_input = params['controller_params']['norm_input']
         self.n_wps = params['n_waypoints']
@@ -317,7 +338,6 @@ class WrappedEnv():
                     else:
                         A[i] = controller_list[i](S[i])
                 A[i] = np.clip(A[i], self._action_min, self._action_max)
-                A[i] = np.random.uniform(low=-1, high=1, size=(self._act_dim,))
 
             start = time.time()
             batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S, ensemble=False)
@@ -343,6 +363,129 @@ class WrappedEnv():
             disagr_traj = disagr_trajs[i]
 
             desc = self.compute_bd(obs_traj)
+            fitness = self.compute_fitness(obs_traj, act_traj,
+                                           disagr_traj=disagr_traj)
+
+            fit_list.append(fitness)
+            bd_list.append(desc)
+            
+        return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
+
+    def evaluate_solution_model_det_ensemble_all(self, ctrls, mean=False, render=False):
+        """
+        Input: ctrl (array of floats) the genome of the individual
+        Output: Trajectory and actions taken
+        """
+        controller_list = []
+        traj_list = []
+        actions_list = []
+        disagreements_list = []
+        obs_list = []
+
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+        ens_size = self._ens_size
+
+        cpt = 0
+        for ctrl in ctrls:
+            ## Create a copy of the controller
+            controller_list.append(self.controller.copy())
+            ## Set controller parameters
+            controller_list[-1].set_parameters(ctrl)
+            traj_list.append([])
+            if mean:
+                traj_list[cpt].append(obs.copy())
+            else:
+                traj_list[cpt].append(np.tile(obs, (ens_size, 1)))
+            cpt += 1
+            actions_list.append([])
+            disagreements_list.append([])
+            obs_list.append(obs.copy())
+        
+        if mean:
+            S = np.tile(obs, (len(ctrls), 1))
+            A = np.empty((len(ctrls), self.controller.output_dim))
+        else:
+            S = np.tile(obs, (ens_size*len(ctrls), 1))
+            A = np.empty((ens_size*len(ctrls),
+                          self.controller.output_dim))
+
+        for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+            for i in range(len(ctrls)):
+                if mean:
+                    if self.time_open_loop:
+                        if self._norm_c_input:
+                            norm_t = (t/self._env_max_h)*(1+1) - 1
+                            A[i] = controller_list[i]([norm_t])
+                        else:
+                            A[i] = controller_list[i]([t])
+                    else:
+                        if self._norm_c_input:
+                            norm_s = self.normalize_inputs_s_minmax(S[i])
+                            A[i] = controller_list[i](norm_s)
+                        else:
+                            A[i] = controller_list[i](S[i])
+                else:
+                    if self.time_open_loop:
+                        if self._norm_c_input:
+                            norm_t = (t/self._env_max_h)*(1+1) - 1
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i]([norm_t]*ens_size)
+                        else:
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i]([t]*ens_size)
+                    else:
+                        if self._norm_c_input:
+                            norm_s = self.normalize_inputs_s_minmax(
+                                    S[i*ens_size:i*ens_size+ens_size])
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](norm_s)
+                        else:
+                            A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](S[i*ens_size:i*ens_size+ens_size])
+                A[i] = np.clip(A[i], self._action_min, self._action_max)
+
+            start = time.time()
+            if mean:
+                batch_pred_delta_ns, batch_disagreement = self.forward_multiple(
+                        A,
+                        S,
+                        mean=mean,
+                        ensemble=False)
+            else:
+                batch_pred_delta_ns, batch_disagreement = self.forward_multiple(
+                        A,
+                        S,
+                        mean=mean,
+                        ensemble=False,
+                        det_ens=True)
+            
+            for i in range(len(ctrls)):
+                if mean:
+                    ## Compute mean prediction from model samples
+                    next_step_pred = batch_pred_delta_ns[i]
+                    S[i,:] += next_step_pred.copy()
+                    traj_list[i].append(S[i,:].copy())
+                    disagreements_list[i].append(batch_disagreement[i])
+                    actions_list[i].append(A[i,:])
+                else:
+                    S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[:,i]
+                    traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
+                    actions_list[i].append(A[i*ens_size:i*ens_size+ens_size])
+
+        bd_list = []
+        fit_list = []
+
+        obs_trajs = np.array(traj_list)
+        act_trajs = np.array(actions_list)
+        disagr_trajs = np.array(disagreements_list)
+
+        for i in range(len(ctrls)):
+            obs_traj = obs_trajs[i]
+            act_traj = act_trajs[i]
+            disagr_traj = disagr_trajs[i]
+
+            desc = self.compute_bd(obs_traj, ensemble=True, mean=mean)
             fitness = self.compute_fitness(obs_traj, act_traj,
                                            disagr_traj=disagr_traj)
 
@@ -383,12 +526,10 @@ class WrappedEnv():
             A = np.empty((ens_size*len(ctrls),
                           self.controller.output_dim))
         else:
-            ## WARNING: need to get previous obs
-            # S = np.tile(prev_element.trajectory[-1].copy(), (len(X)))
             S = np.tile(obs, (len(ctrls), 1))
             A = np.empty((len(ctrls), self.controller.output_dim))
 
-        for _ in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+        for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
             for i in range(len(ctrls)):
                 # A[i, :] = controller_list[i](S[i,:])
                 if use_particules:
@@ -396,10 +537,10 @@ class WrappedEnv():
                         if self._norm_c_input:
                             norm_t = (t/self._env_max_h)*(1+1) - 1
                             A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i]([norm_t])
+                            controller_list[i]([norm_t]*ens_size)
                         else:
                             A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i]([t])
+                            controller_list[i]([t]*ens_size)
                     else:
                         if self._norm_c_input:
                             norm_s = self.normalize_inputs_s_minmax(
@@ -422,8 +563,8 @@ class WrappedEnv():
                             A[i] = controller_list[i](norm_s)
                         else:
                             A[i] = controller_list[i](S[i])
-                A[i] = np.clip(A[i], self._action_min, self._action_max)
-
+                    A[i] = np.clip(A[i], self._action_min, self._action_max)
+                            
             start = time.time()
             if use_particules:
                 batch_pred_delta_ns, batch_disagreement = self.forward(A, S, mean=mean,
@@ -475,7 +616,7 @@ class WrappedEnv():
             act_traj = act_trajs[i]
             disagr_traj = disagr_trajs[i]
 
-            desc = self.compute_bd(obs_traj, ensemble=True)
+            desc = self.compute_bd(obs_traj, ensemble=True, mean=not use_particules)
             fitness = self.compute_fitness(obs_traj, act_traj,
                                            disagr_traj=disagr_traj,
                                            ensemble=True)
@@ -485,7 +626,7 @@ class WrappedEnv():
             
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
-    def forward_multiple(self, A, S, mean=True, disagr=True, ensemble=True):
+    def forward_multiple(self, A, S, mean=True, disagr=True, ensemble=True, det_ens=False):
         ## Takes a list of actions A and a list of states S we want to query the model from
         ## Returns a list of the return of a forward call for each couple (action, state)
         assert len(A) == len(S)
@@ -507,12 +648,22 @@ class WrappedEnv():
             batch_cpt += 1
         if ensemble:
             return self.forward(A_0, S_0, mean=mean, disagr=disagr, multiple=True)
+        elif det_ens:
+            s_0 = copy.deepcopy(S_0)
+            a_0 = copy.deepcopy(A_0)
+            s_0 = ptu.from_numpy(s_0)
+            a_0 = ptu.from_numpy(a_0)
+            return self.dynamics_model.output_pred_with_ts(
+                    torch.cat((s_0, a_0), dim=-1),
+                    mean=mean), [0]*len(s_0)
         else:
             s_0 = copy.deepcopy(S_0)
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
-            return self.dynamics_model.output_pred(torch.cat((s_0, a_0), dim=-1)), [0]*len(s_0)
+            return self.dynamics_model.output_pred(
+                    torch.cat((s_0, a_0), dim=-1),
+                    mean=mean), [0]*len(s_0)
 
     def forward(self, a, s, mean=True, disagr=True, multiple=False):
         s_0 = copy.deepcopy(s)
@@ -595,13 +746,21 @@ class WrappedEnv():
         wp_idxs += [-1]
 
         obs_wps = np.take(obs_traj, wp_idxs, axis=0)
-
         if ensemble:
             if mean:
                 obs_wps = np.mean(obs_wps_obs, axis=0)
             else:
-                last_obs = obs_wps[np.random.randint(self.dynamics_model.ensemble_size)]
-                
+                ## Return bd for each model and flatten it all
+                if self._env_name == 'ball_in_cup':
+                    bd = obs_wps[:,:,:3].flatten()
+                if self._env_name == 'fastsim_maze':
+                    bd = obs_wps[:,:,:2].flatten()
+                if self._env_name == 'fastsim_maze_traps':
+                    bd = obs_wps[:,:,:2].flatten()
+                if self._env_name == 'redundant_arm_no_walls_limited_angles':
+                    bd = obs_wps[:,:,-2:].flatten()
+                return bd
+
         if self._env_name == 'ball_in_cup':
             bd = obs_wps[:,:3].flatten()
         if self._env_name == 'fastsim_maze':
@@ -723,6 +882,8 @@ def main(args):
         "transfer_selection": args.transfer_selection,
         "nb_transfer": args.nb_transfer,
         "env_name": args.environment,
+        ## for dump
+        "ensemble_dump": False,
     }
 
     
@@ -851,6 +1012,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
+        'ensemble_size': 10,
     }
     surrogate_model_params = \
     {
@@ -933,11 +1095,17 @@ def main(args):
     elif args.model_variant == "all_dynamics":
         if args.model_type == "det":
             f_model = env.evaluate_solution_model_all
+        elif args.model_type == "det_ens":
+            f_model = env.evaluate_solution_model_det_ensemble_all
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
     # elif args.model_variant == "direct":
         # f_model = env.evaluate_solution_model 
-        
+
+    if args.model_type == "det_ens":
+        px["ensemble_dump"] = True
+        px["ensemble_size"] = dynamics_model_params["ensemble_size"]
+
     qd = QD(dim_map, dim_x,
             f_model,
             n_niches=1000,
@@ -972,7 +1140,7 @@ def main(args):
     import itertools
     if not args.random_policies:
         to_evaluate = list(zip([ind.x.copy() for ind in model_archive], itertools.repeat(f_real)))
-        
+
     ## Evaluate on real sys
     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
 
@@ -980,7 +1148,9 @@ def main(args):
 
     if px['type'] == "fixed":
         px['type'] = "unstructured"
-        
+
+    px["ensemble_dump"] = False
+    
     real_archive = []
             
     real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
@@ -1027,8 +1197,8 @@ if __name__ == "__main__":
     parser.add_argument('--nb-transfer', type=int, default=1)
 
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
-    parser.add_argument('--model-type', type=str, default='det') # prob, det
-    parser.add_argument('--model-horizon', type=int, default=None) # prob, det
+    parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
+    parser.add_argument('--model-horizon', type=int, default=None) # whatever suits you
     parser.add_argument('--perfect-model', action='store_true')
 
     #----------model init study params--------#

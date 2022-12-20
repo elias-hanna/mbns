@@ -6,9 +6,9 @@ import torch.nn.functional as F
 
 import src.torch.pytorch_util as ptu
 
-from deterministic_model import DeterministicDynModel
+from src.models.dynamics_models.deterministic_model import DeterministicDynModel
 
-class DeterministicDynModelEnsemble(nn.Module):
+class DeterministicEnsemble():
     """
     Predicts residual of next state given current state and action
     """
@@ -24,9 +24,9 @@ class DeterministicDynModelEnsemble(nn.Module):
             use_minmax_norm=False,
             hidden_activation=torch.tanh,
     ):
-        super(DeterministicDynModel, self).__init__()
+        # super(DeterministicEnsemble, self).__init__()
 
-        torch.set_num_threads(16)
+        # torch.set_num_threads(16)
         
         self.obs_dim, self.action_dim = obs_dim, action_dim
 
@@ -102,7 +102,7 @@ class DeterministicDynModelEnsemble(nn.Module):
         if mean:
             return np.mean(xs, axis=0)
         
-        return xs
+        return np.array(xs)
     
     def get_loss(self, x, y, mean=False, return_l2_error=False):
 
@@ -125,9 +125,9 @@ class DeterministicDynModelEnsemble(nn.Module):
             #losses.append(self.L1criterion(pred_y, y))
 
         if mean:
-            return np.mean(loss)
+            return np.mean(loss, axis=0)
         
-        return loss
+        return np.array(loss)
 
     #output predictions after unnormalized
     def output_pred(self, x_input, mean=False):
@@ -136,16 +136,35 @@ class DeterministicDynModelEnsemble(nn.Module):
             batch_pred = model.forward(x_input)
             
             if self.use_minmax_norm:
-                y = self.denormalize_output_sa_minmax(batch_preds)
+                y = self.denormalize_output_sa_minmax(batch_pred)
             else:
-                y = self.denormalize_output(batch_preds)
-                
+                y = self.denormalize_output(batch_pred)
             batch_preds.append(ptu.get_numpy(y))
             
         if mean:
             return np.mean(batch_preds, axis=0)
         
-        return batch_preds
+        return np.array(batch_preds)
+
+    def output_pred_with_ts(self, x_input, mean=False):
+        ## x_input needs to be in the form
+        ## x_input = [x0 model 1]
+        ##           [x0 model 2]
+        ##           [x1 model 1]
+        ##           [x1 model 2] etc...
+        ## cba to think of a stronger assert sorry
+        assert len(x_input) % self.ensemble_size == 0 
+        batch_preds = []
+        ## run the particules through each model
+        for model, i in zip(self.models, range(self.ensemble_size)):
+            batch_pred = model.forward(x_input[i::self.ensemble_size])
+            if self.use_minmax_norm:
+                y = self.denormalize_output_sa_minmax(batch_pred)
+            else:
+                y = self.denormalize_output(batch_pred)
+            batch_preds.append(ptu.get_numpy(y))
+
+        return np.array(batch_preds)
     
     def normalize_inputs(self, data):
         data_norm = (data - self.input_mu)/(self.input_std)

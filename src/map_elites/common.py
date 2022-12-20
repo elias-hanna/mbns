@@ -307,8 +307,13 @@ def save_archive(archive, gen, params, log_dir):
     with open(filename, 'w') as f:
         headers = ''
         headers += 'fit' + ','
-        for i in range(params['dim_map']):
-            headers += f'bd{i}' + ','
+        if params["ensemble_dump"] == True:
+            for k in range(params["ensemble_size"]):
+                for i in range(params['dim_map']):
+                    headers += f'bd{i}_m{k}' + ','
+        else:
+            for i in range(params['dim_map']):
+                headers += f'bd{i}' + ','
         for i in range(params['dim_x']):
             headers += f'x{i}' + ','
         headers += 'ind_trajs' + ','
