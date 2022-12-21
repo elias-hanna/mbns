@@ -79,7 +79,8 @@ class Species:
         self.x = np.array(x) # genotype
         self.desc = np.array(desc) # desciptor of the individual
         self.fitness = fitness #fitness of the individual
-
+        self.nov = 0 # novelty of the indiviudal
+        
         self.model_dis = model_dis # model disagreeement
         self.desc_ground = np.array(desc_ground) # ground truth desciptor (if ther is)
         self.obs_traj = np.array(obs_traj) # trajectory (rollout of the genotype) of the individual
@@ -271,10 +272,10 @@ def parallel_eval(evaluate_function, to_evaluate, pool, params):
             s_list.append(result)
     else:
         print("Starting sequential eval")
-        s_list = map(evaluate_function, to_evaluate)
-        # s_list = []
-        # for result in tqdm.tqdm(map(evaluate_function, to_evaluate), total=len(to_evaluate)):
-        #     s_list.append(result)
+        # s_list = map(evaluate_function, to_evaluate)
+        s_list = []
+        for result in tqdm.tqdm(map(evaluate_function, to_evaluate), total=len(to_evaluate)):
+            s_list.append(result)
     return list(s_list)
 
 

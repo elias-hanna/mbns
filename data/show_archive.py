@@ -314,17 +314,22 @@ def main(args):
     if args.model_and_real:
         n_inds = 100 if len(data) >= 100 else len(data)
         ## Get dataframes satisfying selection condition
-        data_most_nov = get_most_nov_data(data, n=n_inds, bd_cols=no_m_bd_cols,
-                                          ens_size=args.ens_size)
+        if args.ens_size > 1:
+            data_most_nov = get_most_nov_data(data, n=n_inds, bd_cols=no_m_bd_cols,
+                                              ens_size=args.ens_size)
 
         
-        data = data.rename(
-            columns={bd_cols[0]:no_m_bd_cols[0], bd_cols[1]:no_m_bd_cols[1]})
-        data_most_nov = data_most_nov.rename(
-            columns={bd_cols[0]:no_m_bd_cols[0], bd_cols[1]:no_m_bd_cols[1]})
-        bd_cols = no_m_bd_cols
-        # data_centers = get_closest_to_cluster_centroid(data, n_clusters=n_inds, bd_cols=bd_cols)
-
+            data = data.rename(
+                columns={bd_cols[0]:no_m_bd_cols[0], bd_cols[1]:no_m_bd_cols[1]})
+            data_most_nov = data_most_nov.rename(
+                columns={bd_cols[0]:no_m_bd_cols[0], bd_cols[1]:no_m_bd_cols[1]})
+            bd_cols = no_m_bd_cols
+        else:
+            data_most_nov = get_most_nov_data(data, n=n_inds, bd_cols=bd_cols,
+                                              ens_size=args.ens_size)
+        if not args.ens_size > 1:
+            data_centers = get_closest_to_cluster_centroid(data, n_clusters=n_inds, bd_cols=bd_cols)
+        
         ## Get other dataframes corresponding to real env conditions
         splitted_name = args.filename.split('.')
         real_added_data_filename = splitted_name[0] + "_real_added.dat"
@@ -343,8 +348,9 @@ def main(args):
         df_merged_all = data.merge(data_real_all, on=gen_cols,
                                    suffixes=('_model','_real_all'))
 
-        # df_merged_centers = data_centers.merge(data_real_all, on=gen_cols,
-                                                   # suffixes=('_model','_real_centers'))
+        if not args.ens_size > 1:
+            df_merged_centers = data_centers.merge(data_real_all, on=gen_cols,
+                                                   suffixes=('_model','_real_centers'))
 
         df_merged_nov = data_most_nov.merge(data_real_all, on=gen_cols,
                                             suffixes=('_model','_real_nov'))
@@ -355,9 +361,10 @@ def main(args):
         fig, ax = plot_archive(df_merged_all, plt, args, ss_min, ss_max,
                                bounds=args.bounds, name="real_all",
                                c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
-        # fig, ax = plot_archive(df_merged_centers, plt, args, ss_min, ss_max,
-                               # bounds=args.bounds, name="real_centers",
-                               # c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
+        if not args.ens_size > 1:
+            fig, ax = plot_archive(df_merged_centers, plt, args, ss_min, ss_max,
+                                   bounds=args.bounds, name="real_centers",
+                                   c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)
         fig, ax = plot_archive(df_merged_nov, plt, args, ss_min, ss_max,
                                bounds=args.bounds, name="real_nov",
                                c_by='fit', bd_col=1, real_and_model=True, bd_cols=bd_cols)

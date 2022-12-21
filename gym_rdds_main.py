@@ -7,6 +7,7 @@ import src.torch.pytorch_util as ptu
 from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
 from src.map_elites.qd import QD
+from src.map_elites.ns import NS
 
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
 from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
@@ -810,7 +811,8 @@ def main(args):
     {
         # type of qd 'unstructured, grid, cvt'
         "type": args.qd_type,
-        
+        # arg for NS
+        "pop_size": 100,
         # more of this -> higher-quality CVT
         "cvt_samples": 25000,
         "cvt_use_cache": True,
@@ -827,7 +829,7 @@ def main(args):
         "dump_mode": args.dump_mode,
 
         # do we use several cores?
-        "parallel": True,
+        "parallel": False,
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
@@ -954,6 +956,16 @@ def main(args):
         ss_max = np.array([600, 600, 1, 1, 1, 1])
         dim_map = 2
         gym_args['physical_traps'] = True
+    elif args.environment == 'half_cheetah':
+        env_register_id = 'HalfCheetah-v4'
+        a_min = np.array([-1, -1, -1, -1, -1, -1])
+        a_max = np.array([1, 1, 1, 1, 1, 1])
+        ss_min = np.array([-10]*18)
+        ss_max = np.array([10]*18)
+        init_obs = np.array([0.]*18)
+        dim_map = 1
+        gym_args['exclude_current_positions_from_observation'] = False
+        gym_args['reset_noise_scale'] = 0
     elif args.environment == 'hexapod_omni':
         from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
         is_local_env = True
@@ -1012,7 +1024,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
-        'ensemble_size': 10,
+        'ensemble_size': 4,
     }
     surrogate_model_params = \
     {
@@ -1106,14 +1118,22 @@ def main(args):
         px["ensemble_dump"] = True
         px["ensemble_size"] = dynamics_model_params["ensemble_size"]
 
-    qd = QD(dim_map, dim_x,
-            f_model,
-            n_niches=1000,
-            params=px,
-            log_dir=args.log_dir)
+    if args.algo == 'qd':
+        algo = QD(dim_map, dim_x,
+                f_model,
+                n_niches=1000,
+                params=px,
+                log_dir=args.log_dir)
 
+    elif args.algo == 'ns':
+        algo = NS(dim_map, dim_x,
+                  f_model,
+                  params=px,
+                  log_dir=args.log_dir)
+    
     if not args.random_policies:
-        model_archive, n_evals = qd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+        model_archive, n_evals = algo.compute(num_cores_set=args.num_cores,
+                                              max_evals=args.max_evals)
     else:
         to_evaluate = []
         for i in range(0, args.max_evals):
@@ -1164,8 +1184,13 @@ def main(args):
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
+    warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
     parser = argparse.ArgumentParser()
+
+    #-----------------Type of algo---------------------#
+    # options are 'qd', 'ns'
+    parser.add_argument("--algo", type=str, default="qd")
     #-----------------Type of QD---------------------#
     # options are 'cvt', 'grid', 'unstructured', 'fixed'
     parser.add_argument("--qd_type", type=str, default="fixed")
