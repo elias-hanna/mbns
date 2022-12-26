@@ -756,20 +756,32 @@ class WrappedEnv():
                     bd = obs_wps[:,:,:3].flatten()
                 if self._env_name == 'fastsim_maze':
                     bd = obs_wps[:,:,:2].flatten()
+                if self._env_name == 'empty_maze':
+                    bd = obs_wps[:,:,:2].flatten()
                 if self._env_name == 'fastsim_maze_traps':
                     bd = obs_wps[:,:,:2].flatten()
                 if self._env_name == 'redundant_arm_no_walls_limited_angles':
                     bd = obs_wps[:,:,-2:].flatten()
+                if self._env_name == 'half_cheetah':
+                    bd = obs_wps[:,:,:1].flatten()
+                if self._env_name == 'walker2d':
+                    bd = obs_wps[:,:,:1].flatten()
                 return bd
 
         if self._env_name == 'ball_in_cup':
             bd = obs_wps[:,:3].flatten()
         if self._env_name == 'fastsim_maze':
             bd = obs_wps[:,:2].flatten()
+        if self._env_name == 'empty_maze':
+            bd = obs_wps[:,:2].flatten()
         if self._env_name == 'fastsim_maze_traps':
             bd = obs_wps[:,:2].flatten()
         if self._env_name == 'redundant_arm_no_walls_limited_angles':
             bd = obs_wps[:,-2:].flatten()
+        if self._env_name == 'half_cheetah':
+            bd = obs_wps[:,:1].flatten()
+        if self._env_name == 'walker2d':
+            bd = obs_wps[:,:1].flatten()
         return bd
         
     def energy_minimization_fit(self, actions, disagrs):
@@ -791,9 +803,15 @@ class WrappedEnv():
             fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'fastsim_maze':
             fit = fit_func(act_traj, disagr_traj)
+        if self._env_name == 'empty_maze':
+            fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'fastsim_maze_traps':
             fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'redundant_arm_no_walls_limited_angles':
+            fit = fit_func(act_traj, disagr_traj)
+        if self._env_name == 'half_cheetah':
+            fit = fit_func(act_traj, disagr_traj)
+        if self._env_name == 'walker2d':
             fit = fit_func(act_traj, disagr_traj)
         return fit
 
@@ -946,6 +964,16 @@ def main(args):
         ss_max = np.array([600, 600, 1, 1, 1, 1])
         init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
+    elif args.environment == 'empty_maze':
+        env_register_id = 'FastsimEmptyMapNavigationPos-v0'
+        # ss_min = -10
+        # ss_max = 10
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, -1, -1, -1, -1])
+        ss_max = np.array([600, 600, 1, 1, 1, 1])
+        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         # ss_min = -10
@@ -957,7 +985,17 @@ def main(args):
         dim_map = 2
         gym_args['physical_traps'] = True
     elif args.environment == 'half_cheetah':
-        env_register_id = 'HalfCheetah-v4'
+        env_register_id = 'HalfCheetah-v3'
+        a_min = np.array([-1, -1, -1, -1, -1, -1])
+        a_max = np.array([1, 1, 1, 1, 1, 1])
+        ss_min = np.array([-10]*18)
+        ss_max = np.array([10]*18)
+        init_obs = np.array([0.]*18)
+        dim_map = 1
+        gym_args['exclude_current_positions_from_observation'] = False
+        gym_args['reset_noise_scale'] = 0
+    elif args.environment == 'walker2d':
+        env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
         ss_min = np.array([-10]*18)
