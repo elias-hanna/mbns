@@ -6,14 +6,17 @@
 ##################################################
 reps=10
 
-environments=(empty_maze half_cheetah walker2d)
-model_types=(det det_ens)
-m_horizons=(10 100)
+environments=(empty_maze half_cheetah walker2d) # Considered environments
+model_types=(det det_ens) # Considered model types
+m_horizons=(10 100) # Considered model horizons
 
-n_waypoints=1
+search_method=(random-policies det det_ens)
+sel_methods=(nov kmeans) # Archive Bootstraping methods
 
-max_evals=10000 ## evals on model
-rand_pol_evals=100
+n_waypoints=1 # Number of waypoints for the BD (1 is last traj element)
+
+a_sizes=10100 # saved archive sizes
+rand_pol_evals=100 # number of random policies
 
 daqd_folder=~/Documents/thesis/dev/model_init_exps/daqd
 
@@ -23,27 +26,13 @@ for env in "${environments[@]}"; do
     mkdir ${env}_dab_results; cd ${env}_dab_results
     echo "Processing following folder"; pwd
 
-    #### Diverse archive bootstrapping ####
-    ## for each model type
-    for model_type in "${model_types[@]}"; do
-	    ## for each considered model horizon
-	    for m_horizon in "${m_horizons[@]}"; do
-            mkdir ${model_type}_h${m_horizon}
-            cd ${model_type}_h${m_horizon}
-	        ## execute one experiment with given index idx
-	        for ((idx=0; idx<$reps; idx++)); do
-		        mkdir $idx; cd $idx
-		        mkdir tmp
-		        singularity exec --bind tmp/:/tmp --bind ./:/logs \
-                            ~/src/singularity/model_init_study.sif \
-                            python ${daqd_folder}/gym_rdds_main.py --log_dir /logs \
-                            -e $env --model-horizon ${m_horizon} --model-variant all_dynamics \
-                            --n-waypoints ${n_waypoints} --dump_period -1 \
-                            --max_evals ${max_evals} --algo ns --model-type det_ens
-		        rm -r tmp/
-                cd ..
-	        done
-            cd ..
-	    done
-    done
+    python ${daqd_folder}/vis_dab_results.py --ab-methods ${ab_methods[*]}
+	## execute analysis for environment and given model types and selection methods
+	singularity exec --bind tmp/:/tmp --bind ./:/logs \
+                ~/src/singularity/model_init_study.sif \
+                python ${daqd_folder}/gym_rdds_main.py --log_dir /logs \
+                -e $env --model-horizon ${m_horizon} --model-variant all_dynamics \
+                --n-waypoints ${n_waypoints} --dump_period -1 \
+                --max_evals ${max_evals} --algo ns --model-type det_ens
+    cd ..
 done
