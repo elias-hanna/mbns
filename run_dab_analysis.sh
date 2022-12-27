@@ -6,10 +6,8 @@
 ##################################################
 reps=10
 
-# environments=(ball_in_cup empty_maze half_cheetah walker2d)
-environments=(half_cheetah)
-# model_types=(det det_ens)
-model_types=()
+environments=(empty_maze half_cheetah walker2d)
+model_types=(det det_ens)
 m_horizons=(10 100)
 
 n_waypoints=1
@@ -48,25 +46,4 @@ for env in "${environments[@]}"; do
             cd ..
 	    done
     done
-
-    
-    #### Random policies archive bootstrapping ####
-    mkdir random_policies; cd random_policies
-    for ((idx=0; idx<$reps; idx++)); do
-	    mkdir $idx; cd $idx
-	    mkdir tmp
-	    singularity exec --bind tmp/:/tmp --bind ./:/logs \
-                    ~/src/singularity/model_init_study.sif \
-                    python ${daqd_folder}/gym_rdds_main.py --log_dir /logs \
-                    -e $env \
-                    --dump_period -1 --max_evals ${rand_pol_evals} --random-policies
-	    rm -r tmp/
-	    cd ..
-    done
-    cd ..
-
-    #### end of environment ####
-    cd ..
-    cpt=$((cpt+1))
-    echo "finished experiment for $env"
 done
