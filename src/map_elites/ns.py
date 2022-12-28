@@ -183,27 +183,35 @@ class NS:
 
         return archive, add_list, discard_list
 
-    def update_novelty_scores(self, pop, archive, k=15):
+    def update_novelty_scores(self, pop, archive, k=15, slow=False):
         # Convert the dataset to a numpy array
         all_bds = []
         all_bds += [ind.desc for ind in pop] # pop is usually just offspring
                                             # since curr pop is in archive alr
         all_bds += [ind.desc for ind in archive]
         all_bds = np.array(all_bds)
+
         novelty_scores = np.empty((len(all_bds)))
-        
         # Compute the k-NN of the data point
         neighbors = NearestNeighbors(n_neighbors=k)
         neighbors.fit(all_bds)
 
-        # for ind in tqdm.tqdm(pop, total=len(pop)):
-        for ind in pop:
-            k_nearest_neighbors = neighbors.kneighbors([ind.desc],
-                                                       return_distance=False)[0]
-            # Compute the average distance between the data point and its k-NN
-            ind.nov = np.mean(np.linalg.norm(all_bds[k_nearest_neighbors] - ind.desc,
-                                             axis=1))
-    
+        ## Slow way lol
+        if slow:
+            for ind in pop:
+                k_nearest_neighbors = neighbors.kneighbors([ind.desc],
+                                                           return_distance=False,
+                                                           n_neighbors=k+1)[0]
+
+                # # Compute the average distance between the data point and its k-NN
+                ind.nov = np.mean(np.linalg.norm(all_bds[k_nearest_neighbors] - ind.desc,
+                                                 axis=1))
+        else:
+            ## New way
+            neigh_dists, neigh_inds = neighbors.kneighbors()
+            for ind, dists in zip(pop, neigh_dists):
+                ind.nov = np.mean(dists)
+            
     def compute(self,
                 num_cores_set,
                 max_evals=1e6,

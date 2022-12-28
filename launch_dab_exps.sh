@@ -6,15 +6,20 @@
 ##################################################
 reps=10
 
-# environments=(empty_maze half_cheetah walker2d)
-environments=(empty_maze)
-model_types=(det det_ens)
-m_horizons=(10 100)
+# environments=(empty_maze half_cheetah walker2d) # Considered environments
+# m_horizons=(10 100) # Considered model horizons
+# model_types=(det det_ens) # Considered model types
 
-n_waypoints=1
+# n_waypoints=1 # number of waypoints for the BD (1 is last traj element)
+
+environments=(empty_maze) # Considered environments
+m_horizons=(10) # Considered model horizons
+model_types=(det det_ens) # Considered model types
+
+n_waypoints=1 # number of waypoints for the BD (1 is last traj element)
 
 max_evals=10000 ## evals on model
-rand_pol_evals=100
+rand_pol_evals=100 ## evals on real system with random policies
 
 daqd_folder=~/Documents/thesis/dev/model_init_exps/daqd
 

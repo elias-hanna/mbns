@@ -1062,7 +1062,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
-        'ensemble_size': 4,
+        'ensemble_size': 40,
     }
     surrogate_model_params = \
     {
@@ -1093,10 +1093,10 @@ def main(args):
         'state_min': ss_min,
         'state_max': ss_max,
         
-        'policy_param_init_min': -0.1,#-5,
-        'policy_param_init_max': 0.1, #5,
-        # 'policy_param_init_min': -5,
-        # 'policy_param_init_max': 5,
+        # 'policy_param_init_min': -0.1,
+        # 'policy_param_init_max': 0.1,
+        'policy_param_init_min': -5,
+        'policy_param_init_max': 5,
         
         'env': gym_env,
         'env_name': args.environment,
@@ -1252,6 +1252,7 @@ if __name__ == "__main__":
     parser.add_argument("--dump-mode", type=str, default="budget")
     parser.add_argument("--max_evals", default=1e6, type=int) # max number of evaluation
     parser.add_argument("--selector", default="uniform", type=str)
+    # possible values: iso_dd, polynomial or sbx
     parser.add_argument("--mutation", default="iso_dd", type=str)
 
     #-------------DAQD params-----------#
@@ -1265,7 +1266,7 @@ if __name__ == "__main__":
     parser.add_argument('--perfect-model', action='store_true')
 
     #----------model init study params--------#
-    parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
+    parser.add_argument('--environment', '-e', type=str, default='empty_maze')
     parser.add_argument('--rep', type=int, default='1')
     parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
     args = parser.parse_args()

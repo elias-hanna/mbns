@@ -197,7 +197,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
             ret_data = get_most_nov_data(data, sel_size, bd_cols)
         ## model ensemble selection: max of min novelty across ensemble
         else:
-            ret_data = get_most_nov_data(data, sel_size, bd_cols, ens_size=4)
+            ret_data = get_most_nov_data(data, sel_size, bd_cols, ens_size=40)
     return ret_data, ok_flag
 
 def get_novelty_scores(data, bd_cols, k=15):
@@ -424,7 +424,6 @@ def main(args):
         searchm_cpt += 1
 
     #================================== PLOT ===================================#
-
     all_ab_methods_labels = []
     all_ab_methods_covs = []
 
