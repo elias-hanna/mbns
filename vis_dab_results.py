@@ -174,7 +174,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
         ret_size = 0
         curr_size = sel_size
         while (ret_size < sel_size):
-            while_data = grouped_data.head(curr_size/3)
+            while_data = grouped_data.head(curr_size/n_reached_bins)
             ret_size = len(while_data)
             curr_size += 1
         ret_data = while_data.iloc[:100] ## cut in case we get too many
@@ -362,7 +362,7 @@ def main(args):
                     dim_x = len([col for col in rep_data.columns if 'x' in col])
 
                 # compute cov for given rep_data
-                archive_covs[searchm_cpt, 0, rep_cpt] = compute_cov(
+                archive_covs[abm_cpt, 0, rep_cpt] = compute_cov(
                     rep_data, args
                 )
                 
@@ -390,6 +390,9 @@ def main(args):
                         # comma after last value i a line
                         rep_data = rep_data.iloc[:,:-1] 
 
+                        if dim_x == 0:
+                            dim_x = len([col for col in rep_data.columns if 'x' in col])
+                            
                         ## Select final_asize inds based on sel_method
                         sel_data, ok = select_inds(rep_data, abs_rep_folder,
                                                    final_asize, search_method,
@@ -405,13 +408,13 @@ def main(args):
                             # comma after last value i a line
                             data_real_all = data_real_all.iloc[:,:-1] 
                             gen_cols = [f'x{i}' for i in range(dim_x)]
-                            
                             merged_data = sel_data.merge(data_real_all, on=gen_cols,
                                                          suffixes=('_model',''))
                             # compute cov for given rep_data
                             archive_covs[abm_cpt,
                                          selm_cpt,
                                          rep_cpt] = compute_cov(merged_data, args)
+
                         rep_cpt += 1
                     selm_cpt += 1
 

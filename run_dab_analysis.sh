@@ -6,14 +6,12 @@
 ##################################################
 reps=10
 
-# environments=(empty_maze half_cheetah walker2d) # Considered environments
-environments=(walker2d) # Considered environments
-model_types=(det det_ens) # Considered model types
-m_horizons=(10 100) # Considered model horizons
+environments=(empty_maze half_cheetah walker2d) # Considered environments
 nb_divs=(10 100 1000)
 
-search_methods=(random-policies det det_ens)
-sel_methods=(random max nov kmeans) # Archive Bootstraping methods
+search_methods=(random-policies det det_ens) # considered search methods
+m_horizons=(10 100) # Considered model horizons
+sel_methods=(random max nov kmeans) # selection methods
 
 asize=10100 # saved archive sizes
 final_asize=100 # number of random policies
@@ -32,7 +30,7 @@ for env in "${environments[@]}"; do
         python ${daqd_folder}/vis_dab_results.py --nb_div ${nb_div} \
                --search-methods ${search_methods[*]} -e $env \
                --m-horizons ${m_horizons[*]} --sel-methods ${sel_methods[*]} \
-               --n-reps $reps --asize $asize --final-asize ${final_asize}
+               --n-reps $reps --asize $asize --final-asize ${final_asize} &
     done
     cd ..
 done
