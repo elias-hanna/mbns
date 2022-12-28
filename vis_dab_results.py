@@ -18,6 +18,9 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm # for pretty print of progress bar
 
+#----------Clustering imports--------#
+from sklearn.cluster import KMeans
+
 #----------Plot imports--------#
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib
@@ -110,7 +113,7 @@ def process_env(args):
         gym_args['exclude_current_positions_from_observation'] = False
         gym_args['reset_noise_scale'] = 0
         bd_inds = [0]
-    elif args.environment == 'walker_2d':
+    elif args.environment == 'walker2d':
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
@@ -145,238 +148,331 @@ def process_env(args):
 
     return gym_env, max_step, ss_min, ss_max, dim_map, bd_inds
 
+def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
+    ok_flag = True
+    ret_data = None
+    if sel_method == 'random':
+        ## Select sel_size individuals randomly from archive
+        ret_data = data.sample(n=sel_size)
+    elif sel_method == 'max':
+        ## select sel_size individuals that cover the most from real archive
+        filename = os.path.join(path,
+                                f'archive_{args.asize}_real_all.dat')
+        ret_data = pd.read_csv(filename)
+        ## drop the last column which was made because there is a comma
+        ## after last value i a line
+        ret_data = ret_data.iloc[:,:-1]
+        ## get env info
+        _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+        ## add bins field to data
+        ret_data = get_data_bins(ret_data, args, ss_min,
+                                 ss_max, dim_map, bd_inds)
+        n_reached_bins = len(ret_data['bins'].unique())
+        grouped_data = ret_data.groupby('bins') ## group data by bins
+        ## a little nasty but need to increase sel size until we actually get
+        ## sel size elements in ret data
+        ret_size = 0
+        curr_size = sel_size
+        while (ret_size < sel_size):
+            while_data = grouped_data.head(curr_size/3)
+            ret_size = len(while_data)
+            curr_size += 1
+        ret_data = while_data.iloc[:100] ## cut in case we get too many
+    elif sel_method == 'kmeans':
+        ## select sel_size individuals closest to sel_size kmeans clusters
+        if not 'ens' in search_method:
+            # get env info
+            _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+            bd_cols = [f'bd{i}' for i in range(dim_map)]
+            ret_data = get_closest_to_clusters_centroid(data, bd_cols, sel_size)
+        else: ## can't do kmeans selection on model ensemble
+            ok_flag = False
+    elif sel_method == 'nov':
+        ## select sel_size individuals that are the most novel on the model
+        ## get env info
+        _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+        bd_cols = [f'bd{i}' for i in range(dim_map)]
+        ## single model selection: max novelty
+        if not 'ens' in search_method:
+            ret_data = get_most_nov_data(data, sel_size, bd_cols)
+        ## model ensemble selection: max of min novelty across ensemble
+        else:
+            ret_data = get_most_nov_data(data, sel_size, bd_cols, ens_size=4)
+    return ret_data, ok_flag
+
+def get_novelty_scores(data, bd_cols, k=15):
+    from sklearn.neighbors import NearestNeighbors
+    
+    # Convert the dataset to a numpy array
+    dataset = np.array(data[bd_cols])
+    novelty_scores = np.empty((len(dataset)))
+
+    # Compute the k-NN of the data point
+    neighbors = NearestNeighbors(n_neighbors=k)
+    neighbors.fit(dataset)
+
+    for data_point, cpt in tqdm(zip(dataset, range(len(dataset))),total=len(dataset)):
+        k_nearest_neighbors = neighbors.kneighbors([data_point], return_distance=False)[0]
+        
+        # Compute the average distance between the data point and its k-NN
+        average_distance = np.mean(np.linalg.norm(dataset[k_nearest_neighbors] - data_point,
+                                                  axis=1))
+        novelty_scores[cpt] = average_distance
+        # Print the average distance as a measure of novelty
+
+    return novelty_scores
+
+def get_most_nov_data(data, n, bd_cols, ens_size=1):
+    if ens_size > 1:
+        ens_data_nov = np.empty((ens_size, len(data)))
+        for i in range(ens_size):
+            bd_cols_loc = [f"{bd_cols[k]}_m{i}" for k in range(len(bd_cols))]
+            data_nov = get_novelty_scores(data, bd_cols_loc)
+            ens_data_nov[i,:] = data_nov
+        data_nov = ens_data_nov.min(axis=0)
+    else:
+        data_nov = get_novelty_scores(data, bd_cols)
+    sorted_data = data.assign(nov=data_nov)
+    sorted_data = sorted_data.sort_values(by=['nov'], ascending=False)
+    return sorted_data.head(n=n)
+
+def get_closest_to_clusters_centroid(data, bd_cols, n_clusters):
+    # Use k-means clustering to divide the data space into n_clusters clusters
+    kmeans = KMeans(n_clusters=n_clusters)
+    kmeans.fit(data[bd_cols])
+    
+    # Select closest data point from each cluster
+    data_centers = pd.DataFrame(columns=data.columns)
+
+    for i in range(n_clusters):
+        cluster_center = kmeans.cluster_centers_[i]
+        cluster = data[kmeans.labels_ == i]
+        # cluster = data[data['cluster'] == i]
+        # Calculate the distance of each point in the cluster to the cluster center
+        dist = 0
+        for j in range(len(bd_cols)):
+            dist += (cluster[bd_cols[j]] - cluster_center[j])**2
+        cluster['distance'] = dist**0.5
+        # Select the point with the minimum distance to the cluster center
+        closest_point = cluster.loc[cluster['distance'].idxmin()]
+        data_centers = data_centers.append(closest_point)
+
+    return data_centers
+
+def get_data_bins(data, args, ss_min, ss_max, dim_map, bd_inds):
+    df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
+
+    for i in range(dim_map):
+        df_min[f'bd{i}'] = ss_min[bd_inds[i]]
+        df_max[f'bd{i}'] = ss_max[bd_inds[i]]
+
+    ## Deprecated but oh well
+    data = data.append(df_min, ignore_index = True)
+    data = data.append(df_max, ignore_index = True)
+
+    args.nb_div
+
+    for i in range(dim_map):
+        data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
+                                  bins = args.nb_div, 
+                                  labels = [p for p in range(args.nb_div)])
+
+    ## assign data to bins
+    data = data.assign(bins=pd.Categorical
+                       (data.filter(regex='_bin')
+                        .apply(tuple, 1)))
+
+    ## remove df min and df max
+    data.drop(data.tail(2).index,inplace=True)
+
+    return data
+
+def compute_cov(data, args):
+    ## get env info
+    _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+    ## add bins field to data
+    data = get_data_bins(data, args, ss_min, ss_max, dim_map, bd_inds)
+    ## count number of bins filled
+    counts = data['bins'].value_counts()
+    total_bins = args.nb_div**dim_map
+    ## return coverage (number of bins filled)
+    return len(counts[counts>=1])/total_bins
+
 def main(args):
-    final_asize = 100
+    final_asize = args.final_asize
     
     ## Set params and rename some 
     gym_env, max_step, ss_min, ss_max, dim_map, bd_inds = process_env(args)
-
+    dim_x = 0 # set when we open a data file for first time
+    
     search_methods = args.search_methods
     sel_methods = args.sel_methods
     m_horizons = args.m_horizons
+    n_reps = args.n_reps
 
+    ab_methods = []
+    for search_method in search_methods:
+        if search_method == 'random-policies':
+            ab_methods.append(search_method)
+        else:
+            for m_horizon in m_horizons:
+                ab_methods.append(
+                    f'{search_method}-h{m_horizon}'
+                )
+
+    ## Plot table with coverage for each search method and selection method    
+    ## ab methods == search methods with model horizons
+    column_headers = ab_methods
+    row_headers = sel_methods
+    cell_text_cov = [["" for _ in range(len(column_headers))]
+                     for _ in range(len(row_headers))]
     
-    ## Plot table with mean prediction error for n step predictions    
-    column_headers = [init_method for init_method in init_methods]
-    # row_headers = [init_episode for init_episode in init_episodes]
-    # row_headers = [20, 40, 60, 80, 100]
-    row_headers = args.dump_vals
-    cell_text_cov = []
-
-    for i in range(n_nb_transfers * n_transfer_sels):
-        cell_text_cov.append([["" for _ in range(len(column_headers))]
-                              for _ in range(len(row_headers))])
     rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
     ccolors = plt.cm.BuPu(np.full(len(column_headers), 0.1))
 
     ## Get rep folders abs paths
-    rep_folders = next(os.walk(f'.'))[1]
-    rep_folders = [x for x in rep_folders if (x.isdigit())]
-
-    archive_mean_covs = np.zeros((len(init_methods), len(args.dump_vals)))
-    archive_std_covs = np.zeros((len(init_methods), len(args.dump_vals)))
+    cwd = os.getcwd()
+    
+    archive_covs = np.zeros((len(ab_methods), len(sel_methods), n_reps))
+    archive_covs[:] = np.nan
+    # archive_std_covs = np.zeros((len(ab_methods), len(sel_methods), len(n_reps)))
+    # archive_std_covs[:] = np.nan
 
     ## Main loop for printing figures
-
-    cpt_search_method = 0
+    searchm_cpt = 0
+    abm_cpt = 0
     for search_method in search_methods:
-        cpt_sel_method = 0
-        for sel_method in sel methods:
-            if sel_method == 'random-policies':
-                ## Open each archive file: warning budget is final_asize on these
-                pass
-            else:
-                cpt_m_horizons = 0
-                for m_horizon in m_horizon:
-                    pass
+        if search_method == 'random-policies':
+            ## get abs path to working dir (dir containing reps)
+            working_dir = os.path.join(cwd,
+                                       f'{search_method.replace("-", "_")}')
+            ## Open each archive file: warning budget is final_asize on these
+            rep_folders = next(os.walk(working_dir))[1]
+            abs_rep_folders = [os.path.join(working_dir, rep_folder)
+                               for rep_folder in rep_folders]
+            rep_cpt = 0
+            for abs_rep_folder in abs_rep_folders:
+                filename = os.path.join(abs_rep_folder,
+                                        f'archive_{final_asize}_real_all.dat')
+                rep_data = pd.read_csv(filename)
+                # drop the last column which was made because there is a comma
+                # after last value i a line
+                rep_data = rep_data.iloc[:,:-1]
+                if dim_x == 0:
+                    dim_x = len([col for col in rep_data.columns if 'x' in col])
 
-
+                # compute cov for given rep_data
+                archive_covs[searchm_cpt, 0, rep_cpt] = compute_cov(
+                    rep_data, args
+                )
                 
+                rep_cpt += 1
+            abm_cpt += 1
+        else:
+            mh_cpt = 0
+            for m_horizon in m_horizons:
+                selm_cpt = 0
+                for sel_method in sel_methods:
+                    working_dir = os.path.join(cwd,
+                                               f'{search_method}_h{m_horizon}')
+                    ## Open each archive file
+                    rep_folders = next(os.walk(working_dir))[1]
+                    abs_rep_folders = [os.path.join(working_dir, rep_folder)
+                                       for rep_folder in rep_folders]
+
+                    rep_cpt = 0
+                    for abs_rep_folder in abs_rep_folders:
+                        filename = os.path.join(abs_rep_folder,
+                                                f'archive_{args.asize}.dat')
+
+                        rep_data = pd.read_csv(filename)
+                        # drop the last column which was made because there is a
+                        # comma after last value i a line
+                        rep_data = rep_data.iloc[:,:-1] 
+
+                        ## Select final_asize inds based on sel_method
+                        sel_data, ok = select_inds(rep_data, abs_rep_folder,
+                                                   final_asize, search_method,
+                                                   m_horizon, sel_method, args)
+
+                        
+                        if ok:
+                            ## Load real evaluations of individuals
+                            filename = os.path.join(abs_rep_folder,
+                                                    f'archive_{args.asize}_real_all.dat')
+                            data_real_all = pd.read_csv(filename)
+                            # drop the last column which was made because there is a
+                            # comma after last value i a line
+                            data_real_all = data_real_all.iloc[:,:-1] 
+                            gen_cols = [f'x{i}' for i in range(dim_x)]
+                            
+                            merged_data = sel_data.merge(data_real_all, on=gen_cols,
+                                                         suffixes=('_model',''))
+                            # compute cov for given rep_data
+                            archive_covs[abm_cpt,
+                                         selm_cpt,
+                                         rep_cpt] = compute_cov(merged_data, args)
+                        rep_cpt += 1
+                    selm_cpt += 1
+
+                abm_cpt += 1
+                mh_cpt += 1
                 
-        transfer_sel = transfer_sels[m]
-        rep_cpt = 0
+        searchm_cpt += 1
 
-        coverages = np.empty((len(rep_folders), len(row_headers)))
-        coverages[:] = np.nan
+    #================================== PLOT ===================================#
 
-        for rep_path in rep_folders:
-            archive_folder = f'{rep_path}/{init_method}_{init_episode}_{fitness_func}_{transfer_sel}_{nb_transfer}_results/'
-            try:
-                archive_files = next(os.walk(archive_folder))[2]
-            except Exception as error:
-                import pdb; pdb.set_trace()
-                excelsior = e
-            archive_files = [f for f in archive_files if 'archive' in f]
+    all_ab_methods_labels = []
+    all_ab_methods_covs = []
 
-            archive_numbers = [int(re.findall(r'\d+', f)[0]) for f in archive_files]
-            sorted_archive_files = [f for _, f in sorted(zip(archive_numbers, archive_files), key=lambda pair: pair[0])]
+    ab_cpt = 0
+    for ab_method in ab_methods:
+        sel_cpt = 0
+        for sel_method in sel_methods:
+            cov_vals = archive_covs[ab_cpt, sel_cpt]
+            if not np.isnan(cov_vals).all():
+                all_ab_methods_covs.append(cov_vals)
+                all_ab_methods_labels.append(f'{ab_method}-{sel_method}')
+            sel_cpt += 1
+        ab_cpt += 1
+        
+    fig, ax = plt.subplots()
+    ax.boxplot(all_ab_methods_covs)
+    ax.set_xticklabels(all_ab_methods_labels)
+    ax.set_ylabel("Coverage (max is 1)")
+    
+    plt.title(f'Coverage for each archive bootstrapping method\n' \
+              f'(Behavior space division in {args.nb_div} parts per dimension)')
+    fig.set_size_inches(27, 9)
+    
+    plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}", dpi=300, bbox_inches='tight')
 
-            for archives in sorted_archive_files:
-                archive = archives[0]
-                a_sz = int(archive.replace('.','_').split('_')[1])
-                loc_row_headers = [int(header) for header in row_headers]
-                diff = lambda l : abs(l - a_sz)
-                r_val = min(loc_row_headers, key=diff)
-                r = loc_row_headers.index(r_val)
-
-                archive_path = os.path.join(archive_folder, archive)
-                rep_data = pd.read_csv(archive_path)
-                rep_data = rep_data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
-                #=====================COVERAGE===========================#
-
-                if args.environment == 'hexapod_omni':
-                    for idx in range(len(rep_data.iloc[:,1])):
-                        bd_tab = str_to_tab(rep_data.iloc[:,1][idx],
-                                            dim=dim_map)
-                        for dim in range(1, dim_map + 1):
-                            rep_data.iloc[:,dim][idx] = bd_tab[dim-1]
-
-                df_min = rep_data.iloc[0].copy(); df_max = rep_data.iloc[0].copy()
-                df_min[1] = ss_min; df_max[1] = ss_max
-                df_min[2] = ss_min; df_max[2] = ss_max
-
-                if args.environment == "ball_in_cup":
-                    df_min[3] = ss_min; df_max[3] = ss_max
-
-                ## Deprecated but oh well
-                rep_data = rep_data.append(df_min, ignore_index = True)
-                rep_data = rep_data.append(df_max, ignore_index = True)
-
-                nb_div = args.nb_div
-
-
-
-                rep_data['x_bin']=pd.cut(x = rep_data.iloc[:,1],
-                                         bins = nb_div, 
-                                         labels = [p for p in range(nb_div)])
-
-                rep_data['y_bin']=pd.cut(x = rep_data.iloc[:,2],
-                                         bins = nb_div,
-                                         labels = [p for p in range(nb_div)])
-
-                total_bins = nb_div**2
-
-                if args.environment == "ball_in_cup":
-                    rep_data['z_bin']=pd.cut(x = rep_data.iloc[:,3],
-                                         bins = nb_div,
-                                         labels = [p for p in range(nb_div)])
-
-                    total_bins = nb_div**3
-
-                rep_data = rep_data.assign(bins=pd.Categorical
-                                           (rep_data.filter(regex='_bin')
-                                            .apply(tuple, 1)))
-
-                counts = rep_data['bins'].value_counts()
-
-                coverages[rep_cpt, r] = len(counts[counts>=1])/total_bins
-
-            if args.show:
-                plt.show() 
-
-            rep_cpt += 1
-
-        mean_cov = np.nanmean(coverages, axis=0)
-        std_cov = np.nanstd(coverages, axis=0)
-
-        ## For plotting as a graph
-        archive_mean_covs[i] = mean_cov
-        archive_std_covs[i] = std_cov
-
-        ## For plotting as a tab
-        for r in range(len(row_headers)):
-            cell_text_cov[tab_cpt][r][i] = f'{round(mean_cov[r],3)} \u00B1 {round(std_cov[r],3)}'
-
-        tab_cpt += 1
-
-    cmap = plt.cm.get_cmap('hsv', n_init_method+1)
-    norm = matplotlib.colors.Normalize(vmin=0, vmax=n_init_method+1)
-
-    colors = cm.ScalarMappable(norm=norm, cmap=cmap)
-
-    linestyles = ['-', '--', ':', '-.',
-              (0, (5, 10)), (0, (5, 1)), (0, (3, 10, 1, 10)), (0, (3, 1, 1, 1))]
-
-    tab_cpt = 0
-    for i in range(n_nb_transfers):
-        nb_transfer = nb_transfers[i]
-        for j in range(n_transfer_sels):
-            transfer_sel = transfer_sels[j]
-
-            #=====================SAVE COVERAGE TABLE===========================#
-            fig, ax = plt.subplots()
-            fig.patch.set_visible(False)
-            ax.axis('off')
-            ax.axis('tight')
-            the_table = plt.table(cellText=cell_text_cov[tab_cpt],
-                                  rowLabels=row_headers,
-                                  rowColours=rcolors,
-                                  rowLoc='right',
-                                  colColours=ccolors,
-                                  colLabels=column_headers,
-                                  loc='center')
-            fig.tight_layout()
-            the_table.auto_set_font_size(False)
-            the_table.set_fontsize(4)
-            plt.title(f'Mean coverage and standard deviation on {args.environment} ' \
-                      f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
-                      f'individuals transferred', y=.8)
-
-            plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_quant_coverage", dpi=300, bbox_inches='tight')
-
-            tab_cpt += 1
-
-            #=====================SAVE COVERAGE FIGURE===========================#
-            fig = plt.figure()
-
-            for k in range(n_init_method):
-                plt.plot(args.dump_vals, archive_mean_covs[k], label=init_methods[k],
-                         color=colors.to_rgba(k), linestyle=linestyles[k])
-            if has_ns_cov:
-                plt.hlines(ns_cov, args.dump_vals[0], args.dump_vals[-1], label='NS-cov-500g',
-                           color='g')
-            if has_random_data:
-                plt.hlines(random_cov, args.dump_vals[0], args.dump_vals[-1],
-                           label=f'rand-cov-{args.random_budget}', color='r')
-
-            plt.legend()
-
-            plt.title(f'Mean coverage on {args.environment} ' \
-                      f'environment for\n {transfer_sel} selection with {nb_transfer} ' \
-                      f'individuals transferred')
-
-            plt.savefig(f"{args.environment}_{transfer_sel}_{nb_transfer}_graph_coverage",
-                        dpi=300, bbox_inches='tight')
-
+    if args.show:
+        plt.show()
     
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--init-methods', nargs="*",
-                        type=str, default=['brownian-motion', 'colored-noise-beta-0', 'colored-noise-beta-1', 'colored-noise-beta-2', 'random-actions', 'random-policies'])
-    parser.add_argument('--init-episodes', nargs="*",
-                        type=int, default=[20])
-
-    ## DAQD specific parameters
-    parser.add_argument('--fitness-funcs', nargs="*",
-                        type=str, default=['energy_minimization', 'disagr_minimization'])
-    parser.add_argument('--transfer-selection', nargs="*",
-                        type=str, default=['disagr', 'disagr_bd'])
-    parser.add_argument('--nb-transfer', nargs="*",
-                        type=int, default=[1, 10])
-    parser.add_argument('--dump-vals', nargs="*",
-                        type=str, default=['20', '40', '60', '80', '100'])
-    
+    parser.add_argument('--search-methods', nargs="*",
+                        type=str, default=['random-policies', 'det', 'det_ens'])
+    parser.add_argument('--m-horizons', nargs="*",
+                        type=int, default=[10, 100])
+    parser.add_argument('--sel-methods', nargs="*",
+                        type=str, default=['random', 'max', 'nov', 'kmeans'])
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
-    parser.add_argument('--dump-path', type=str, default='default_dump/')
-    parser.add_argument("--filename", type=str) # file to visualize rollouts from
-    # parser.add_argument("--sim_time", type=float, help="simulation time depending on the type of archive you chose to visualize, 3s archive or a 5s archive")
-    parser.add_argument("--show", help="Show the plot and saves it. Unless specified, just save the mean plot over all repetitions",
-                    action="store_true")
-    parser.add_argument("--plot_type", type=str, default="scatter", help="scatter plot, grid plot or 3d")
-    parser.add_argument("--nb_div", type=int, default=10, help="Number of equally separated bins to divide the outcome space in")
-    parser.add_argument("--random-budget", type=int, default=1000, help="Number of random evaluations for plotting, will look into full_random_{random-budget} folder")
 
+    parser.add_argument("--show", help="Show the plot and saves it." \
+                        " Unless specified, just save the mean plot over all" \
+                        " repetitions", action="store_true")
+
+    parser.add_argument("--nb_div", type=int, default=10, help="Number of " \
+                        "equally separated bins to divide the outcome space")
+    parser.add_argument("--n-reps", type=int, default=10, help="Number of " \
+                        "repetitions of each experiment")
+    parser.add_argument("--asize", type=int, default=10100, help="Saved " \
+                        "final archive size for each experiment")
+    parser.add_argument("--final-asize", type=int, default=10100,
+                        help="Final archive size for bootstrapping")
     args = parser.parse_args()
 
     main(args)

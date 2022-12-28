@@ -22,7 +22,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
-#----------Clustering imports--------#
 from sklearn.cluster import KMeans
 
 def process_env(args):
@@ -95,7 +94,7 @@ def process_env(args):
         gym_args['exclude_current_positions_from_observation'] = False
         gym_args['reset_noise_scale'] = 0
         bd_inds = [0]
-    elif args.environment == 'walker_2d':
+    elif args.environment == 'walker2d':
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
