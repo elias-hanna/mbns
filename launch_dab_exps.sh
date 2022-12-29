@@ -6,11 +6,13 @@
 ##################################################
 reps=10
 
-environments=(half_cheetah walker2d empty_maze) # Considered environments
-m_horizons=(10 100) # Considered model horizons
-model_types=(det det_ens) # Considered model types
+# environments=(half_cheetah walker2d empty_maze) # Considered environments
+environments=(walker2d empty_maze) # Considered environments
+m_horizons=(10) # Considered model horizons
+# model_types=(det det_ens) # Considered model types
+model_types=(det) # Considered model types
 
-n_waypoints=3 # number of waypoints for the BD (1 is last traj element)
+n_waypoints=1 # number of waypoints for the BD (1 is last traj element)
 
 # environments=(empty_maze) # Considered environments
 # m_horizons=(10) # Considered model horizons
@@ -46,9 +48,14 @@ for env in "${environments[@]}"; do
                             -e $env --model-horizon ${m_horizon} --model-variant all_dynamics \
                             --n-waypoints ${n_waypoints} --dump_period -1 \
                             --max_evals ${max_evals} --algo ns --model-type $model_type
+                # python ${daqd_folder}/gym_rdds_main.py --log_dir . \
+                #        -e $env --model-horizon ${m_horizon} --model-variant all_dynamics \
+                #        --n-waypoints ${n_waypoints} --dump_period -1 \
+                #        --max_evals ${max_evals} --algo ns --model-type $model_type &
 		        rm -r tmp/
                 cd ..
 	        done
+            wait
             cd ..
 	    done
     done

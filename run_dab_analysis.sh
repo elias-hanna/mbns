@@ -6,19 +6,20 @@
 ##################################################
 reps=10
 
-# environments=(empty_maze half_cheetah walker2d) # Considered environments
-# nb_divs=(10 100 1000)
-
-# search_methods=(random-policies det det_ens) # considered search methods
-# m_horizons=(10 100) # Considered model horizons
-# sel_methods=(random max nov kmeans) # selection methods
-
-environments=(empty_maze) # Considered environments
+environments=(empty_maze half_cheetah walker2d) # Considered environments
 nb_divs=(10 100 1000)
 
 search_methods=(random-policies det det_ens) # considered search methods
+# m_horizons=(10 100) # Considered model horizons
 m_horizons=(10) # Considered model horizons
 sel_methods=(random max nov kmeans) # selection methods
+
+# environments=(half_cheetah) # Considered environments
+# nb_divs=(10 100 1000)
+
+# search_methods=(random-policies det det_ens) # considered search methods
+# m_horizons=(10) # Considered model horizons
+# sel_methods=(random max nov kmeans) # selection methods
 
 asize=10100 # saved archive sizes
 final_asize=100 # number of random policies

@@ -850,7 +850,7 @@ def main(args):
         "dump_mode": args.dump_mode,
 
         # do we use several cores?
-        "parallel": False,
+        "parallel": True,
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
@@ -1065,7 +1065,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
-        'ensemble_size': 400,
+        'ensemble_size': 100,
     }
     surrogate_model_params = \
     {
@@ -1188,7 +1188,7 @@ def main(args):
     ## Evaluate the found solutions on the real system
     
     ## If search was done on the real system already then no need to test the
-    ## found behaviors
+    ## found behaviorss
     if args.perfect_model:
         exit()
 
@@ -1202,6 +1202,9 @@ def main(args):
     if not args.random_policies:
         to_evaluate = list(zip([ind.x.copy() for ind in model_archive], itertools.repeat(f_real)))
 
+    if args.model_type == 'det_ens':
+        px['parallel'] = False
+        
     ## Evaluate on real sys
     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
 
