@@ -219,10 +219,9 @@ class WrappedEnv():
             # action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
             act_traj.append(action)
-            obs, reward, done, info = self._env.step(action)
+            obs, reward, done, info = env.step(action)
             # print(np.array(obs_traj[-1]) - np.array(obs))
             if done:
-                import pdb; pdb.set_trace()
                 break
         if self._is_goal_env:
             obs = obs['observation']
