@@ -37,7 +37,7 @@ for env in "${environments[@]}"; do
         python ${daqd_folder}/vis_dab_results.py --nb_div ${nb_div} \
                --search-methods ${search_methods[*]} -e $env \
                --m-horizons ${m_horizons[*]} --sel-methods ${sel_methods[*]} \
-               --n-reps $reps --asize $asize --final-asize ${final_asize} 
+               --n-reps $reps --asize $asize --final-asize ${final_asize} &
     done
     wait
     cd ..

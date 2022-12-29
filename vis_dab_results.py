@@ -200,7 +200,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
             ret_data = get_most_nov_data(data, sel_size, bd_cols, ens_size=40)
     return ret_data, ok_flag
 
-def get_novelty_scores(data, bd_cols, k=15):
+def get_novelty_scores(data, bd_cols, k=15, slow=False):
     from sklearn.neighbors import NearestNeighbors
     
     # Convert the dataset to a numpy array
@@ -211,15 +211,20 @@ def get_novelty_scores(data, bd_cols, k=15):
     neighbors = NearestNeighbors(n_neighbors=k)
     neighbors.fit(dataset)
 
-    for data_point, cpt in tqdm(zip(dataset, range(len(dataset))),total=len(dataset)):
-        k_nearest_neighbors = neighbors.kneighbors([data_point], return_distance=False)[0]
-        
-        # Compute the average distance between the data point and its k-NN
-        average_distance = np.mean(np.linalg.norm(dataset[k_nearest_neighbors] - data_point,
-                                                  axis=1))
-        novelty_scores[cpt] = average_distance
-        # Print the average distance as a measure of novelty
-
+    ## Slow way kek
+    if slow:
+        for data_point, cpt in tqdm(zip(dataset, range(len(dataset))),total=len(dataset)):
+            k_nearest_neighbors = neighbors.kneighbors([data_point], return_distance=False)[0]
+            
+            # Compute the average distance between the data point and its k-NN
+            average_distance = np.mean(np.linalg.norm(dataset[k_nearest_neighbors] - data_point,
+                                                      axis=1))
+            novelty_scores[cpt] = average_distance
+    else:
+        ## New way
+        neigh_dists, neigh_inds = neighbors.kneighbors()
+        for cpt, dists in zip(range(len(dataset)), neigh_dists):
+            novelty_scores[cpt] = np.mean(dists)
     return novelty_scores
 
 def get_most_nov_data(data, n, bd_cols, ens_size=1):

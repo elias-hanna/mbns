@@ -222,6 +222,7 @@ class WrappedEnv():
             obs, reward, done, info = self._env.step(action)
             # print(np.array(obs_traj[-1]) - np.array(obs))
             if done:
+                import pdb; pdb.set_trace()
                 break
         if self._is_goal_env:
             obs = obs['observation']
@@ -742,8 +743,11 @@ class WrappedEnv():
     def compute_bd(self, obs_traj, ensemble=False, mean=True):
         bd = None
 
-        wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
-                                    len(obs_traj)//self.n_wps)][:self.n_wps-1]
+        try:
+            wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
+                                        len(obs_traj)//self.n_wps)][:self.n_wps-1]
+        except:
+            import pdb; pdb.set_trace()
         wp_idxs += [-1]
 
         obs_wps = np.take(obs_traj, wp_idxs, axis=0)
@@ -1062,7 +1066,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
-        'ensemble_size': 40,
+        'ensemble_size': 400,
     }
     surrogate_model_params = \
     {
