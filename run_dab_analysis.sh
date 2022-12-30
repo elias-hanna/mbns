@@ -6,7 +6,8 @@
 ##################################################
 reps=10
 
-environments=(empty_maze half_cheetah walker2d) # Considered environments
+# environments=(empty_maze half_cheetah walker2d) # Considered environments
+environments=(half_cheetah walker2d) # Considered environments
 nb_divs=(10 100 1000)
 
 search_methods=(random-policies det det_ens) # considered search methods

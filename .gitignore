@@ -7,6 +7,7 @@ dist/
 *~
 data/*
 !data/show_archive.py
+!data/srf_training.py
 *#*
 */__pycache__/*
 *pycache*
