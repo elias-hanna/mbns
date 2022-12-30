@@ -332,16 +332,27 @@ def main(args):
 
     if args.show_model_trajs:
         fig, ax = plt.subplots()
+        s_mins = []
+        s_maxs = []
+        
         for idx in range(len(data)):
             traj_data = np.load(data.loc[idx]['ind_trajs'])
+            s_mins.append(np.min(traj_data['obs_traj'], axis=0))
+            s_maxs.append(np.max(traj_data['obs_traj'], axis=0))
             bd_traj = np.take(traj_data['obs_traj'], bd_inds, axis=1)
-            bdx = bd_traj[:,0]; bdy = bd_traj[:,1]
+            bdx = bd_traj[:,0];
+            bdy = bd_traj[:,1] if len(bd_inds) > 1 else [0]*len(bd_traj[:]) 
             ax.plot(bdx, bdy, alpha=0.1, marker='o')
             # print(data.loc[idx]['ind_trajs'])
             # print(traj_data['obs_traj'])
             # print(bd_traj)
             # exit()
         plt.title('Individuals trajectories on model')
+        s_mins = np.array(s_mins)
+        s_maxs = np.array(s_maxs)
+        s_mins = np.min(s_mins, axis=0)
+        s_maxs = np.max(s_maxs, axis=0)
+        import pdb; pdb.set_trace()
         
     if args.model_and_real:
         n_inds = 100 if len(data) >= 100 else len(data)

@@ -7,10 +7,9 @@
 reps=10
 
 # environments=(half_cheetah walker2d empty_maze) # Considered environments
-environments=(walker2d empty_maze) # Considered environments
+environments=(walker2d half_cheetah) # Considered environments
 m_horizons=(10) # Considered model horizons
-# model_types=(det det_ens) # Considered model types
-model_types=(det) # Considered model types
+model_types=(det det_ens) # Considered model types
 
 n_waypoints=1 # number of waypoints for the BD (1 is last traj element)
 
