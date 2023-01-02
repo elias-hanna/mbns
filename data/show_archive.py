@@ -176,7 +176,14 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             # FOR JUST A SCATTER PLOT OF THE DESCRIPTORS - doesnt work for interactive selection
             #data.plot.scatter(x=2,y=3,c=0,colormap='Spectral', s=2, ax=ax, vmin=-0.1, vmax=1.2)
             # data.plot.scatter(x=1,y=2,c=0,colormap='viridis', s=2, ax=ax) # color by fitness
-            data.plot.scatter(x=bd_cols[0],y=bd_cols[1],c='fit',colormap='viridis', s=10, ax=ax)
+            bdx = data[bd_cols[0]]
+            bdy = None
+            if len(bd_cols) > 1:
+                bdy = data[bd_cols[1]]
+            else:
+                bdy = [0]*len(bdx)
+            # data.plot.scatter(x=bdx,y=bdy,c='fit',colormap='viridis', s=10, ax=ax)
+            ax.scatter(x=bdx,y=bdy,s=10)
             plt.title('Trajectories end-point of model archive')
         else:
             from colour import Color
@@ -341,7 +348,7 @@ def main(args):
             s_maxs.append(np.max(traj_data['obs_traj'], axis=0))
             bd_traj = np.take(traj_data['obs_traj'], bd_inds, axis=1)
             bdx = bd_traj[:,0];
-            bdy = bd_traj[:,1] if len(bd_inds) > 1 else [0]*len(bd_traj[:]) 
+            bdy = bd_traj[:,1] if len(bd_inds) > 1 else [0]*len(bd_traj[:])
             ax.plot(bdx, bdy, alpha=0.1, marker='o')
             # print(data.loc[idx]['ind_trajs'])
             # print(traj_data['obs_traj'])
@@ -352,7 +359,7 @@ def main(args):
         s_maxs = np.array(s_maxs)
         s_mins = np.min(s_mins, axis=0)
         s_maxs = np.max(s_maxs, axis=0)
-        import pdb; pdb.set_trace()
+        print(f's_min: {s_mins}\ns_max: {s_maxs}')
         
     if args.model_and_real:
         n_inds = 100 if len(data) >= 100 else len(data)

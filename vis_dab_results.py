@@ -148,7 +148,8 @@ def process_env(args):
 
     return gym_env, max_step, ss_min, ss_max, dim_map, bd_inds
 
-def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
+def select_inds(data, path, sel_size, search_method, horizon, sel_method,
+                ens_size, args):
     ok_flag = True
     ret_data = None
     if sel_method == 'random':
@@ -177,7 +178,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
             while_data = grouped_data.head(curr_size/n_reached_bins)
             ret_size = len(while_data)
             curr_size += 1
-        ret_data = while_data.iloc[:100] ## cut in case we get too many
+        ret_data = while_data.iloc[:args.final_asize] ## cut in case we get too many
     elif sel_method == 'kmeans':
         ## select sel_size individuals closest to sel_size kmeans clusters
         if not 'ens' in search_method:
@@ -197,7 +198,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method, args):
             ret_data = get_most_nov_data(data, sel_size, bd_cols)
         ## model ensemble selection: max of min novelty across ensemble
         else:
-            ret_data = get_most_nov_data(data, sel_size, bd_cols, ens_size=100)
+            ret_data = get_most_nov_data(data, sel_size, bd_cols, ens_size=ens_size)
     return ret_data, ok_flag
 
 def get_novelty_scores(data, bd_cols, k=15, slow=False):
@@ -303,6 +304,60 @@ def compute_cov(data, args):
     ## return coverage (number of bins filled)
     return len(counts[counts>=1])/total_bins
 
+def update_archive_covs(working_dir, args, archive_covs,
+                        abm_cpt, selm_cpt, rep_cpt,
+                        search_method, m_horizon, sel_method,
+                        dim_x, final_asize, n_wp=1, ens_size=1):
+    ## Open each archive file
+    try:
+        rep_folders = next(os.walk(working_dir))[1]
+    except:
+        import pdb; pdb.set_trace()
+    abs_rep_folders = [os.path.join(working_dir, rep_folder)
+                       for rep_folder in rep_folders]
+
+    rep_cpt = 0
+    for abs_rep_folder in abs_rep_folders:
+        filename = os.path.join(abs_rep_folder,
+                                f'archive_{args.asize}.dat')
+        try:
+            rep_data = pd.read_csv(filename)
+        except FileNotFoundError:
+            print(f'WARNING: No archive file for: {abs_rep_folder}')
+            continue ## we keep nans where there is missing data
+        # drop the last column which was made because there is a
+        # comma after last value i a line
+        rep_data = rep_data.iloc[:,:-1] 
+
+        if dim_x == 0:
+            dim_x = len([col for col in rep_data.columns if 'x' in col])
+
+        ## Select final_asize inds based on sel_method
+        sel_data, ok = select_inds(rep_data, abs_rep_folder,
+                                   final_asize, search_method,
+                                   m_horizon, sel_method, ens_size, args)
+
+
+        if ok:
+            ## Load real evaluations of individuals
+            filename = os.path.join(abs_rep_folder,
+                                    f'archive_{args.asize}_real_all.dat')
+            data_real_all = pd.read_csv(filename)
+            # drop the last column which was made because there is a
+            # comma after last value i a line
+            data_real_all = data_real_all.iloc[:,:-1] 
+            gen_cols = [f'x{i}' for i in range(dim_x)]
+            merged_data = sel_data.merge(data_real_all, on=gen_cols,
+                                         suffixes=('_model',''))
+            # compute cov for given rep_data
+            try:
+                archive_covs[abm_cpt,
+                             selm_cpt,
+                             rep_cpt] = compute_cov(merged_data, args)
+            except:
+                import pdb; pdb.set_trace()
+            rep_cpt += 1
+
 def main(args):
     final_asize = args.final_asize
     
@@ -314,16 +369,29 @@ def main(args):
     sel_methods = args.sel_methods
     m_horizons = args.m_horizons
     n_reps = args.n_reps
-
+    ens_sizes = args.ens_sizes
+    n_wps = args.n_waypoints
+    
     ab_methods = []
     for search_method in search_methods:
         if search_method == 'random-policies':
             ab_methods.append(search_method)
         else:
+            # for m_horizon in m_horizons:
+            #     ab_methods.append(
+            #         f'{search_method}-h{m_horizon}'
+            #     )
             for m_horizon in m_horizons:
-                ab_methods.append(
-                    f'{search_method}-h{m_horizon}'
-                )
+                for n_wp in n_wps:
+                    if not 'ens' in search_method:
+                        ab_methods.append(
+                            f'{search_method}-h{m_horizon}-{n_wp}wp'
+                        )
+                    else:
+                        for ens_size in ens_sizes:
+                            ab_methods.append(
+                                f'{search_method}_{ens_size}-h{m_horizon}-{n_wp}wp'
+                            )
 
     ## Plot table with coverage for each search method and selection method    
     ## ab methods == search methods with model horizons
@@ -349,8 +417,10 @@ def main(args):
     for search_method in search_methods:
         if search_method == 'random-policies':
             ## get abs path to working dir (dir containing reps)
+            # working_dir = os.path.join(cwd,
+            #                            f'{search_method.replace("-", "_")}')
             working_dir = os.path.join(cwd,
-                                       f'{search_method.replace("-", "_")}')
+                                       f'{search_method.replace("-", "_")}_{final_asize}_results')
             ## Open each archive file: warning budget is final_asize on these
             rep_folders = next(os.walk(working_dir))[1]
             abs_rep_folders = [os.path.join(working_dir, rep_folder)
@@ -359,7 +429,11 @@ def main(args):
             for abs_rep_folder in abs_rep_folders:
                 filename = os.path.join(abs_rep_folder,
                                         f'archive_{final_asize}_real_all.dat')
-                rep_data = pd.read_csv(filename)
+                try:
+                    rep_data = pd.read_csv(filename)
+                except FileNotFoundError:
+                    print(f'WARNING: No archive file for: {abs_rep_folder}')
+                    continue ## we keep nans where there is missing data
                 # drop the last column which was made because there is a comma
                 # after last value i a line
                 rep_data = rep_data.iloc[:,:-1]
@@ -376,56 +450,37 @@ def main(args):
         else:
             mh_cpt = 0
             for m_horizon in m_horizons:
-                selm_cpt = 0
-                for sel_method in sel_methods:
-                    working_dir = os.path.join(cwd,
-                                               f'{search_method}_h{m_horizon}')
-                    ## Open each archive file
-                    rep_folders = next(os.walk(working_dir))[1]
-                    abs_rep_folders = [os.path.join(working_dir, rep_folder)
-                                       for rep_folder in rep_folders]
-
-                    rep_cpt = 0
-                    for abs_rep_folder in abs_rep_folders:
-                        filename = os.path.join(abs_rep_folder,
-                                                f'archive_{args.asize}.dat')
-
-                        rep_data = pd.read_csv(filename)
-                        # drop the last column which was made because there is a
-                        # comma after last value i a line
-                        rep_data = rep_data.iloc[:,:-1] 
-
-                        if dim_x == 0:
-                            dim_x = len([col for col in rep_data.columns if 'x' in col])
+                for n_wp in n_wps:
+                    if not 'ens' in search_method:
+                        selm_cpt = 0
+                        for sel_method in sel_methods:
+                            working_dir = os.path.join(
+                                cwd,
+                                f'{search_method}_1_h{m_horizon}_{n_wp}wps_results')
                             
-                        ## Select final_asize inds based on sel_method
-                        sel_data, ok = select_inds(rep_data, abs_rep_folder,
-                                                   final_asize, search_method,
-                                                   m_horizon, sel_method, args)
-
-                        
-                        if ok:
-                            ## Load real evaluations of individuals
-                            filename = os.path.join(abs_rep_folder,
-                                                    f'archive_{args.asize}_real_all.dat')
-                            data_real_all = pd.read_csv(filename)
-                            # drop the last column which was made because there is a
-                            # comma after last value i a line
-                            data_real_all = data_real_all.iloc[:,:-1] 
-                            gen_cols = [f'x{i}' for i in range(dim_x)]
-                            merged_data = sel_data.merge(data_real_all, on=gen_cols,
-                                                         suffixes=('_model',''))
-                            # compute cov for given rep_data
-                            archive_covs[abm_cpt,
-                                         selm_cpt,
-                                         rep_cpt] = compute_cov(merged_data, args)
-
-                        rep_cpt += 1
-                    selm_cpt += 1
-
-                abm_cpt += 1
+                            update_archive_covs(working_dir, args, archive_covs,
+                                                abm_cpt, selm_cpt, rep_cpt,
+                                                search_method, m_horizon,
+                                                sel_method, dim_x, final_asize,
+                                                n_wp=n_wp)
+                            selm_cpt += 1
+                        abm_cpt += 1
+                    else:
+                        for ens_size in ens_sizes:
+                            selm_cpt = 0
+                            for sel_method in sel_methods:
+                                working_dir = os.path.join(
+                                    cwd,
+                                    f'{search_method}_{ens_size}_h{m_horizon}_{n_wp}wps_results')
+                                
+                                update_archive_covs(working_dir, args, archive_covs,
+                                                    abm_cpt, selm_cpt, rep_cpt,
+                                                    search_method, m_horizon,
+                                                    sel_method, dim_x, final_asize,
+                                                    n_wp=n_wp, ens_size=ens_size)
+                                selm_cpt += 1
+                            abm_cpt += 1
                 mh_cpt += 1
-                
         searchm_cpt += 1
 
     #================================== PLOT ===================================#
@@ -438,21 +493,24 @@ def main(args):
         for sel_method in sel_methods:
             cov_vals = archive_covs[ab_cpt, sel_cpt]
             if not np.isnan(cov_vals).all():
-                all_ab_methods_covs.append(cov_vals)
+                filtered_cov_vals = cov_vals[~np.isnan(cov_vals)]
+                all_ab_methods_covs.append(filtered_cov_vals)
                 all_ab_methods_labels.append(f'{ab_method}-{sel_method}')
             sel_cpt += 1
         ab_cpt += 1
-        
+
     fig, ax = plt.subplots()
     ax.boxplot(all_ab_methods_covs)
     ax.set_xticklabels(all_ab_methods_labels)
     ax.set_ylabel("Coverage (max is 1)")
     
     plt.title(f'Coverage for each archive bootstrapping method\n' \
-              f'(Behavior space division in {args.nb_div} parts per dimension)')
-    fig.set_size_inches(27, 9)
+              f'(Behavior space division in {args.nb_div} parts per dimension)\n'
+              f'{final_asize} individuals transferred')
+    fig.set_size_inches(36, 9)
     
-    plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{final_asize}",
+                dpi=300, bbox_inches='tight')
 
     if args.show:
         plt.show()
@@ -466,6 +524,10 @@ if __name__ == "__main__":
                         type=int, default=[10, 100])
     parser.add_argument('--sel-methods', nargs="*",
                         type=str, default=['random', 'max', 'nov', 'kmeans'])
+    parser.add_argument('--ens-sizes', nargs="*",
+                        type=int, default=[4, 40, 400])
+    parser.add_argument('--n-waypoints', nargs="*",
+                        type=int, default=[1])
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
 
     parser.add_argument("--show", help="Show the plot and saves it." \

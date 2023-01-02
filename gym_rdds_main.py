@@ -65,6 +65,24 @@ def evaluate_(t):
     # return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
     return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj)
 
+def evaluate_all_(T):
+    # same as the above evaluate but this takes in the disagreement also
+    # - useful if you want to make use disargeement value
+    # needs two types because no such thing as disagreemnt for real eval
+    Z = [T[i][0] for i in range(len(T))]
+    f = T[0][1]
+    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z) 
+    
+    # becasue it somehow returns a list in a list (have to keep checking sometimes)
+    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
+    
+    # return a species object (containing genotype, descriptor and fitness)
+    inds = []
+    for i in range(len(T)):
+        inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=obs_traj_list[i],
+                               act_traj=act_traj_list[i], model_dis=disagr_list[i]))
+    return inds
+
 ################################################################################
 ############################## Model methods ###################################
 ################################################################################
@@ -1172,6 +1190,7 @@ def main(args):
 
     if args.perfect_model:
         f_model = f_real
+        px['model_variant'] = "dynamics"
     elif args.model_variant == "dynamics" :
         if args.model_type == "det":
             f_model = env.evaluate_solution_model 
@@ -1225,6 +1244,7 @@ def main(args):
     #     exit()
 
     if args.perfect_model:
+        px['model_variant'] = args.model_variant
         if args.model_variant == "dynamics" :
             if args.model_type == "det":
                 f_real = env.evaluate_solution_model 
@@ -1250,9 +1270,12 @@ def main(args):
 
     if args.model_type == 'det_ens':
         px['parallel'] = False
-        
+
     ## Evaluate on real sys
-    s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
+    if args.perfect_model and px['model_variant'] == 'all_dynamics':
+        s_list = evaluate_all_(to_evaluate)
+    else:
+        s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, px)
 
     pool.close()
 
