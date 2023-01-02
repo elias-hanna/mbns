@@ -1096,7 +1096,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
-        'ensemble_size': 100,
+        'ensemble_size': args.ens_size,
     }
     surrogate_model_params = \
     {
@@ -1306,6 +1306,7 @@ if __name__ == "__main__":
     parser.add_argument('--environment', '-e', type=str, default='empty_maze')
     parser.add_argument('--rep', type=int, default='1')
     parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
+    parser.add_argument('--ens-size', type=int, default='4')
     args = parser.parse_args()
 
     main(args)
