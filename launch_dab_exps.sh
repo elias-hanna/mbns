@@ -58,7 +58,6 @@ for env in "${environments[@]}"; do
             cd ..
 	    done
     done
-
     
     #### Random policies archive bootstrapping ####
     mkdir random_policies; cd random_policies

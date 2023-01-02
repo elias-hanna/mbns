@@ -897,7 +897,8 @@ def main(args):
         
         "log_model_stats": False,
         "log_time_stats": False, 
-
+        "log_ind_trajs": args.log_ind_trajs,
+        
         # 0 for random emiiter, 1 for optimizing emitter
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
@@ -1218,10 +1219,24 @@ def main(args):
             
     ## Evaluate the found solutions on the real system
     
-    ## If search was done on the real system already then no need to test the
-    ## found behaviorss
+    # ## If search was done on the real system already then no need to test the
+    # ## found behaviors
+    # if args.perfect_model:
+    #     exit()
+
     if args.perfect_model:
-        exit()
+        if args.model_variant == "dynamics" :
+            if args.model_type == "det":
+                f_real = env.evaluate_solution_model 
+            elif args.model_type == "prob" and args.environment == 'hexapod_omni':
+                f_real = env.evaluate_solution_model_ensemble
+        elif args.model_variant == "all_dynamics":
+            if args.model_type == "det":
+                f_real = env.evaluate_solution_model_all
+            elif args.model_type == "det_ens":
+                f_real = env.evaluate_solution_model_det_ensemble_all
+            elif args.model_type == "prob":
+                f_real = env.evaluate_solution_model_ensemble_all
 
     pool = multiprocessing.Pool(args.num_cores)
 
@@ -1306,6 +1321,7 @@ if __name__ == "__main__":
     parser.add_argument('--environment', '-e', type=str, default='empty_maze')
     parser.add_argument('--rep', type=int, default='1')
     parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
+    parser.add_argument('--log-ind-trajs', action="store_true") ## Gen max_evals random policies and evaluate them
     parser.add_argument('--ens-size', type=int, default='4')
     args = parser.parse_args()
 

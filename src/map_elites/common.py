@@ -317,7 +317,8 @@ def save_archive(archive, gen, params, log_dir):
                 headers += f'bd{i}' + ','
         for i in range(params['dim_x']):
             headers += f'x{i}' + ','
-        headers += 'ind_trajs' + ','
+        if params['log_ind_trajs'] == True:
+            headers += 'ind_trajs' + ','
         f.write(headers + "\n")
 
         if (params['type'] == "cvt") or (params["type"] == "grid"): 
@@ -339,7 +340,7 @@ def save_archive(archive, gen, params, log_dir):
                 ind_string += get_array_string(k.x)
 
                 ## Add the trajectories
-                if k.obs_traj is not None:
+                if k.obs_traj is not None and params['log_ind_trajs'] == True:
                     ## Bad way
                     # ind_string += get_array_string(k.obs_traj, np_traj=True)
                     # ind_string += get_array_string(k.act_traj, np_traj=True)
