@@ -106,8 +106,8 @@ def process_env(args):
         env_register_id = 'HalfCheetah-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        ss_min = np.array([-10]*18)
-        ss_max = np.array([10]*18)
+        ss_min = np.array([-15]*18)
+        ss_max = np.array([15]*18)
         init_obs = np.array([0.]*18)
         dim_map = 1
         gym_args['exclude_current_positions_from_observation'] = False
@@ -117,8 +117,8 @@ def process_env(args):
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        ss_min = np.array([-10]*18)
-        ss_max = np.array([10]*18)
+        ss_min = np.array([-15]*18)
+        ss_max = np.array([15]*18)
         init_obs = np.array([0.]*18)
         dim_map = 1
         gym_args['exclude_current_positions_from_observation'] = False
@@ -349,6 +349,9 @@ def update_archive_covs(working_dir, args, archive_covs,
             gen_cols = [f'x{i}' for i in range(dim_x)]
             merged_data = sel_data.merge(data_real_all, on=gen_cols,
                                          suffixes=('_model',''))
+            dump_fn =  os.path.join(abs_rep_folder,
+                                    f'bootstrap_archive_{final_asize}.dat')
+            merged_data.to_csv(dump_fn)
             # compute cov for given rep_data
             try:
                 archive_covs[abm_cpt,
