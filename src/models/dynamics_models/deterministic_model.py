@@ -88,18 +88,6 @@ class DeterministicDynModel(nn.Module):
             h = self.normalize_inputs_sa_minmax(x_input)
         else:
             h = self.normalize_inputs(x_input)
-        # print('xin norm:',h)
-        # import pdb; pdb.set_trace()
-        
-        # x = torch.relu(self.fc1(h))
-        
-        # x = torch.relu(self.fc2(x))
-        # x = torch.relu(self.fc3(x))
-        
-        # x = torch.tanh(self.fc1(h))
-        
-        # x = torch.tanh(self.fc2(x))
-        # x = torch.tanh(self.fc3(x))
 
         x = self.hidden_activation(self.fc1(h))
         
@@ -107,7 +95,6 @@ class DeterministicDynModel(nn.Module):
         x = self.hidden_activation(self.fc3(x))
         
         x = self.fc4(x)
-        # x = self.fc2(x)
         return x
     
     def get_loss(self, x, y, return_l2_error=False):
@@ -155,19 +142,13 @@ class DeterministicDynModel(nn.Module):
 
     #output predictions after unnormalized
     def output_pred(self, x_input, mean=False):
-        # x_input = np.random.uniform(low=self.sa_min, high=self.sa_max, size=x_input.shape)
-        # x_input = ptu.from_numpy(x_input)
         # batch_preds is the normalized output from the network
-        # print('xin:', x_input)
         batch_preds = self.forward(x_input)
-        # print('xout norm:', batch_preds)
         if self.use_minmax_norm:
             y = self.denormalize_output_sa_minmax(batch_preds)
-            # print('xout:', y)
         else:
             y = self.denormalize_output(batch_preds)
         output = ptu.get_numpy(y)
-        # import pdb; pdb.set_trace()
         return output
     
     def normalize_inputs(self, data):
@@ -186,7 +167,6 @@ class DeterministicDynModel(nn.Module):
         data_norm = (data - self.sa_min)/(self.sa_max - self.sa_min)
         rescaled_data_norm = data_norm * (1 + 1) - 1
         return rescaled_data_norm
-        # return data_norm
 
     def normalize_outputs_sa_minmax(self, data):
         # data_norm = (data - self.sa_min[:self.obs_dim])/ \

@@ -106,8 +106,8 @@ def process_env(args):
         env_register_id = 'HalfCheetah-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        ss_min = np.array([-15]*18)
-        ss_max = np.array([15]*18)
+        ss_min = np.array([-30]*18)
+        ss_max = np.array([30]*18)
         init_obs = np.array([0.]*18)
         dim_map = 1
         gym_args['exclude_current_positions_from_observation'] = False
@@ -117,8 +117,8 @@ def process_env(args):
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        ss_min = np.array([-15]*18)
-        ss_max = np.array([15]*18)
+        ss_min = np.array([-5]*18)
+        ss_max = np.array([5]*18)
         init_obs = np.array([0.]*18)
         dim_map = 1
         gym_args['exclude_current_positions_from_observation'] = False

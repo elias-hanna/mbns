@@ -1,18 +1,17 @@
-import os, sys
-import argparse
-import numpy as np
-
-import src.torch.pytorch_util as ptu
-
+#----------Algo imports--------#
 from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
 from src.map_elites.qd import QD
 from src.map_elites.ns import NS
 
+#----------Model imports--------#
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
 from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
 from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
 from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
+from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
+import src.torch.pytorch_util as ptu
+import torch
 
 #----------controller imports--------#
 from model_init_study.controller.nn_controller \
@@ -22,16 +21,21 @@ from model_init_study.controller.nn_controller \
 import gym
 import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
 
+#----------Pretraining imports--------#
+from src.data_generation.srf_training import get_ensemble_training_samples
+#----------Data manipulation imports--------#
+import numpy as np
+import copy
 #----------Utils imports--------#
+import os, sys
+import argparse
+
 import multiprocessing
 from multiprocessing import cpu_count
-import copy
-import numpy as np
-import torch
+
 import time
 import tqdm
 
-from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
 
 ################################################################################
 ################################ QD methods ####################################
@@ -921,8 +925,6 @@ def main(args):
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
 
-        "transfer_selection": args.transfer_selection,
-        "nb_transfer": args.nb_transfer,
         "env_name": args.environment,
         ## for dump
         "ensemble_dump": False,
@@ -1314,12 +1316,12 @@ if __name__ == "__main__":
     
     #-----------Store results + analysis-----------#
     parser.add_argument("--log_dir", type=str)
+    parser.add_argument('--log-ind-trajs', action="store_true") ## Gen max_evals random policies and evaluate them
     
     #-----------QD params for cvt or GRID---------------#
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
     parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
     parser.add_argument("--n_niches", default=3000, type=int)
-    parser.add_argument("--n-waypoints", default=1, type=int) # 1 takes BD on last obs
 
     #----------population params--------#
     parser.add_argument("--random-init-batch", default=100, type=int) # Number of inds to initialize the archive
@@ -1331,22 +1333,21 @@ if __name__ == "__main__":
     # possible values: iso_dd, polynomial or sbx
     parser.add_argument("--mutation", default="iso_dd", type=str)
 
-    #-------------DAQD params-----------#
-    parser.add_argument('--transfer-selection', type=str, default='all')
+    #-------------Algo params-----------#
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
-    parser.add_argument('--nb-transfer', type=int, default=1)
-
-    parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
-    parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
-    parser.add_argument('--model-horizon', type=int, default=None) # whatever suits you
-    parser.add_argument('--perfect-model', action='store_true')
-
-    #----------model init study params--------#
+    parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
+    parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
     parser.add_argument('--environment', '-e', type=str, default='empty_maze')
     parser.add_argument('--rep', type=int, default='1')
-    parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
-    parser.add_argument('--log-ind-trajs', action="store_true") ## Gen max_evals random policies and evaluate them
-    parser.add_argument('--ens-size', type=int, default='4')
+
+    #-------------Model params-----------#
+    parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
+    parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
+    parser.add_argument('--ens-size', type=int, default='4') # when using ens
+    parser.add_argument('--model-horizon', type=int, default=None) # whatever suits you
+    parser.add_argument('--perfect-model', action='store_true')
+    parser.add_argument('--pretrain', type=str, default='srf') # srf, 
+
     args = parser.parse_args()
 
     main(args)

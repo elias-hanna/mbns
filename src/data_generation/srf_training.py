@@ -18,7 +18,8 @@ def get_training_samples(params, n_training_samples):
     sa_max = np.concatenate((params['state_max'], params['action_max']))
     
     ## Create a srfs model
-    model = gs.Gaussian(dim=dim_in, var=params['var'], len_scale=10)
+    model = gs.Gaussian(dim=dim_in, var=params['srf_var'],
+                        len_scale=params['srf_cor'])
     srfs = []
     for _ in range(dim_out):
         srfs.append(gs.SRF(model))
@@ -68,7 +69,9 @@ if __name__ == '__main__':
 
         'state_min': ss_min,
         'state_max': ss_max,
-        
+
+        'srf_var': 1,
+        'srf_cor': 10,
         'num_cores': 20,
     }
     
