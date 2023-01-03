@@ -11,10 +11,14 @@ def query_srfs(input_data, srfs):
     ret_data = np.array(ret_data)
     return np.transpose(ret_data)
 
-def get_training_samples(dim_in, dim_out, sa_min, sa_max,
-                         n_training_samples):
+def get_training_samples(params, n_training_samples):
+    dim_in = params['obs_dim'] + params['action_dim']
+    dim_out = params['obs_dim']
+    sa_min = np.concatenate((params['state_min'], params['action_min']))
+    sa_max = np.concatenate((params['state_max'], params['action_max']))
+    
     ## Create a srfs model
-    model = gs.Gaussian(dim=dim_in, var=1, len_scale=10)
+    model = gs.Gaussian(dim=dim_in, var=params['var'], len_scale=10)
     srfs = []
     for _ in range(dim_out):
         srfs.append(gs.SRF(model))
@@ -27,28 +31,14 @@ def get_training_samples(dim_in, dim_out, sa_min, sa_max,
     ## Return the fake input and output training data
     return fake_input_data, fake_output_data
 
-def get_ensemble_training_samples(dim_in, dim_out, sa_min, sa_max,
+def get_ensemble_training_samples(params,
                                   n_training_samples=10000, ensemble_size=10):
-
-    ensemble_fake_training_samples_input = []
-    ensemble_fake_training_samples_output = []
-    # for _ in range(ensemble_size):
-    #     input_data, output_data = get_training_samples(
-    #         dim_in, dim_out, sa_min, sa_max, n_training_samples
-    #     )
-        
-    #     ensemble_fake_training_samples_input.append(input_data)
-    #     ensemble_fake_training_samples_output.append(output_data)
-    # return np.array(ensemble_fake_training_samples_input), \
-        # np.array(ensemble_fake_training_samples_output)
-        
-    with Pool(processes=20) as pool:
-        to_evaluate = zip(repeat(dim_in,ensemble_size), repeat(dim_out),
-                          repeat(sa_min), repeat(sa_max), repeat(n_training_samples))
+    
+    with Pool(processes=params['num_cores']) as pool:
+        to_evaluate = zip(repeat(params,ensemble_size),
+                          repeat(n_training_samples))
         input_data, output_data = zip(*pool.starmap(
-        # input_data, output_data = pool.starmap(
             get_training_samples,
-            # zip(dim_in, dim_out, sa_min, sa_max, n_training_samples)
             to_evaluate
         ))
     return np.array(input_data), np.array(output_data)
@@ -68,9 +58,27 @@ if __name__ == '__main__':
     sa_min = np.concatenate((ss_min, a_min))
     sa_max = np.concatenate((ss_max, a_max))
 
+    params = \
+    {
+        'obs_dim': obs_dim,
+        'action_dim': act_dim,
+
+        'action_min': a_min,
+        'action_max': a_max,
+
+        'state_min': ss_min,
+        'state_max': ss_max,
+        
+        'num_cores': 20,
+    }
+    
     # fake_in, fake_out = get_training_samples(dim_in, dim_out, sa_min, sa_max, 10000)
-    fake_in_ens, fake_out_ens = get_ensemble_training_samples(dim_in, dim_out, sa_min, sa_max)
+    # fake_in_ens, fake_out_ens = get_ensemble_training_samples(dim_in, dim_out, sa_min, sa_max)
+    fake_in_ens, fake_out_ens = get_ensemble_training_samples(params)
+    print(f'Shape of generated data:\ninput -> {fake_in_ens.shape}\n'\
+          f'output -> {fake_out_ens.shape}')
     import pdb; pdb.set_trace()
+    exit()
     # structured field with a size 100x100 and a grid-size of 1x1
     x = y = range(100)
     model = gs.Gaussian(dim=2, var=1, len_scale=10)

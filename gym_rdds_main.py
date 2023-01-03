@@ -1156,6 +1156,7 @@ def main(args):
         'env_max_h': max_step,
         'fitness_func': args.fitness_func,
         'n_waypoints': n_waypoints,
+        'num_cores': args.num_cores,
     }
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop']:
