@@ -107,7 +107,6 @@ class DeterministicDynModel(nn.Module):
             norm_y = self.normalize_outputs_sa_minmax(y)
         else:
             norm_y = self.normalize_outputs(y)
-
         # calculate loss - we want to predict the normalized residual of next state
         loss = self.MSEcriterion(pred_y, norm_y)
         #loss = self.L1criterion(pred_y, y)
@@ -173,7 +172,8 @@ class DeterministicDynModel(nn.Module):
         #             (self.sa_max[:self.obs_dim] - self.sa_min[:self.obs_dim])
         # rescaled_data_norm = data_norm * (1 + 1) - 1
         # return rescaled_data_norm
-        return data_norm
+        # return data_norm
+        return data
 
     def denormalize_output_sa_minmax(self, data):
         # data_denorm = data*(self.sa_max[:self.obs_dim] - self.sa_min[:self.obs_dim]) + \

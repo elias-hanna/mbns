@@ -4,12 +4,18 @@ import numpy as np
 from multiprocessing import Pool
 from itertools import repeat
 
-def query_srfs(input_data, srfs):
+def query_srfs(params, input_data, srfs):
     ret_data = []
     for srf in srfs:
         ret_data.append(srf(input_data))
     ret_data = np.array(ret_data)
-    return np.transpose(ret_data)
+    ret_data = np.transpose(ret_data)
+    # print(ret_data.shape)
+    # print(input_data.shape)
+    # print(input_data[:,:params['obs_dim']].shape)
+    ret_data += input_data[:,:params['obs_dim']]
+    # return np.transpose(ret_data)
+    return ret_data
 
 def get_training_samples(params, n_training_samples):
     dim_in = params['obs_dim'] + params['action_dim']
@@ -28,7 +34,7 @@ def get_training_samples(params, n_training_samples):
     fake_input_data = np.random.uniform(low=sa_min, high=sa_max,
                                         size=(n_training_samples, dim_in))
     ## Query the model using fake input data
-    fake_output_data = query_srfs(fake_input_data, srfs)
+    fake_output_data = query_srfs(params, fake_input_data, srfs)
     ## Return the fake input and output training data
     return fake_input_data, fake_output_data
 

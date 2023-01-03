@@ -96,7 +96,7 @@ def get_dynamics_model(params):
     obs_dim = dynamics_model_params['obs_dim']
     action_dim = dynamics_model_params['action_dim']
     dynamics_model_type = dynamics_model_params['model_type']
-
+    use_minmax_norm = False if params['pretrain'] != '' else True
     ## INIT MODEL ##
     if dynamics_model_type == "prob":
         from src.trainers.mbrl.mbrl import MBRLTrainer
@@ -131,7 +131,7 @@ def get_dynamics_model(params):
                                        params['action_min'])),
                 sa_max=np.concatenate((params['state_max'],
                                        params['action_max'])),
-                use_minmax_norm=True)
+                use_minmax_norm=use_minmax_norm)
         dynamics_model_trainer = MBRLTrainer(
                 model=dynamics_model,
                 batch_size=dynamics_model_params['batch_size'],)
@@ -147,9 +147,11 @@ def get_dynamics_model(params):
                                        params['action_min'])),
                 sa_max=np.concatenate((params['state_max'],
                                        params['action_max'])),
-                use_minmax_norm=True)
-        dynamics_model_trainer = None ## Not trainable for now
+                use_minmax_norm=use_minmax_norm)
         
+        dynamics_model_trainer = None ## Not trainable for now
+        ## Actually getting an ensemble of dynamics trainers could do the trick
+        ## Might be more clean to wrap it all in a class
     return dynamics_model, dynamics_model_trainer
 
 def get_surrogate_model(surrogate_model_params):
@@ -1131,34 +1133,42 @@ def main(args):
     }
     params = \
     {
+        ## general parameters
         'obs_dim': obs_dim,
         'action_dim': act_dim,
+        'dynamics_model_params': dynamics_model_params,
 
+        ## controller parameters
         'controller_type': NeuralNetworkController,
         'controller_params': controller_params,
         'time_open_loop': controller_params['time_open_loop'],
         
-        'dynamics_model_params': dynamics_model_params,
 
-        # 'action_min': -1,
-        # 'action_max': 1,
+        ## state-action space params
         'action_min': a_min,
         'action_max': a_max,
 
         'state_min': ss_min,
         'state_max': ss_max,
         
-        # 'policy_param_init_min': -0.1,
-        # 'policy_param_init_max': 0.1,
-        'policy_param_init_min': -5,
-        'policy_param_init_max': 5,
-        
+        ## env parameters
         'env': gym_env,
         'env_name': args.environment,
         'env_max_h': max_step,
+
+        ## algo parameters
+        'policy_param_init_min': -5,
+        'policy_param_init_max': 5,
+
         'fitness_func': args.fitness_func,
         'n_waypoints': n_waypoints,
         'num_cores': args.num_cores,
+
+        ## pretraining parameters
+        'pretrain': args.pretrain,
+        ## srf parameters
+        'srf_var': 1,
+        'srf_cor': 10,
     }
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop']:
@@ -1168,7 +1178,6 @@ def main(args):
     #########################################################################
     ####################### End of Preparation of run #######################
     #########################################################################
-
 
     if not is_local_env:
         env = WrappedEnv(params)
@@ -1180,6 +1189,56 @@ def main(args):
     # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
+
+    if args.pretrain: ## won't go in with default value ''
+        ## initialize replay buffer
+        replay_buffer = SimpleReplayBuffer(
+            max_replay_buffer_size=1000000,
+            observation_dim=params['obs_dim'],
+            action_dim=params['action_dim'],
+            env_info_sizes=dict(),
+        )
+        ## Generate data
+        if args.pretrain == 'srf':
+            ens_size = 1 if args.model_type == 'det' else args.ens_size
+            n_training_samples = 50000
+            input_data, output_data = get_ensemble_training_samples(
+                params,
+                n_training_samples=n_training_samples, ensemble_size=ens_size
+            )
+
+            for i in range(ens_size):
+                for k in range(n_training_samples):
+                    ## access ith training data
+                    in_train_data = input_data[i]
+                    out_train_data = output_data[i]
+                    ## add it to ith replay buffer
+                    replay_buffer.add_sample(
+                        in_train_data[k,:params['obs_dim']],
+                        in_train_data[k,params['obs_dim']:],
+                        0, False,
+                        out_train_data[k],
+                        {}
+                    )
+
+                ## train from buffer each model one by one
+                dynamics_model_trainer.train_from_buffer(
+                    replay_buffer, 
+                    holdout_pct=0.2,
+                    max_grad_steps=100000,
+                    epochs_since_last_update=5,
+                    verbose=False,
+                )
+
+                eval_stats = dynamics_model_trainer.get_diagnostics()
+                print('###########################################################')
+                print('################# Final training stats ####################')
+                print('###########################################################')
+                for key in eval_stats.keys():
+                    print(f'{key}: {eval_stats[key]}')
+                print('###########################################################')
+                print('###########################################################')
+                print('###########################################################')
 
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
@@ -1239,13 +1298,7 @@ def main(args):
             # import pdb; pdb.set_trace()
             # exit()
             
-    ## Evaluate the found solutions on the real system
-    
-    # ## If search was done on the real system already then no need to test the
-    # ## found behaviors
-    # if args.perfect_model:
-    #     exit()
-
+    ## Evaluate the found solutions on the model
     if args.perfect_model:
         px['model_variant'] = args.model_variant
         if args.model_variant == "dynamics" :
@@ -1261,6 +1314,7 @@ def main(args):
             elif args.model_type == "prob":
                 f_real = env.evaluate_solution_model_ensemble_all
 
+    ## Evaluate the found solutions on the real system
     pool = multiprocessing.Pool(args.num_cores)
 
     ## Select the individuals to transfer onto real system
@@ -1336,7 +1390,8 @@ if __name__ == "__main__":
     #-------------Algo params-----------#
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
-    parser.add_argument('--random-policies', action="store_true") ## Gen max_evals random policies and evaluate them
+    ## Gen max_evals random policies and evaluate them
+    parser.add_argument('--random-policies', action="store_true") 
     parser.add_argument('--environment', '-e', type=str, default='empty_maze')
     parser.add_argument('--rep', type=int, default='1')
 
@@ -1344,9 +1399,11 @@ if __name__ == "__main__":
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
     parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
     parser.add_argument('--ens-size', type=int, default='4') # when using ens
-    parser.add_argument('--model-horizon', type=int, default=None) # whatever suits you
+    parser.add_argument('--model-horizon', type=int, default=None) # model eval horizon
     parser.add_argument('--perfect-model', action='store_true')
-    parser.add_argument('--pretrain', type=str, default='srf') # srf, 
+    ## '' does not pretrain, srf pretrains using data generated with
+    ## spatial random fields
+    parser.add_argument('--pretrain', type=str, default='')
 
     args = parser.parse_args()
 
