@@ -104,7 +104,7 @@ def get_dynamics_model(params):
             mbrl_kwargs=dict(
                 ensemble_size=dynamics_model_params['ensemble_size'],
                 layer_size=dynamics_model_params['layer_size'],
-                learning_rate=1e-3,
+                learning_rate=dynamics_model_params['learning_rate'],
                 batch_size=dynamics_model_params['batch_size'],
             )
         )
@@ -133,8 +133,9 @@ def get_dynamics_model(params):
                                        params['action_max'])),
                 use_minmax_norm=use_minmax_norm)
         dynamics_model_trainer = MBRLTrainer(
-                model=dynamics_model,
-                batch_size=dynamics_model_params['batch_size'],)
+            model=dynamics_model,
+            learning_rate=dynamics_model_params['learning_rate'],
+            batch_size=dynamics_model_params['batch_size'],)
 
     elif dynamics_model_type == "det_ens":
         from src.trainers.mbrl.mbrl_det import MBRLTrainer 
@@ -148,10 +149,12 @@ def get_dynamics_model(params):
                 sa_max=np.concatenate((params['state_max'],
                                        params['action_max'])),
                 use_minmax_norm=use_minmax_norm)
-        
-        dynamics_model_trainer = None ## Not trainable for now
-        ## Actually getting an ensemble of dynamics trainers could do the trick
-        ## Might be more clean to wrap it all in a class
+        ## warning same trainer for all (need to call it n times) 
+        dynamics_model_trainer = MBRLTrainer(
+            model=dynamics_model,
+            learning_rate=dynamics_model_params['learning_rate'],
+            batch_size=dynamics_model_params['batch_size'],)
+
     return dynamics_model, dynamics_model_trainer
 
 def get_surrogate_model(surrogate_model_params):
@@ -1113,10 +1116,10 @@ def main(args):
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'layer_size': [500, 500],
+        'layer_size': [500, 500, 500],
         # 'layer_size': 500,
         'batch_size': 512,
-        'learning_rate': 1e-3,
+        'learning_rate': 1e-2,
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
@@ -1213,7 +1216,7 @@ def main(args):
         ## Generate data
         if args.pretrain == 'srf':
             ens_size = 1 if args.model_type == 'det' else args.ens_size
-            n_training_samples = 10000
+            n_training_samples = 100000
             input_data, output_data = get_ensemble_training_samples(
                 params,
                 n_training_samples=n_training_samples, ensemble_size=ens_size
