@@ -15,12 +15,12 @@ class DeterministicDynModel(nn.Module):
             self,
             obs_dim,              # Observation dim of environment
             action_dim,           # Action dim of environment
-            hidden_size,          # Hidden size for model
+            hidden_size,          # Hidden size for model, either int or array
             init_method='uniform',# weight init method
             sa_min=None,          # State-Action space min values
             sa_max=None,          # State-Action space max values
             use_minmax_norm=False,
-            hidden_activation=torch.tanh,
+            hidden_activation=torch.relu,
     ):
         super(DeterministicDynModel, self).__init__()
 
@@ -31,12 +31,16 @@ class DeterministicDynModel(nn.Module):
         self.input_dim = self.obs_dim + self.action_dim
         self.output_dim = self.obs_dim # fitness always a scalar
         self.hidden_size = hidden_size
-        
-        self.fc1 = nn.Linear(self.input_dim, self.hidden_size)
-        # self.fc2 = nn.Linear(self.hidden_size, self.output_dim)
-        self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.fc3 = nn.Linear(self.hidden_size, self.hidden_size)
-        self.fc4 = nn.Linear(self.hidden_size, self.output_dim)
+
+        self.fcs = []
+
+        in_size = self.input_dim
+        for i in range(len(hidden_size)):
+            self.fcs.append(nn.Linear(in_size, self.hidden_size[i]))
+            self.__setattr__("fc{}".format(i), self.fcs[i])
+            in_size = self.hidden_size[i] 
+        self.fcs.append(nn.Linear(self.hidden_size[-1], self.output_dim))
+        self.__setattr__("fc{}".format(i+1), self.fcs[-1])
 
         self.MSEcriterion = nn.MSELoss()
         self.L1criterion = nn.L1Loss()
@@ -49,32 +53,25 @@ class DeterministicDynModel(nn.Module):
         self.output_mu = nn.Parameter(ptu.zeros(1,self.output_dim), requires_grad=False).float()
         self.output_std = nn.Parameter(ptu.ones(1,self.output_dim), requires_grad=False).float()
 
+        kwargs={}
         if init_method == 'uniform':
-            a = -0.5; b = 0.5
             # uniform intialization of weights
-            nn.init.uniform_(self.fc1.weight, a=a, b=b)
-            nn.init.uniform_(self.fc2.weight, a=a, b=b)
-            nn.init.uniform_(self.fc3.weight, a=a, b=b)
-            nn.init.uniform_(self.fc4.weight, a=a, b=b)
+            self.init_method = nn.init.uniform_
+            a = -0.5; b = 0.5
+            kwargs['a'] = a; kwargs['b'] = b
         elif init_method == 'xavier':
             # xavier uniform intialization of weights
-            nn.init.xavier_uniform_(self.fc1.weight)
-            nn.init.xavier_uniform_(self.fc2.weight)
-            nn.init.xavier_uniform_(self.fc3.weight)
-            nn.init.xavier_uniform_(self.fc4.weight)
+            self.init_method = nn.init.xavier_uniform_
         elif init_method == 'kaiming':
             # kaiming uniform intialization of weights
-            nn.init.kaiming_uniform_(self.fc1.weight)
-            nn.init.kaiming_uniform_(self.fc2.weight)
-            nn.init.kaiming_uniform_(self.fc3.weight)
-            nn.init.kaiming_uniform_(self.fc4.weight)
+            self.init_method = nn.init.kaiming_uniform_
         elif init_method == 'orthogonal':
             # orthogonal intialization of weights
-            nn.init.orthogonal_(self.fc1.weight)
-            nn.init.orthogonal_(self.fc2.weight)
-            nn.init.orthogonal_(self.fc3.weight)
-            nn.init.orthogonal_(self.fc4.weight)
+            self.init_method = nn.init.orthogonal
 
+        for fc in self.fcs:
+            self.init_method(fc.weight, **kwargs)
+            
         self.hidden_activation = hidden_activation
         
         self.sa_min = ptu.from_numpy(sa_min)
@@ -89,14 +86,15 @@ class DeterministicDynModel(nn.Module):
         else:
             h = self.normalize_inputs(x_input)
 
-        x = self.hidden_activation(self.fc1(h))
+        x = h
         
-        x = self.hidden_activation(self.fc2(x))
-        x = self.hidden_activation(self.fc3(x))
-        
-        x = self.fc4(x)
+        for i in range(len(self.hidden_size)):
+            x = self.hidden_activation(self.fcs[i](x))
+        x = self.fcs[-1](x)
+
         return x
-    
+
+
     def get_loss(self, x, y, return_l2_error=False):
 
         # predicted normalized outputs given inputs

@@ -1113,8 +1113,9 @@ def main(args):
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'layer_size': 500,
-        'batch_size': 2048,#512,
+        'layer_size': [500, 500],
+        # 'layer_size': 500,
+        'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
@@ -1186,6 +1187,17 @@ def main(args):
     surrogate_model_params['gen_dim'] = dim_x
     px['dim_x'] = dim_x
 
+    ###### debug
+    params['obs_dim'] = 1
+    params['action_dim'] = 1
+    params['dynamics_model_params']['obs_dim'] = 1
+    params['dynamics_model_params']['action_dim'] = 1
+    params['state_min'] = params['state_min'][:1]
+    params['state_max'] = params['state_max'][:1]
+    params['action_min'] = params['action_min'][:1]
+    params['action_max'] = params['action_max'][:1]
+    #######
+    
     # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
@@ -1201,7 +1213,7 @@ def main(args):
         ## Generate data
         if args.pretrain == 'srf':
             ens_size = 1 if args.model_type == 'det' else args.ens_size
-            n_training_samples = 200000
+            n_training_samples = 10000
             input_data, output_data = get_ensemble_training_samples(
                 params,
                 n_training_samples=n_training_samples, ensemble_size=ens_size
@@ -1239,7 +1251,27 @@ def main(args):
                 print('###########################################################')
                 print('###########################################################')
                 print('###########################################################')
+                
+                import matplotlib.pyplot as plt
+                ## Plot generated srf
+                fig, ax = plt.subplots()
+                sc = ax.scatter(in_train_data[:,0], in_train_data[:,1], c=out_train_data[:,0]-in_train_data[:,0])
+                                # vmin=np.min(out_train_data-in_train_data[:,0]), vmax=np.max(out_train_data-in_train_data[:,0]))
+                plt.colorbar(sc)
+                plt.title('Generated srf data')
+                ## Plot learned srf
+                # Query the nn for the input data:
+                out_learned_data = dynamics_model.output_pred(ptu.from_numpy(in_train_data)) 
+                fig, ax = plt.subplots()
+                sc = ax.scatter(in_train_data[:,0], in_train_data[:,1], c=out_learned_data[:])
+                                # vmin=np.min(out_learned_data), vmax=np.max(out_learned_data))
+                plt.colorbar(sc)
+                plt.title('Learned srf data')
 
+                plt.show()
+                
+                exit()
+                
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
     elif args.environment == 'hexapod_omni':

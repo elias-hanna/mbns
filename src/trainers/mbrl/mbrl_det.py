@@ -26,7 +26,6 @@ class MBRLTrainer(TorchTrainer):
         self.action_dim = model.action_dim
         self.batch_size = batch_size
         self.train_call_freq = train_call_freq
-
         self.optimizer = optimizer_class(self.model.parameters(), lr=learning_rate)
 
         self._n_train_steps_total = 0
