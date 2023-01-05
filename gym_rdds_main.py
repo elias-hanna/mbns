@@ -1114,7 +1114,7 @@ def main(args):
         'obs_dim': obs_dim,
         'action_dim': act_dim,
         'layer_size': 500,
-        'batch_size': 512,
+        'batch_size': 2048,#512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
@@ -1201,7 +1201,7 @@ def main(args):
         ## Generate data
         if args.pretrain == 'srf':
             ens_size = 1 if args.model_type == 'det' else args.ens_size
-            n_training_samples = 50000
+            n_training_samples = 200000
             input_data, output_data = get_ensemble_training_samples(
                 params,
                 n_training_samples=n_training_samples, ensemble_size=ens_size
@@ -1227,7 +1227,7 @@ def main(args):
                     holdout_pct=0.2,
                     max_grad_steps=100000,
                     epochs_since_last_update=5,
-                    verbose=False,
+                    verbose=True,
                 )
 
                 eval_stats = dynamics_model_trainer.get_diagnostics()
