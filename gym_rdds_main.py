@@ -1116,7 +1116,7 @@ def main(args):
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'layer_size': [500, 500, 500],
+        'layer_size': [500, 400, 300, 200, 100],
         # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-2,
@@ -1216,7 +1216,7 @@ def main(args):
         ## Generate data
         if args.pretrain == 'srf':
             ens_size = 1 if args.model_type == 'det' else args.ens_size
-            n_training_samples = 100000
+            n_training_samples = 1000
             input_data, output_data = get_ensemble_training_samples(
                 params,
                 n_training_samples=n_training_samples, ensemble_size=ens_size
@@ -1239,9 +1239,9 @@ def main(args):
                 ## train from buffer each model one by one
                 dynamics_model_trainer.train_from_buffer(
                     replay_buffer, 
-                    holdout_pct=0.2,
+                    holdout_pct=0.01,
                     max_grad_steps=100000,
-                    epochs_since_last_update=5,
+                    epochs_since_last_update=50,
                     verbose=True,
                 )
 
