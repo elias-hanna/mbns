@@ -150,11 +150,12 @@ def get_dynamics_model(params):
                                        params['action_max'])),
                 use_minmax_norm=use_minmax_norm)
         ## warning same trainer for all (need to call it n times) 
-        dynamics_model_trainer = MBRLTrainer(
-            model=dynamics_model,
-            learning_rate=dynamics_model_params['learning_rate'],
-            batch_size=dynamics_model_params['batch_size'],)
-
+        # dynamics_model_trainer = MBRLTrainer(
+        #     model=dynamics_model,
+        #     learning_rate=dynamics_model_params['learning_rate'],
+        #     batch_size=dynamics_model_params['batch_size'],)
+        dynamics_model_trainer = None
+        
     return dynamics_model, dynamics_model_trainer
 
 def get_surrogate_model(surrogate_model_params):
@@ -919,6 +920,8 @@ def main(args):
         # If it is larger than the nov_l value, we are imposing that the model must predict something more novel than we would normally have before even trying it out
         # fitness is always positive - so t_qua
 
+        ## model parameters
+        'model_type': args.model_type,
         "model_variant": args.model_variant, # "dynamics" or "direct" or "all_dynamics"  
         "perfect_model_on": args.perfect_model,
         
@@ -1112,7 +1115,7 @@ def main(args):
         'n_hidden_layers': 2,
         'n_neurons_per_hidden': 10,
         'time_open_loop': False,
-        'norm_input': False,
+        'norm_input': True,
     }
     dynamics_model_params = \
     {
@@ -1176,6 +1179,7 @@ def main(args):
         'srf_var': 0.00001,
         'srf_cor': 0.0001,
     }
+    px['dab_params'] = params
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop']:
         controller_params['obs_dim'] = 1
@@ -1193,14 +1197,14 @@ def main(args):
     px['dim_x'] = dim_x
 
     ###### debug
-    params['obs_dim'] = 1
-    params['action_dim'] = 1
-    params['dynamics_model_params']['obs_dim'] = 1
-    params['dynamics_model_params']['action_dim'] = 1
-    params['state_min'] = params['state_min'][:1]
-    params['state_max'] = params['state_max'][:1]
-    params['action_min'] = params['action_min'][:1]
-    params['action_max'] = params['action_max'][:1]
+    # params['obs_dim'] = 1
+    # params['action_dim'] = 1
+    # params['dynamics_model_params']['obs_dim'] = 1
+    # params['dynamics_model_params']['action_dim'] = 1
+    # params['state_min'] = params['state_min'][:1]
+    # params['state_max'] = params['state_max'][:1]
+    # params['action_min'] = params['action_min'][:1]
+    # params['action_max'] = params['action_max'][:1]
     #######
     
     # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)

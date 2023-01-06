@@ -211,7 +211,36 @@ class NS:
             neigh_dists, neigh_inds = neighbors.kneighbors()
             for ind, dists in zip(pop, neigh_dists):
                 ind.nov = np.mean(dists)
-            
+
+    def update_novelty_scores_ensemble(self, pop, archive, k=15):
+        # Get novelty scores on all models of ensemble individually
+        ind_novs = []
+        ens_size = self.params['ensemble_size']
+        for i in range(ens_size):
+            ind_novs.append([])
+            # Convert the dataset to a numpy array
+            all_bds = []
+            all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
+                        for ind in pop] # pop is usually just offspring
+
+            all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
+                        for ind in archive]
+            all_bds = np.array(all_bds)
+
+            novelty_scores = np.empty((len(all_bds)))
+            # Compute the k-NN of the data point
+            neighbors = NearestNeighbors(n_neighbors=k)
+            neighbors.fit(all_bds)
+
+            ## New way
+            neigh_dists, neigh_inds = neighbors.kneighbors()
+            for ind, dists in zip(pop, neigh_dists):
+                ind_novs[i].append(np.mean(dists))
+        ind_novs = np.array(ind_novs)
+        # update all individuals nov by minimum of novelty on all environments
+        for i in range(len(pop)):
+            pop[i].nov = np.min(ind_novs[:,i])
+        
     def compute(self,
                 num_cores_set,
                 max_evals=1e6,
@@ -277,7 +306,11 @@ class NS:
                 offspring = s_list
 
                 ## Update population nov (pop + offsprings)
-                self.update_novelty_scores(population + offspring, self.archive)
+                if params['model_type'] == 'det_ens':
+                    self.update_novelty_scores_ensemble(population + offspring,
+                                                        self.archive)
+                else:
+                    self.update_novelty_scores(population + offspring, self.archive)
 
                 ## Add offsprings to archive
                 self.archive, add_list, _ = self.addition_condition(offspring,
