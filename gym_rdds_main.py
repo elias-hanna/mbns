@@ -1001,6 +1001,8 @@ def main(args):
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
         ss_max = np.array([600, 600, 1, 1, 1, 1])
+        ss_min = np.array([0, 0, -1, -1, -1, -1])
+        ss_max = np.array([600, 600, 1, 1, 1, 1])
         init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
@@ -1116,10 +1118,10 @@ def main(args):
     {
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-        'layer_size': [500, 400, 300, 200, 100],
+        'layer_size': [500, 400],
         # 'layer_size': 500,
         'batch_size': 512,
-        'learning_rate': 1e-2,
+        'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
@@ -1171,8 +1173,8 @@ def main(args):
         ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
-        'srf_var': 1,
-        'srf_cor': 10,
+        'srf_var': 0.00001,
+        'srf_cor': 0.0001,
     }
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop']:
@@ -1216,7 +1218,7 @@ def main(args):
         ## Generate data
         if args.pretrain == 'srf':
             ens_size = 1 if args.model_type == 'det' else args.ens_size
-            n_training_samples = 1000
+            n_training_samples = args.pretrain_budget
             input_data, output_data = get_ensemble_training_samples(
                 params,
                 n_training_samples=n_training_samples, ensemble_size=ens_size
@@ -1239,9 +1241,9 @@ def main(args):
                 ## train from buffer each model one by one
                 dynamics_model_trainer.train_from_buffer(
                     replay_buffer, 
-                    holdout_pct=0.01,
+                    holdout_pct=0.2,
                     max_grad_steps=100000,
-                    epochs_since_last_update=50,
+                    epochs_since_last_update=5,
                     verbose=True,
                 )
 
@@ -1257,19 +1259,25 @@ def main(args):
                 
                 import matplotlib.pyplot as plt
                 ## Plot generated srf
-                fig, ax = plt.subplots()
-                sc = ax.scatter(in_train_data[:,0], in_train_data[:,1], c=out_train_data[:,0]-in_train_data[:,0])
-                                # vmin=np.min(out_train_data-in_train_data[:,0]), vmax=np.max(out_train_data-in_train_data[:,0]))
+                fig, (ax1, ax2) = plt.subplots(1, 2)
+                vmin = np.min(out_train_data[:,0]-in_train_data[:,0])
+                vmax = np.max(out_train_data[:,0]-in_train_data[:,0])
+                sc = ax1.scatter(in_train_data[:,0], in_train_data[:,1], c=out_train_data[:,0]-in_train_data[:,0],)
+                                # vmin=vmin, vmax=vmax)
                 plt.colorbar(sc)
-                plt.title('Generated srf data')
+                # plt.title('Generated srf data')
+                ax1.set_title('Generated srf data')
                 ## Plot learned srf
                 # Query the nn for the input data:
                 out_learned_data = dynamics_model.output_pred(ptu.from_numpy(in_train_data)) 
-                fig, ax = plt.subplots()
-                sc = ax.scatter(in_train_data[:,0], in_train_data[:,1], c=out_learned_data[:])
+                # fig, ax = plt.subplots()
+                sc = ax2.scatter(in_train_data[:,0], in_train_data[:,1], c=out_learned_data[:],
+                                vmin=vmin, vmax=vmax) 
                                 # vmin=np.min(out_learned_data), vmax=np.max(out_learned_data))
                 plt.colorbar(sc)
-                plt.title('Learned srf data')
+                ax2.set_title('Generated srf data')
+                plt.title('Generated vs Learned srf data')
+                # plt.title('Learned srf data')
 
                 plt.show()
                 
@@ -1439,6 +1447,7 @@ if __name__ == "__main__":
     ## '' does not pretrain, srf pretrains using data generated with
     ## spatial random fields
     parser.add_argument('--pretrain', type=str, default='')
+    parser.add_argument('--pretrain-budget', type=int, default=10000)
 
     args = parser.parse_args()
 
