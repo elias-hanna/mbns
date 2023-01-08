@@ -1127,7 +1127,7 @@ def main(args):
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
-        'model_horizon': args.model_horizon if args.model_horizon is not None else max_step,
+        'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
         'ensemble_size': args.ens_size,
     }
     surrogate_model_params = \
@@ -1446,7 +1446,7 @@ if __name__ == "__main__":
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
     parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
     parser.add_argument('--ens-size', type=int, default='4') # when using ens
-    parser.add_argument('--model-horizon', type=int, default=None) # model eval horizon
+    parser.add_argument('--model-horizon', type=int, default=-1) # model eval horizon
     parser.add_argument('--perfect-model', action='store_true')
     ## '' does not pretrain, srf pretrains using data generated with
     ## spatial random fields
