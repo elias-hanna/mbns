@@ -176,6 +176,7 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             # FOR JUST A SCATTER PLOT OF THE DESCRIPTORS - doesnt work for interactive selection
             #data.plot.scatter(x=2,y=3,c=0,colormap='Spectral', s=2, ax=ax, vmin=-0.1, vmax=1.2)
             # data.plot.scatter(x=1,y=2,c=0,colormap='viridis', s=2, ax=ax) # color by fitness
+            import pdb; pdb.set_trace()
             bdx = data[bd_cols[0]]
             bdy = None
             if len(bd_cols) > 1:
