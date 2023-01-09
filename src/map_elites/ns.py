@@ -212,7 +212,7 @@ class NS:
                 ind.nov = np.mean(dists)
 
     # nov: min takes minimum of novelty from all models, mean takes the mean
-    def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='min', norm=False):
+    def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='sum', norm=False):
         # Get novelty scores on all models of ensemble individually
         ind_novs = []
         ens_size = self.params['ensemble_size']
@@ -247,6 +247,8 @@ class NS:
                 pop[i].nov = np.min(ind_novs[:,i])
             elif nov == 'mean':
                 pop[i].nov = np.mean(ind_novs[:,i])
+            elif nov == 'sum':
+                pop[i].nov = sum(ind_novs[:,i])
                 
     def compute(self,
                 num_cores_set,
