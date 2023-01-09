@@ -318,6 +318,7 @@ class NS:
                 if params['model_type'] == 'det_ens':
                     self.update_novelty_scores_ensemble(population + offspring,
                                                         self.archive,
+                                                        nov=params['nov_ens'],
                                                         norm=params['norm_bd'])
                 else:
                     self.update_novelty_scores(population + offspring, self.archive)
