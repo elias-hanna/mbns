@@ -36,7 +36,8 @@ from multiprocessing import cpu_count
 import time
 import tqdm
 
-
+max_obs = None
+min_obs = None
 ################################################################################
 ################################ QD methods ####################################
 ################################################################################
@@ -261,6 +262,20 @@ class WrappedEnv():
         if render:
             print("Desc from simulation", desc)
 
+
+        ## snippet to gather min and max obs
+        # global max_obs, min_obs
+        # obs_traj = np.array(obs_traj)
+        # if max_obs is None:
+        #     max_obs = np.max(obs_traj, axis=0)
+        # else:
+        #     max_obs = np.reshape(max_obs, (1,-1))
+        #     max_obs = np.max(np.concatenate((max_obs, obs_traj), axis=0), axis=0)
+        # if min_obs is None:
+        #     min_obs = np.min(obs_traj, axis=0)
+        # else:
+        #     min_obs = np.reshape(min_obs, (1,-1))
+        #     min_obs = np.min(np.concatenate((min_obs, obs_traj), axis=0), axis=0)
         return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     ## Evaluate the individual on the DYNAMICS MODEL
@@ -791,7 +806,7 @@ class WrappedEnv():
                     bd = obs_wps[:,:,:2].flatten()
                 if self._env_name == 'fastsim_maze_traps':
                     bd = obs_wps[:,:,:2].flatten()
-                if self._env_name == 'redundant_arm_no_walls_limited_angles':
+                if 'redundant_arm' in self._env_name:
                     bd = obs_wps[:,:,-2:].flatten()
                 if self._env_name == 'half_cheetah':
                     bd = obs_wps[:,:,:1].flatten()
@@ -807,7 +822,7 @@ class WrappedEnv():
             bd = obs_wps[:,:2].flatten()
         if self._env_name == 'fastsim_maze_traps':
             bd = obs_wps[:,:2].flatten()
-        if self._env_name == 'redundant_arm_no_walls_limited_angles':
+        if 'redundant_arm' in self._env_name:
             bd = obs_wps[:,-2:].flatten()
         if self._env_name == 'half_cheetah':
             bd = obs_wps[:,:1].flatten()
@@ -838,7 +853,7 @@ class WrappedEnv():
             fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'fastsim_maze_traps':
             fit = fit_func(act_traj, disagr_traj)
-        if self._env_name == 'redundant_arm_no_walls_limited_angles':
+        if 'redundant_arm' in self._env_name:
             fit = fit_func(act_traj, disagr_traj)
         if self._env_name == 'half_cheetah':
             fit = fit_func(act_traj, disagr_traj)
@@ -960,12 +975,24 @@ def main(args):
         ss_max = 0.4
         dim_map = 3
     elif args.environment == 'redundant_arm':
-        import redundant_arm ## contains redundant arm
+        import redundant_arm ## contains classic redundant arm
         env_register_id = 'RedundantArmPos-v0'
         a_min = np.array([-1]*20)
         a_max = np.array([1]*20)
-        ss_min = -1
-        ss_max = 1
+        ss_min = np.array([-2.91586418e-01, -2.91059290e-01, -4.05994661e-01,
+                           -3.43161155e-01, -4.48797687e-01, -3.42430607e-01,
+                           -4.64587165e-01, -4.57486040e-01, -4.40965296e-01,
+                           -3.74359165e-01, -4.73628034e-01, -3.64009843e-01,
+                           -4.78609985e-01, -4.22113313e-01, -5.27555361e-01,
+                           -5.18617559e-01, -4.36935815e-01, -5.31945509e-01,
+                           -4.44923835e-01, -5.36581457e-01, 2.33058244e-05,
+                           7.98103927e-05])
+        ss_max = np.array([0.8002732,  0.74879046, 0.68724849, 0.76289724,
+                           0.66943127, 0.77772601, 0.67210694, 0.56392794,
+                           0.65394265, 0.74616584, 0.61193007, 0.73037668,
+                           0.59987872, 0.71458412, 0.58088037, 0.60106068,
+                           0.66026566, 0.58433874, 0.64901992, 0.44800244,
+                           0.99999368, 0.99999659])
         dim_map = 2
     elif args.environment == 'redundant_arm_no_walls':
         env_register_id = 'RedundantArmPosNoWalls-v0'
@@ -1118,7 +1145,7 @@ def main(args):
         'n_hidden_layers': 2,
         'n_neurons_per_hidden': 10,
         'time_open_loop': False,
-        'norm_input': True,
+        'norm_input': False,
     }
     dynamics_model_params = \
     {
