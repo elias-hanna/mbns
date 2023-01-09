@@ -186,8 +186,7 @@ class NS:
     def update_novelty_scores(self, pop, archive, k=15, slow=False):
         # Convert the dataset to a numpy array
         all_bds = []
-        all_bds += [ind.desc for ind in pop] # pop is usually just offspring
-                                            # since curr pop is in archive alr
+        all_bds += [ind.desc for ind in pop] # pop is usually pop + offspring
         all_bds += [ind.desc for ind in archive]
         all_bds = np.array(all_bds)
 
@@ -213,7 +212,7 @@ class NS:
                 ind.nov = np.mean(dists)
 
     # nov: min takes minimum of novelty from all models, mean takes the mean
-    def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='min'):
+    def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='min', norm=False):
         # Get novelty scores on all models of ensemble individually
         ind_novs = []
         ens_size = self.params['ensemble_size']
@@ -222,12 +221,16 @@ class NS:
             # Convert the dataset to a numpy array
             all_bds = []
             all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
-                        for ind in pop] # pop is usually just offspring
+                        for ind in pop] # pop is usually pop + offspring 
 
             all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
                         for ind in archive]
             all_bds = np.array(all_bds)
 
+            if norm:
+                max_bd = np.max(all_bds, axis=0)
+                min_bd = np.min(all_bds, axis=0)
+                all_bds = (all_bds - min_bd)/(max_bd - min_bd)
             novelty_scores = np.empty((len(all_bds)))
             # Compute the k-NN of the data point
             neighbors = NearestNeighbors(n_neighbors=k)
@@ -312,7 +315,8 @@ class NS:
                 ## Update population nov (pop + offsprings)
                 if params['model_type'] == 'det_ens':
                     self.update_novelty_scores_ensemble(population + offspring,
-                                                        self.archive)
+                                                        self.archive,
+                                                        norm=params['norm_bd'])
                 else:
                     self.update_novelty_scores(population + offspring, self.archive)
 

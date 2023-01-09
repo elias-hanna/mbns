@@ -928,11 +928,13 @@ def main(args):
         "log_model_stats": False,
         "log_time_stats": False, 
         "log_ind_trajs": args.log_ind_trajs,
-        
+
+        "norm_bd": args.norm_bd,
         # 0 for random emiiter, 1 for optimizing emitter
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
 
+        
         "env_name": args.environment,
         ## for dump
         "ensemble_dump": False,
@@ -1448,6 +1450,7 @@ if __name__ == "__main__":
     parser.add_argument('--ens-size', type=int, default='4') # when using ens
     parser.add_argument('--model-horizon', type=int, default=-1) # model eval horizon
     parser.add_argument('--perfect-model', action='store_true')
+    parser.add_argument('--norm-bd', type=bool, default=False)
     ## '' does not pretrain, srf pretrains using data generated with
     ## spatial random fields
     parser.add_argument('--pretrain', type=str, default='')

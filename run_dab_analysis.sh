@@ -8,15 +8,17 @@
 ######### Results from cluster ########
 reps=10
 
-environments=(half_cheetah walker2d empty_maze) # Considered environments
-# environments=(empty_maze) # Considered environments
+# environments=(half_cheetah walker2d empty_maze) # Considered environments
+# environments=(half_cheetah walker2d) # Considered environments
+environments=(empty_maze) # Considered environments
 # nb_divs=(10 100 1000)
-nb_divs=(100 1000)
+nb_divs=(10)
 
 # search_methods=(random-policies det det_ens) # considered search methods
-ens_sizes=(4 40 400)
-search_methods=(random-policies det) # considered search methods
-ens_sizes=(1)
+ens_sizes=(4 40)
+search_methods=(random-policies det det_ens det_ens_old) # considered search methods
+# ens_sizes=(1)
+# m_horizons=(10 -1) # Considered model horizons
 m_horizons=(10) # Considered model horizons
 sel_methods=(random max nov kmeans) # selection methods
 # sel_methods=(random max) # selection methods
@@ -26,7 +28,8 @@ asize=15100 # saved archive sizes
 # final_asize=100 # number of random policies
 # asize=20100 # saved archive sizes
 final_asizes=(100 200 500 1000) # number of random policies
-# final_asizes=(100 200 500) # number of random policies
+final_asizes=(100 200 500) # number of random policies
+# final_asizes=(100) # number of random policies
 
 n_waypoints=(1) # Number of waypoints for the BD (1 is last traj element)
 

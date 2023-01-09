@@ -510,7 +510,7 @@ def main(args):
     plt.title(f'Coverage for each archive bootstrapping method\n' \
               f'(Behavior space division in {args.nb_div} parts per dimension)\n'
               f'{final_asize} individuals transferred')
-    fig.set_size_inches(36, 9)
+    fig.set_size_inches(45, 9)
     
     plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{final_asize}",
                 dpi=300, bbox_inches='tight')
