@@ -46,6 +46,7 @@ def str_to_tab(tab_as_str, dim=2):
 def process_env(args):
     ### Environment initialization ###
     env_register_id = 'BallInCup3d-v0'
+    env_div = 0
     gym_args = {}
     if args.environment == 'ball_in_cup':
         env_register_id = 'BallInCup3d-v0'
@@ -55,22 +56,37 @@ def process_env(args):
         bd_inds = [0, 1, 2]
     elif args.environment == 'redundant_arm':
         env_register_id = 'RedundantArmPos-v0'
-        ss_min = -1
-        ss_max = 1
+        ss_min = np.array([-2.91586418e-01, -2.91059290e-01, -4.05994661e-01,
+                           -3.43161155e-01, -4.48797687e-01, -3.42430607e-01,
+                           -4.64587165e-01, -4.57486040e-01, -4.40965296e-01,
+                           -3.74359165e-01, -4.73628034e-01, -3.64009843e-01,
+                           -4.78609985e-01, -4.22113313e-01, -5.27555361e-01,
+                           -5.18617559e-01, -4.36935815e-01, -5.31945509e-01,
+                           -4.44923835e-01, -5.36581457e-01, 2.33058244e-05,
+                           7.98103927e-05])
+        ss_max = np.array([0.8002732,  0.74879046, 0.68724849, 0.76289724,
+                           0.66943127, 0.77772601, 0.67210694, 0.56392794,
+                           0.65394265, 0.74616584, 0.61193007, 0.73037668,
+                           0.59987872, 0.71458412, 0.58088037, 0.60106068,
+                           0.66026566, 0.58433874, 0.64901992, 0.44800244,
+                           0.99999368, 0.99999659])
         dim_map = 2
         bd_inds = [-2, -1]
+        env_div = 50
     elif args.environment == 'redundant_arm_no_walls':
         env_register_id = 'RedundantArmPosNoWalls-v0'
         ss_min = -1
         ss_max = 1
         dim_map = 2
         bd_inds = [-2, -1]
+        env_div = 50
     elif args.environment == 'redundant_arm_no_walls_no_collision':
         env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
         ss_min = -1
         ss_max = 1
         dim_map = 2
         bd_inds = [-2, -1]
+        env_div = 50
     elif args.environment == 'redundant_arm_no_walls_limited_angles':
         env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
         ss_min = -1
@@ -78,16 +94,16 @@ def process_env(args):
         dim_map = 2
         gym_args['dof'] = 100
         bd_inds = [-2, -1]
+        env_div = 50
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         ss_min = 0
         ss_max = 600
         dim_map = 2
         bd_inds = [0, 1]
+        env_div = 50
     elif args.environment == 'empty_maze':
         env_register_id = 'FastsimEmptyMapNavigationPos-v0'
-        # ss_min = -10
-        # ss_max = 10
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
@@ -95,6 +111,7 @@ def process_env(args):
         init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
         bd_inds = [0, 1]
+        env_div = 50
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         ss_min = 0
@@ -102,6 +119,7 @@ def process_env(args):
         dim_map = 2
         gym_args['physical_traps'] = True
         bd_inds = [0, 1]
+        env_div = 50
     elif args.environment == 'half_cheetah':
         env_register_id = 'HalfCheetah-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
@@ -113,6 +131,7 @@ def process_env(args):
         gym_args['exclude_current_positions_from_observation'] = False
         gym_args['reset_noise_scale'] = 0
         bd_inds = [0]
+        env_div = 500
     elif args.environment == 'walker2d':
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
@@ -124,6 +143,7 @@ def process_env(args):
         gym_args['exclude_current_positions_from_observation'] = False
         gym_args['reset_noise_scale'] = 0
         bd_inds = [0]
+        env_div = 500
     elif args.environment == 'hexapod_omni':
         is_local_env = True
         max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
@@ -146,7 +166,7 @@ def process_env(args):
         except:
             raise AttributeError("Env does not allow access to _max_episode_steps or to max_steps")
 
-    return gym_env, max_step, ss_min, ss_max, dim_map, bd_inds
+    return gym_env, max_step, ss_min, ss_max, dim_map, bd_inds, env_div
 
 def select_inds(data, path, sel_size, search_method, horizon, sel_method,
                 ens_size, args):
@@ -164,7 +184,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method,
         ## after last value i a line
         ret_data = ret_data.iloc[:,:-1]
         ## get env info
-        _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+        _, _, ss_min, ss_max, dim_map, bd_inds, _ = process_env(args)
         ## add bins field to data
         ret_data = get_data_bins(ret_data, args, ss_min,
                                  ss_max, dim_map, bd_inds)
@@ -183,7 +203,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method,
         ## select sel_size individuals closest to sel_size kmeans clusters
         if not 'ens' in search_method:
             # get env info
-            _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+            _, _, ss_min, ss_max, dim_map, bd_inds, _ = process_env(args)
             bd_cols = [f'bd{i}' for i in range(dim_map)]
             ret_data = get_closest_to_clusters_centroid(data, bd_cols, sel_size)
         else: ## can't do kmeans selection on model ensemble
@@ -191,7 +211,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method,
     elif sel_method == 'nov':
         ## select sel_size individuals that are the most novel on the model
         ## get env info
-        _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+        _, _, ss_min, ss_max, dim_map, bd_inds, _ = process_env(args)
         bd_cols = [f'bd{i}' for i in range(dim_map)]
         ## single model selection: max novelty
         if not 'ens' in search_method:
@@ -276,8 +296,6 @@ def get_data_bins(data, args, ss_min, ss_max, dim_map, bd_inds):
     data = data.append(df_min, ignore_index = True)
     data = data.append(df_max, ignore_index = True)
 
-    args.nb_div
-
     for i in range(dim_map):
         data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
                                   bins = args.nb_div, 
@@ -295,7 +313,7 @@ def get_data_bins(data, args, ss_min, ss_max, dim_map, bd_inds):
 
 def compute_cov(data, args):
     ## get env info
-    _, _, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+    _, _, ss_min, ss_max, dim_map, bd_inds, _ = process_env(args)
     ## add bins field to data
     data = get_data_bins(data, args, ss_min, ss_max, dim_map, bd_inds)
     ## count number of bins filled
@@ -347,6 +365,20 @@ def update_archive_covs(working_dir, args, archive_covs,
             # comma after last value i a line
             data_real_all = data_real_all.iloc[:,:-1] 
             gen_cols = [f'x{i}' for i in range(dim_x)]
+            ## todo hot fix need debug v
+            filter_types = [i for (i,type) in
+                            zip(sel_data, sel_data.dtypes)
+                            if 'float' not in str(type)]
+            filter_types += [i for (i,type) in
+                            zip(data_real_all, data_real_all.dtypes)
+                            if 'float' not in str(type)]
+            filter_types = [c for c in filter_types if 'x' in c]
+            gen_cols = list(set(gen_cols)-set(filter_types))
+            if len(filter_types) > 0: 
+                print(f"WARNING: Filtered columns due to bug -> {filter_types}\n" \
+                      f"Happened for following path: {abs_rep_folder}")
+            ## todo hot fix need debug ^
+            
             merged_data = sel_data.merge(data_real_all, on=gen_cols,
                                          suffixes=('_model',''))
             dump_fn =  os.path.join(abs_rep_folder,
@@ -363,11 +395,11 @@ def update_archive_covs(working_dir, args, archive_covs,
 
 def main(args):
     final_asize = args.final_asize
-    
     ## Set params and rename some 
-    gym_env, max_step, ss_min, ss_max, dim_map, bd_inds = process_env(args)
+    gym_env, max_step, ss_min, ss_max, dim_map, bd_inds, env_div = process_env(args)
     dim_x = 0 # set when we open a data file for first time
     
+    args.nb_div = env_div if env_div > 0 else args.nb_div
     search_methods = args.search_methods
     sel_methods = args.sel_methods
     m_horizons = args.m_horizons
@@ -380,10 +412,6 @@ def main(args):
         if search_method == 'random-policies':
             ab_methods.append(search_method)
         else:
-            # for m_horizon in m_horizons:
-            #     ab_methods.append(
-            #         f'{search_method}-h{m_horizon}'
-            #     )
             for m_horizon in m_horizons:
                 for n_wp in n_wps:
                     if not 'ens' in search_method:
@@ -420,8 +448,6 @@ def main(args):
     for search_method in search_methods:
         if search_method == 'random-policies':
             ## get abs path to working dir (dir containing reps)
-            # working_dir = os.path.join(cwd,
-            #                            f'{search_method.replace("-", "_")}')
             working_dir = os.path.join(cwd,
                                        f'{search_method.replace("-", "_")}_{final_asize}_results')
             ## Open each archive file: warning budget is final_asize on these
