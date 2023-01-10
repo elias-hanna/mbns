@@ -1144,8 +1144,8 @@ def main(args):
         'controller_output_dim': act_dim,
         'n_hidden_layers': 2,
         'n_neurons_per_hidden': 10,
-        'time_open_loop': False,
-        'norm_input': False,
+        'time_open_loop': args.open_loop_control,
+        'norm_input': args.norm_controller_input,
     }
     dynamics_model_params = \
     {
@@ -1472,6 +1472,10 @@ if __name__ == "__main__":
     parser.add_argument('--environment', '-e', type=str, default='empty_maze')
     parser.add_argument('--rep', type=int, default='1')
 
+    #-----------Controller params--------#
+    parser.add_argument('--norm-controller-input', type=bool, default=False) # minmax Normalize input space
+    parser.add_argument('--open-loop-control', type=bool, default=False) # open loop (time) or closed loop (state) control
+    
     #-------------Model params-----------#
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
     parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
