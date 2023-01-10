@@ -460,7 +460,7 @@ class WrappedEnv():
                     if self.time_open_loop:
                         if self._norm_c_input:
                             norm_t = (t/self._env_max_h)*(1+1) - 1
-                            A[i] = controller_list[i]([norm_t])
+                            A[i] = controller_list[i](norm_t)
                         else:
                             A[i] = controller_list[i]([t])
                     else:
@@ -473,11 +473,15 @@ class WrappedEnv():
                     if self.time_open_loop:
                         if self._norm_c_input:
                             norm_t = (t/self._env_max_h)*(1+1) - 1
+                            norm_t_input = np.reshape(
+                                np.array([norm_t]*ens_size),(-1,1))
                             A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i]([norm_t]*ens_size)
+                            controller_list[i](norm_t_input)
                         else:
+                            t_input = np.reshape(
+                                np.array([t]*ens_size),(-1,1))
                             A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i]([t]*ens_size)
+                            controller_list[i](t_input)
                     else:
                         if self._norm_c_input:
                             norm_s = self.normalize_inputs_s_minmax(
@@ -1211,7 +1215,7 @@ def main(args):
     }
     px['dab_params'] = params
     ## Correct obs dim for controller if open looping on time
-    if params['time_open_loop']:
+    if params['time_open_loop'] == True:
         controller_params['obs_dim'] = 1
     if init_obs is not None:
         params['init_obs'] = init_obs
