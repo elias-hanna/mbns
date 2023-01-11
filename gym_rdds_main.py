@@ -880,12 +880,13 @@ def main(args):
         # type of qd 'unstructured, grid, cvt'
         "type": args.qd_type,
         # arg for NS
-        "pop_size": 100,
+        "pop_size": args.pop_size,
         # more of this -> higher-quality CVT
         "cvt_samples": 25000,
         "cvt_use_cache": True,
         # we evaluate in batches to parallelize
-        "batch_size": args.b_size,
+        # "batch_size": args.b_size,
+        "batch_size": args.pop_size*2,
         # proportion of total number of niches to be filled before starting
         "random_init": 0.005,  
         # batch for random initialization
@@ -927,7 +928,8 @@ def main(args):
         # "nov_l": 1.5,
         "eps": 0.1, # usually 10%
         "k": 15,  # from novelty search
-        "lambda": 15, # For fixed ind add during runs (Gomes 2015)
+        "lambda": args.lambda_add, # For fixed ind add during runs (Gomes 2015)
+        "arch_sel": args.arch_sel, # random, novelty
 
         #--------MODEL BASED PARAMS-------#
         "t_nov": 0.03,
@@ -1469,11 +1471,14 @@ if __name__ == "__main__":
     parser.add_argument("--mutation", default="iso_dd", type=str)
 
     #-------------Algo params-----------#
+    parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
     ## Gen max_evals random policies and evaluate them
     parser.add_argument('--random-policies', action="store_true") 
     parser.add_argument('--environment', '-e', type=str, default='empty_maze')
+    parser.add_argument('--lambda-add', type=int, default=15)
+    parser.add_argument('--arch-sel', type=str, default='random')
     parser.add_argument('--rep', type=int, default='1')
 
     #-----------Controller params--------#

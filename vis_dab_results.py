@@ -349,7 +349,6 @@ def update_archive_covs(working_dir, args, archive_covs,
 
         if dim_x == 0:
             dim_x = len([col for col in rep_data.columns if 'x' in col])
-
         ## Select final_asize inds based on sel_method
         sel_data, ok = select_inds(rep_data, abs_rep_folder,
                                    final_asize, search_method,
@@ -378,7 +377,6 @@ def update_archive_covs(working_dir, args, archive_covs,
                 print(f"WARNING: Filtered columns due to bug -> {filter_types}\n" \
                       f"Happened for following path: {abs_rep_folder}")
             ## todo hot fix need debug ^
-            
             merged_data = sel_data.merge(data_real_all, on=gen_cols,
                                          suffixes=('_model',''))
             dump_fn =  os.path.join(abs_rep_folder,
@@ -468,7 +466,6 @@ def main(args):
                 rep_data = rep_data.iloc[:,:-1]
                 if dim_x == 0:
                     dim_x = len([col for col in rep_data.columns if 'x' in col])
-
                 # compute cov for given rep_data
                 archive_covs[abm_cpt, 0, rep_cpt] = compute_cov(
                     rep_data, args

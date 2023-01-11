@@ -124,7 +124,7 @@ class NS:
         self.model_archive = []        
 
     def random_archive_init(self, to_evaluate):
-        for i in range(0, self.params['random_init_batch']):
+        for i in range(0, self.params['pop_size']):
             x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
             to_evaluate += [(x, self.f_real)]
         
@@ -165,11 +165,15 @@ class NS:
         add_list = [] # list of solutions that were added
         discard_list = []
         if self.qd_type == "fixed":
-            ## Randomly add lambda elements to archive
-            sel_s_list = np.random.choice(s_list, size=params['lambda'], replace=False)
+            if params['arch_sel'] ==  'random':
+                ## Randomly add lambda inds to archive
+                sel_s_list = np.random.choice(s_list, size=params['lambda'], replace=False)
+            elif params['arch_sel'] == 'nov' or params['arch_sel'] == 'novelty':
+                ## Add lambda inds to archive based on novelty
+                sorted_s_list = sorted(s_list, key=lambda x:x.nov, reverse=True)
+                sel_s_list = sorted_s_list[:params['lambda']]
             for s in sel_s_list:
-                archive.append(s)
-            pass
+                    archive.append(s)
         else:
             for s in s_list:
                 if self.qd_type == "unstructured":
