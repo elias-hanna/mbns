@@ -11,12 +11,13 @@ reps=10
 environments=(empty_maze walker2d redundant_arm) # Considered environments
 nb_divs=(1) ## not taken into account anymore
 
-ens_sizes=(4 40)
+ens_sizes=(4)
 search_methods=(random-policies det det_ens) # considered search methods
 m_horizons=(10) # Considered model horizons
 sel_methods=(random max nov kmeans) # selection methods
 
 asize=15100 # saved archive sizes
+asize=211000 # saved archive sizes
 final_asizes=(100 200 500 1000) # number of random policies
 
 n_waypoints=(1) # Number of waypoints for the BD (1 is last traj element)

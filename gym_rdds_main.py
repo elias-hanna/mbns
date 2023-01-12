@@ -1000,6 +1000,7 @@ def main(args):
                            0.66026566, 0.58433874, 0.64901992, 0.44800244,
                            0.99999368, 0.99999659])
         dim_map = 2
+        gym_args['dof'] = 3
     elif args.environment == 'redundant_arm_no_walls':
         env_register_id = 'RedundantArmPosNoWalls-v0'
         a_min = np.array([-1]*20)
