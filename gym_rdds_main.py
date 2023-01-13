@@ -206,6 +206,7 @@ class WrappedEnv():
         self.time_open_loop = params['time_open_loop']
         self._norm_c_input = params['controller_params']['norm_input']
         self.n_wps = params['n_waypoints']
+        self.log_ind_trajs = params["log_ind_trajs"]
         
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
@@ -276,6 +277,10 @@ class WrappedEnv():
         # else:
         #     min_obs = np.reshape(min_obs, (1,-1))
         #     min_obs = np.min(np.concatenate((min_obs, obs_traj), axis=0), axis=0)
+        if not self.log_ind_trajs:
+            obs_traj = None
+            act_traj = None
+
         return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     ## Evaluate the individual on the DYNAMICS MODEL
@@ -333,6 +338,11 @@ class WrappedEnv():
             print("Desc from model", desc)
             
         disagr = 0
+
+        if not self.log_ind_trajs:
+            obs_traj = None
+            act_traj = None
+
         return fitness, desc, obs_traj, act_traj, disagr
 
     def evaluate_solution_model_all(self, ctrls, render=False):
@@ -412,6 +422,11 @@ class WrappedEnv():
 
             fit_list.append(fitness)
             bd_list.append(desc)
+            
+        if not self.log_ind_trajs:
+            obs_trajs = None
+            act_trajs = None
+            disagr_trajs = None
             
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
@@ -540,6 +555,11 @@ class WrappedEnv():
             fit_list.append(fitness)
             bd_list.append(desc)
             
+        if not self.log_ind_trajs:
+            obs_trajs = None
+            act_trajs = None
+            disagr_trajs = None
+
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
@@ -671,7 +691,12 @@ class WrappedEnv():
 
             fit_list.append(fitness)
             bd_list.append(desc)
-            
+
+        if not self.log_ind_trajs:
+            obs_trajs = None
+            act_trajs = None
+            disagr_trajs = None
+
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def forward_multiple(self, A, S, mean=True, disagr=True, ensemble=True, det_ens=False):
@@ -1217,6 +1242,9 @@ def main(args):
         ## srf parameters
         'srf_var': 0.00001,
         'srf_cor': 0.0001,
+
+        ## Dump params/ memory gestion params
+        "log_ind_trajs": args.log_ind_trajs,
     }
     px['dab_params'] = params
     ## Correct obs dim for controller if open looping on time
