@@ -286,8 +286,9 @@ ind_cpt = 0
 # fitness,  desc and x are vectors
 def save_archive(archive, gen, params, log_dir):
     global ind_cpt
-    path_to_trajs = os.path.join(log_dir, 'ind_trajs')
-    os.makedirs(path_to_trajs, exist_ok=True)
+    if params['log_ind_trajs'] == True:
+        path_to_trajs = os.path.join(log_dir, 'ind_trajs')
+        os.makedirs(path_to_trajs, exist_ok=True)
     
     def write_array(a, f):
         for i in a:
