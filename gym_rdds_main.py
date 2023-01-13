@@ -424,9 +424,9 @@ class WrappedEnv():
             bd_list.append(desc)
             
         if not self.log_ind_trajs:
-            obs_trajs = None
-            act_trajs = None
-            disagr_trajs = None
+            obs_trajs = [None]*len(ctrls)
+            act_trajs = [None]*len(ctrls)
+            disagr_trajs = [None]*len(ctrls)
             
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
@@ -556,9 +556,9 @@ class WrappedEnv():
             bd_list.append(desc)
             
         if not self.log_ind_trajs:
-            obs_trajs = None
-            act_trajs = None
-            disagr_trajs = None
+            obs_trajs = [None]*len(ctrls)
+            act_trajs = [None]*len(ctrls)
+            disagr_trajs = [None]*len(ctrls)
 
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
@@ -693,9 +693,9 @@ class WrappedEnv():
             bd_list.append(desc)
 
         if not self.log_ind_trajs:
-            obs_trajs = None
-            act_trajs = None
-            disagr_trajs = None
+            obs_trajs = [None]*len(ctrls)
+            act_trajs = [None]*len(ctrls)
+            disagr_trajs = [None]*len(ctrls)
 
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
@@ -923,12 +923,12 @@ def main(args):
         "dump_mode": args.dump_mode,
 
         # do we use several cores?
-        "parallel": True,
+        "parallel": False,
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
-        "min": -5 if args.environment != 'hexapod_omni' else 0.0,
-        "max": 5 if args.environment != 'hexapod_omni' else 1.0,
+        "min": -10 if args.environment != 'hexapod_omni' else 0.0,
+        "max": 10 if args.environment != 'hexapod_omni' else 1.0,
         
         #------------MUTATION PARAMS---------#
         # selector ["uniform", "random_search"]
@@ -1007,7 +1007,7 @@ def main(args):
         dim_map = 3
     elif args.environment == 'redundant_arm':
         import redundant_arm ## contains classic redundant arm
-        gym_args['dof'] = 3
+        gym_args['dof'] = 20
         env_register_id = 'RedundantArmPos-v0'
         a_min = np.array([-1]*gym_args['dof'])
         a_max = np.array([1]*gym_args['dof'])
@@ -1247,6 +1247,8 @@ def main(args):
         "log_ind_trajs": args.log_ind_trajs,
     }
     px['dab_params'] = params
+    px['min'] = params['policy_param_init_min']
+    px['max'] = params['policy_param_init_max']
     ## Correct obs dim for controller if open looping on time
     if params['time_open_loop'] == True:
         controller_params['obs_dim'] = 1
@@ -1484,12 +1486,12 @@ if __name__ == "__main__":
     
     #-----------Store results + analysis-----------#
     parser.add_argument("--log_dir", type=str)
-    parser.add_argument('--log-ind-trajs', action="store_true") ## Gen max_evals random policies and evaluate them
+    parser.add_argument('--log-ind-trajs', action="store_true") ## Store trajs?
     
     #-----------QD params for cvt or GRID---------------#
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
     parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
-    parser.add_argument("--n_niches", default=3000, type=int)
+    parser.add_argument("--n_niches", default=3000, type=int) # qd number niches
 
     #----------population params--------#
     parser.add_argument("--random-init-batch", default=100, type=int) # Number of inds to initialize the archive
@@ -1513,7 +1515,7 @@ if __name__ == "__main__":
     parser.add_argument('--rep', type=int, default='1')
 
     #-----------Controller params--------#
-    parser.add_argument('--norm-controller-input', type=bool, default=False) # minmax Normalize input space
+    parser.add_argument('--norm-controller-input', type=bool, default=True) # minmax Normalize input space
     parser.add_argument('--open-loop-control', type=bool, default=False) # open loop (time) or closed loop (state) control
     
     #-------------Model params-----------#

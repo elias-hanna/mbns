@@ -36,6 +36,7 @@ def process_env(args):
         bd_inds = [0, 1, 2]
     elif args.environment == 'redundant_arm':
         env_register_id = 'RedundantArmPos-v0'
+        gym_args['dof'] = 3
         ss_min = -1
         ss_max = 1
         dim_map = 2
@@ -71,9 +72,8 @@ def process_env(args):
         # ss_max = 10
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
-        ss_min = np.array([0, 0, -1, -1, -1, -1])
-        ss_max = np.array([600, 600, 1, 1, 1, 1])
-        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        ss_min = 0
+        ss_max = 600
         dim_map = 2
         bd_inds = [0, 1]
     elif args.environment == 'fastsim_maze_traps':
@@ -87,9 +87,8 @@ def process_env(args):
         env_register_id = 'HalfCheetah-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        ss_min = np.array([-10]*18)
-        ss_max = np.array([10]*18)
-        init_obs = np.array([0.]*18)
+        ss_min = -10
+        ss_max = 10
         dim_map = 1
         gym_args['exclude_current_positions_from_observation'] = False
         gym_args['reset_noise_scale'] = 0
@@ -98,9 +97,8 @@ def process_env(args):
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        ss_min = np.array([-10]*18)
-        ss_max = np.array([10]*18)
-        init_obs = np.array([0.]*18)
+        ss_min = -10
+        ss_max = 10
         dim_map = 1
         gym_args['exclude_current_positions_from_observation'] = False
         gym_args['reset_noise_scale'] = 0
@@ -176,7 +174,7 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             # FOR JUST A SCATTER PLOT OF THE DESCRIPTORS - doesnt work for interactive selection
             #data.plot.scatter(x=2,y=3,c=0,colormap='Spectral', s=2, ax=ax, vmin=-0.1, vmax=1.2)
             # data.plot.scatter(x=1,y=2,c=0,colormap='viridis', s=2, ax=ax) # color by fitness
-            import pdb; pdb.set_trace()
+            fig.set_size_inches(9, 9)
             bdx = data[bd_cols[0]]
             bdy = None
             if len(bd_cols) > 1:
@@ -185,7 +183,9 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
                 bdy = [0]*len(bdx)
             # data.plot.scatter(x=bdx,y=bdy,c='fit',colormap='viridis', s=10, ax=ax)
             ax.scatter(x=bdx,y=bdy,s=10)
-            plt.title('Trajectories end-point of model archive')
+            ax.set_xlabel('x-axis')
+            ax.set_ylabel('y-axis')
+            plt.title(f'Trajectories end-point of random policies on navigation task')
         else:
             from colour import Color
             # red = Color("red")
@@ -426,7 +426,7 @@ def main(args):
         # fig, ax = plot_archive(data_real_added, plt, args, ss_min, ss_max, bounds=True)
 
     else:
-        fig, ax = plot_archive(data, plt, args, ss_min, ss_max, bounds=args.bounds)
+        fig, ax = plot_archive(data, plt, args, ss_min, ss_max, bounds=args.bounds, bd_cols=bd_cols)
         
     #=====================PLOT DATA===========================#
 
