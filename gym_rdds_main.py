@@ -1207,7 +1207,7 @@ def main(args):
         'controller_input_dim': obs_dim,
         'controller_output_dim': act_dim,
         'n_hidden_layers': 2,
-        'n_neurons_per_hidden': 10,
+        'n_neurons_per_hidden': 256,
         'time_open_loop': args.open_loop_control,
         'norm_input': args.norm_controller_input,
     }
