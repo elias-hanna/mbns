@@ -339,8 +339,14 @@ def get_most_nov_data(data, n=100, bd_cols=['bd0', 'bd1'], ens_size=1):
 def main(args):
     gym_env, max_step, ss_min, ss_max, dim_map, bd_inds = process_env(args)
     # dim_x = 36
-    
-    data = pd.read_csv(args.filename)
+    ## Only read the first line to get the columns
+    data = pd.read_csv(args.filename, nrows=1)
+    ## Only keep important columns and 10 genotype columns for merge purposes
+    usecols = [col for col in data.columns if 'bd' in col or 'fit' in col]
+    usecols += [col for col in data.columns if 'x' in col][:10]
+    ## Load the complete dataset
+    data = pd.read_csv(args.filename, usecols=usecols)
+
     data = data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line
     dim_x = len([col for col in data.columns if 'x' in col])
     bds = [col for col in data.columns if 'bd' in col]

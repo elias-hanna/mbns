@@ -949,7 +949,7 @@ def main(args):
         "dump_mode": args.dump_mode,
 
         # do we use several cores?
-        "parallel": False,
+        "parallel": args.parallel,
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
@@ -1206,7 +1206,7 @@ def main(args):
     {
         'controller_input_dim': obs_dim,
         'controller_output_dim': act_dim,
-        'n_hidden_layers': 2,
+        'n_hidden_layers': 10,
         'n_neurons_per_hidden': 256,
         'time_open_loop': args.open_loop_control,
         'norm_input': args.norm_controller_input,
@@ -1511,6 +1511,7 @@ if __name__ == "__main__":
     parser.add_argument("--qd_type", type=str, default="fixed")
     
     #---------------CPU usage-------------------#
+    parser.add_argument("--parallel", action="store_true")
     parser.add_argument("--num_cores", type=int, default=6)
     
     #-----------Store results + analysis-----------#
