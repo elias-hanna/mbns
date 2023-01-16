@@ -407,7 +407,8 @@ def main(args):
     
     ab_methods = []
     for search_method in search_methods:
-        if search_method == 'random-policies':
+        # if search_method == 'random-policies':
+        if 'random-policies' in search_method:
             ab_methods.append(search_method)
         else:
             for m_horizon in m_horizons:
@@ -444,7 +445,8 @@ def main(args):
     searchm_cpt = 0
     abm_cpt = 0
     for search_method in search_methods:
-        if search_method == 'random-policies':
+        # if search_method == 'random-policies':
+        if 'random-policies' in search_method:
             ## get abs path to working dir (dir containing reps)
             working_dir = os.path.join(cwd,
                                        f'{search_method.replace("-", "_")}_{final_asize}_results')

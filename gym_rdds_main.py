@@ -1206,8 +1206,8 @@ def main(args):
     {
         'controller_input_dim': obs_dim,
         'controller_output_dim': act_dim,
-        'n_hidden_layers': 10,
-        'n_neurons_per_hidden': 256,
+        'n_hidden_layers': args.c_n_layers,
+        'n_neurons_per_hidden': args.c_n_neurons,
         'time_open_loop': args.open_loop_control,
         'norm_input': args.norm_controller_input,
     }
@@ -1547,6 +1547,8 @@ if __name__ == "__main__":
     #-----------Controller params--------#
     parser.add_argument('--norm-controller-input', type=bool, default=True) # minmax Normalize input space
     parser.add_argument('--open-loop-control', type=bool, default=False) # open loop (time) or closed loop (state) control
+    parser.add_argument('--c-n-layers', type=int, default=2) # open loop (time) or closed loop (state) control
+    parser.add_argument('--c-n-neurons', type=int, default=10) # open loop (time) or closed loop (state) control
     
     #-------------Model params-----------#
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
