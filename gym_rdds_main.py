@@ -179,6 +179,7 @@ class WrappedEnv():
         self._state_max = params['state_max']
         self._sa_min = np.concatenate((params['state_min'], params['action_min']))
         self._sa_max = np.concatenate((params['state_max'], params['action_max']))
+        self._dim_map = params['dim_map']
         self._env_max_h = params['env_max_h']
         self._env = params['env']
         self._env_name = params['env_name']
@@ -207,7 +208,7 @@ class WrappedEnv():
         self._norm_c_input = params['controller_params']['norm_input']
         self.n_wps = params['n_waypoints']
         self.log_ind_trajs = params["log_ind_trajs"]
-        
+
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
 
@@ -227,6 +228,9 @@ class WrappedEnv():
         obs = env.reset()
         act_traj = []
         obs_traj = []
+        info_traj = []
+        cum_act = np.zeros((self._act_dim))
+        cum_delta_pos = np.zeros((2,))
         ## WARNING: need to get previous obs
         for t in range(self._env_max_h):
             if self._is_goal_env:
@@ -244,12 +248,22 @@ class WrappedEnv():
                 else:
                     action = controller(obs)
             action = np.clip(action, self._action_min, self._action_max)
+            cum_act += action
+            # if 'fastsim' in self._env_name or 'maze' in self._env_name:
+            #     vr = action[0]
+            #     vl = action[1]
+            #     l = 10
+            #     delta_x = ( ( (vr+vl)/(vr-vl) ) * l/2 ) * np.sin((vr-vl)/l)
+            #     delta_y = ( ( (vr+vl)/(vr-vl) ) * l/2 ) * (np.cos((vr-vl)/l) +1)
+            #     cum_delta_pos += np.array([delta_x, delta_y])
+                
             # action = np.random.uniform(low=-1, high=1, size=(self._act_dim,))
             # action[action>self._action_max] = self._action_max
             # action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
             act_traj.append(action)
             obs, reward, done, info = env.step(action)
+            info_traj.append(info)
             # print(np.array(obs_traj[-1]) - np.array(obs))
             if done:
                 break
@@ -258,6 +272,19 @@ class WrappedEnv():
         obs_traj.append(obs)
 
         desc = self.compute_bd(obs_traj)
+        if 'maze' in self._env_name:
+            try:
+                wp_idxs = [i for i in range(len(info_traj)//self.n_wps, len(info_traj),
+                                            len(info_traj)//self.n_wps)][:self.n_wps-1]
+            except:
+                import pdb; pdb.set_trace()
+            wp_idxs += [-1]
+
+            info_wps = np.take(info_traj, wp_idxs, axis=0)
+            desc = []
+            for info_wp in info_wps:
+                desc += info_wp['robot_pos'][:2]
+            
         fitness = self.compute_fitness(obs_traj, act_traj)
 
         if render:
@@ -398,7 +425,6 @@ class WrappedEnv():
             for i in range(len(ctrls)):
                 ## Compute mean prediction from model samples
                 next_step_pred = batch_pred_delta_ns[i]
-                # import pdb; pdb.set_trace()
                 S[i,:] += next_step_pred.copy()
                 traj_list[i].append(S[i,:].copy())
                 disagreements_list[i].append(batch_disagreement[i])
@@ -812,7 +838,7 @@ class WrappedEnv():
         return disagreements
 
     def compute_bd(self, obs_traj, ensemble=False, mean=True):
-        bd = None
+        bd = [0]*self._dim_map
 
         try:
             wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
@@ -1050,10 +1076,22 @@ def main(args):
         ss_max = 1
         dim_map = 2
         gym_args['dof'] = 100
+    elif args.environment == 'fastsim_maze_laser':
+        env_register_id = 'FastsimSimpleNavigation-v0'
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, 0, 0, 0])
+        ss_max = np.array([100, 100, 100, 1, 1])
+        dim_map = 2
+    elif args.environment == 'empty_maze_laser':
+        env_register_id = 'FastsimEmptyMapNavigation-v0'
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, 0, 0, 0])
+        ss_max = np.array([100, 100, 100, 1, 1])
+        dim_map = 2
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
-        # ss_min = -10
-        # ss_max = 10
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
@@ -1062,8 +1100,6 @@ def main(args):
         dim_map = 2
     elif args.environment == 'empty_maze':
         env_register_id = 'FastsimEmptyMapNavigationPos-v0'
-        # ss_min = -10
-        # ss_max = 10
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
@@ -1074,8 +1110,6 @@ def main(args):
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
-        # ss_min = -10
-        # ss_max = 10
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
@@ -1086,8 +1120,6 @@ def main(args):
         env_register_id = 'HalfCheetah-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        # ss_min = np.array([-10]*18)
-        # ss_max = np.array([10]*18)
         ## Got these with NS 100 000 eval budget
         ss_min = np.array([-49.02189923, -0.61095456, -16.64607454, -0.70108701,
                            -1.00943152, -0.65815842, -1.19701832, -1.28944137,
@@ -1108,8 +1140,6 @@ def main(args):
         env_register_id = 'Walker2d-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
         a_max = np.array([1, 1, 1, 1, 1, 1])
-        # ss_min = np.array([-10]*18)
-        # ss_max = np.array([10]*18)
         ## Got these with NS 100 000 eval budget
         ss_min = np.array([-4.26249395, 0.75083099, -1.40787207, -2.81284653,
                            -2.93150238, -1.5855295, -3.04205169, -2.91603065,
@@ -1236,7 +1266,8 @@ def main(args):
         'fitness_func': args.fitness_func,
         'n_waypoints': n_waypoints,
         'num_cores': args.num_cores,
-
+        'dim_map': dim_map,
+        
         ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
@@ -1411,7 +1442,6 @@ def main(args):
             to_evaluate += [(x, f_real)]
             n_evals = len(to_evaluate)
             # fit, desc, obs, act, disagr = f_real(x, render=False)
-            # import pdb; pdb.set_trace()
             # exit()
             
     ## Evaluate the found solutions on the model
@@ -1457,11 +1487,10 @@ def main(args):
 
     px["ensemble_dump"] = False
     
-    real_archive = []
+    # real_archive = []
             
-    real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
-
-    cm.save_archive(real_archive, f"{n_evals}_real_added", px, args.log_dir)
+    # real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
+    # cm.save_archive(real_archive, f"{n_evals}_real_added", px, args.log_dir)
     cm.save_archive(s_list, f"{n_evals}_real_all", px, args.log_dir)
     
 ################################################################################

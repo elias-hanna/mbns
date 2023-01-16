@@ -294,10 +294,8 @@ def save_archive(archive, gen, params, log_dir):
         for i in a:
             f.write(str(i) + ',') # save comma inbetween so easier to read as pandas
 
-    def get_array_string(a, np_traj=False):
-        if np_traj:
-            pass
-        elif hasattr(a[0], "__len__"):
+    def get_array_string(a):
+        if hasattr(a[0], "__len__"):
             a = a[0]
         array_str = ''
         for i in a:
@@ -342,9 +340,6 @@ def save_archive(archive, gen, params, log_dir):
 
                 ## Add the trajectories
                 if k.obs_traj is not None and params['log_ind_trajs'] == True:
-                    ## Bad way
-                    # ind_string += get_array_string(k.obs_traj, np_traj=True)
-                    # ind_string += get_array_string(k.act_traj, np_traj=True)
                     ## Good way ?
                     ind_trajs_filename = f'ind_trajs_{ind_cpt}'
                     ind_string += 'ind_trajs/' + ind_trajs_filename + '.npz' + ','
