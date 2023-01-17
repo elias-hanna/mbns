@@ -95,6 +95,24 @@ def process_env(args):
         gym_args['dof'] = 100
         bd_inds = [-2, -1]
         env_div = 50
+    elif args.environment == 'fastsim_maze_laser':
+        env_register_id = 'FastsimSimpleNavigation-v0'
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, 0, 0, 0])
+        ss_max = np.array([100, 100, 100, 1, 1])
+        dim_map = 2
+        bd_inds = [0, 1]
+        env_div = 50
+    elif args.environment == 'empty_maze_laser':
+        env_register_id = 'FastsimEmptyMapNavigation-v0'
+        a_min = np.array([-1, -1])
+        a_max = np.array([1, 1])
+        ss_min = np.array([0, 0, 0, 0, 0])
+        ss_max = np.array([100, 100, 100, 1, 1])
+        dim_map = 2
+        bd_inds = [0, 1]
+        env_div = 50
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         ss_min = 0
@@ -179,7 +197,8 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method,
         ## select sel_size individuals that cover the most from real archive
         filename = os.path.join(path,
                                 f'archive_{args.asize}_real_all.dat')
-        ret_data = pd.read_csv(filename)
+        ret_data = pd_read_csv_fast(filename)
+        # ret_data = pd.read_csv(filename)
         ## drop the last column which was made because there is a comma
         ## after last value i a line
         ret_data = ret_data.iloc[:,:-1]
@@ -339,7 +358,8 @@ def update_archive_covs(working_dir, args, archive_covs,
         filename = os.path.join(abs_rep_folder,
                                 f'archive_{args.asize}.dat')
         try:
-            rep_data = pd.read_csv(filename)
+            rep_data = pd_read_csv_fast(filename)
+            # rep_data = pd.read_csv(filename)
         except FileNotFoundError:
             print(f'WARNING: No archive file for: {abs_rep_folder}')
             continue ## we keep nans where there is missing data
@@ -359,7 +379,8 @@ def update_archive_covs(working_dir, args, archive_covs,
             ## Load real evaluations of individuals
             filename = os.path.join(abs_rep_folder,
                                     f'archive_{args.asize}_real_all.dat')
-            data_real_all = pd.read_csv(filename)
+            data_real_all = pd_read_csv_fast(filename)
+            # data_real_all = pd.read_csv(filename)
             # drop the last column which was made because there is a
             # comma after last value i a line
             data_real_all = data_real_all.iloc[:,:-1] 
@@ -390,6 +411,15 @@ def update_archive_covs(working_dir, args, archive_covs,
             except:
                 import pdb; pdb.set_trace()
             rep_cpt += 1
+
+def pd_read_csv_fast(filename):
+    ## Only read the first line to get the columns
+    data = pd.read_csv(filename, nrows=1)
+    ## Only keep important columns and 10 genotype columns for merge purposes
+    usecols = [col for col in data.columns if 'bd' in col or 'fit' in col]
+    usecols += [col for col in data.columns if 'x' in col][:10]
+    ## Return the complete dataset (without the << useless >> columns
+    return pd.read_csv(filename, usecols=usecols)
 
 def main(args):
     final_asize = args.final_asize
@@ -451,7 +481,10 @@ def main(args):
             working_dir = os.path.join(cwd,
                                        f'{search_method.replace("-", "_")}_{final_asize}_results')
             ## Open each archive file: warning budget is final_asize on these
-            rep_folders = next(os.walk(working_dir))[1]
+            try:
+                rep_folders = next(os.walk(working_dir))[1]
+            except:
+                import pdb; pdb.set_trace()
             abs_rep_folders = [os.path.join(working_dir, rep_folder)
                                for rep_folder in rep_folders]
             rep_cpt = 0
@@ -459,7 +492,8 @@ def main(args):
                 filename = os.path.join(abs_rep_folder,
                                         f'archive_{final_asize}_real_all.dat')
                 try:
-                    rep_data = pd.read_csv(filename)
+                    rep_data = pd_read_csv_fast(filename)
+                    # rep_data = pd.read_csv(filename)
                 except FileNotFoundError:
                     print(f'WARNING: No archive file for: {abs_rep_folder}')
                     continue ## we keep nans where there is missing data
@@ -535,7 +569,7 @@ def main(args):
     plt.title(f'Coverage for each archive bootstrapping method\n' \
               f'(Behavior space division in {args.nb_div} parts per dimension)\n'
               f'{final_asize} individuals transferred')
-    fig.set_size_inches(45, 9)
+    fig.set_size_inches(4, 3)
     
     plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{final_asize}",
                 dpi=300, bbox_inches='tight')

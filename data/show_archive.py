@@ -344,7 +344,7 @@ def main(args):
     ## Only keep important columns and 10 genotype columns for merge purposes
     usecols = [col for col in data.columns if 'bd' in col or 'fit' in col]
     usecols += [col for col in data.columns if 'x' in col][:10]
-    ## Load the complete dataset
+    ## Load the complete dataset (without the << useless >> columns)
     data = pd.read_csv(args.filename, usecols=usecols)
 
     data = data.iloc[:,:-1] # drop the last column which was made because there is a comma after last value i a line

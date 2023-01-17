@@ -14,6 +14,7 @@ import src.torch.pytorch_util as ptu
 import torch
 
 #----------controller imports--------#
+from model_init_study.controller.controller import Controller ## Superclass for controllers
 from model_init_study.controller.nn_controller \
     import NeuralNetworkController
 
@@ -171,6 +172,91 @@ def get_surrogate_model(surrogate_model_params):
 
     return model, model_trainer
 
+class RNNController(Controller):
+    def __init__(self, params):
+        super().__init__(params)
+        controller_params = params['controller_params']
+        self.n_per_hidden = controller_params['n_neurons_per_hidden']
+        self.n_hidden_layers = controller_params['n_hidden_layers']
+        ## Exception error raised in super __init__ if controller_params not in params uwu
+        ## inputs: (batch,seq_len,input_dim)
+        # batch is different observation sequences
+        # seq_len is the length of each observation sequence
+        # input dim is the dimension of each observation
+        self.controller = torch.nn.RNN(input_size=5,
+        # self.controller = torch.nn.RNN(input_size=self.input_dim,
+                                       # hidden_size=self.output_dim,
+                                       # num_layers=self.n_hidden_layers,
+                                       hidden_size=3,
+                                       num_layers=4,
+                                       nonlinearity='tanh',
+                                       batch_first=True) 
+
+        ## keep the rnn params easily accessible
+        self.hidden_size = self.controller.hidden_size
+        self.input_size = self.controller.input_size
+        
+        ## First need to get n_params
+        self.layers_sizes = []
+        self.params = self.get_parameters()
+        self.n_params = len(self.params)
+        self.set_parameters(np.empty((len(self.params))))
+        import pdb; pdb.set_trace()
+        
+    def set_parameters(self, flat_parameters):
+        self.params = flat_parameters
+        ## ih layers
+        # first ih layer has shape (hidden_size, input_size)
+        # all other ih layers have shape (hidden_size, hidden_size)
+        ## hh layers: all hh layers have shape (hidden_size, hidden_size)
+        ## Biases: all biases have shape (hidden_size)
+        assert len(flat_parameters) == self.n_params
+        layer_names = self.controller._flat_weights_names
+        params_cpt = 0
+                            
+        import pdb; pdb.set_trace()
+                            
+        for (layer_name, layer_size) in zip(layer_names, self.layers_sizes):
+            flat_to_set = flat_parameters[params_cpt:params_cpt+layer_size]
+            params_cpt += layer_size
+            
+            # if 'weight_ih' in layer_name:
+            #     if 'l0' in layer_name:
+            #         to_set = np.array(flat_to_set, (self.hidden_size, self.input_size))
+            #     else:
+            #         to_set = np.array(flat_to_set, (self.hidden_size, self.hidden_size))
+            # if 'weight_hh' in layer_name:
+            #     to_set = np.array(flat_to_set, (self.hidden_size, self.hidden_size))
+            # if 'bias' in layer_name:
+            #     to_set = np.array(flat_to_set, (self.hidden_size))
+            if 'weight' in layer_name:
+                if 'ih_l0' in layer_name:
+                    to_set = np.array(flat_to_set, (self.hidden_size, self.input_size))
+                else:
+                    to_set = np.array(flat_to_set, (self.hidden_size, self.hidden_size))
+            if 'bias' in layer_name:
+                to_set = np.array(flat_to_set, (self.hidden_size))
+            import pdb; pdb.set_trace()
+            to_set = ptu.from_numpy(to_set)
+            self.controller.layer_name = to_set
+
+    def get_parameters(self):
+        layers_flat_weights = self.controller._flat_weights
+        layers_names = self.controller._flat_weights_names
+        flat_weights = []
+        for (layer_flat_weights, layer_name) in zip(layers_flat_weights, layers_names):
+            flat_weights += list(ptu.get_numpy(layer_flat_weights).flatten())
+            self.layers_sizes.append(len(flat_weights))
+        return flat_weights
+
+    def predict(self, x):
+        pass
+    
+    def __call__(self, x):
+        """Calling the controller calls predict"""
+        pass
+
+        
 class WrappedEnv():
     def __init__(self, params):
         self._action_min = params['action_min']
@@ -196,6 +282,14 @@ class WrappedEnv():
         self.nb_thread = cpu_count() - 1 or 1
         ## Get the controller and initialize it from params
         self.controller = params['controller_type'](params)
+        # if params['controller_type'] == NeuralNetworkController:
+        #     self.controller = NeuralNetworkController(params)
+        # elif params['controller_type'] == torch.nn.RNN:
+            
+        #     import pdb; pdb.set_trace()
+        #     pass
+        # else:
+        #     raise Exception('WrappedEnv __init__ error: unknown params["controller_type"]')
         ## Get policy parameters init min and max
         self._policy_param_init_min = params['policy_param_init_min'] 
         self._policy_param_init_max = params['policy_param_init_max']
@@ -224,7 +318,7 @@ class WrappedEnv():
         # assert len(x) == len(self.controller.get_parameters())
         ## Set controller parameters
         controller.set_parameters(ctrl)
-        env = copy.copy(self._env) ## need to verify this works
+        env = copy.copy(self._env)
         obs = env.reset()
         act_traj = []
         obs_traj = []
@@ -1242,7 +1336,8 @@ def main(args):
         'dynamics_model_params': dynamics_model_params,
 
         ## controller parameters
-        'controller_type': NeuralNetworkController,
+        # 'controller_type': NeuralNetworkController,
+        'controller_type': RNNController,
         'controller_params': controller_params,
         'time_open_loop': controller_params['time_open_loop'],
         
