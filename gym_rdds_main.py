@@ -323,18 +323,27 @@ class WrappedEnv():
         self.nb_thread = cpu_count() - 1 or 1
         ## Get the controller and initialize it from params
         self.controller = params['controller_type'](params)
+        self.pred_mode = params['controller_params']['pred_mode']
+        self.time_open_loop = params['time_open_loop']
+        self._norm_c_input = params['controller_params']['norm_input']
         ## Get policy parameters init min and max
         self._policy_param_init_min = params['policy_param_init_min'] 
         self._policy_param_init_max = params['policy_param_init_max']
         ## Get size of policy parameter vector
         self.policy_representation_dim = len(self.controller.get_parameters())
+        ## Dynamics model parameters
         self.dynamics_model = None
         self._model_max_h = params['dynamics_model_params']['model_horizon']
         self._ens_size = params['dynamics_model_params']['ensemble_size']
-        self.time_open_loop = params['time_open_loop']
-        self._norm_c_input = params['controller_params']['norm_input']
         self.n_wps = params['n_waypoints']
         self.log_ind_trajs = params["log_ind_trajs"]
+
+        print('###############################################################')
+        print('################ Environment parameters: ######################')
+        print(f'###### - env name:        {self._env_name}                    ')
+        print(f'###### - task horizon:    {self._env_max_h}                   ')
+        print(f'###### - controller type: {params["controller_type"]}         ')
+        print('###############################################################')
 
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
@@ -358,22 +367,30 @@ class WrappedEnv():
         info_traj = []
         cum_act = np.zeros((self._act_dim))
         cum_delta_pos = np.zeros((2,))
+        c_input_traj = []
         ## WARNING: need to get previous obs
         for t in range(self._env_max_h):
             if self._is_goal_env:
                 obs = obs['observation']
+            c_input = None
             if self.time_open_loop:
                 if self._norm_c_input:
-                    norm_t = (t/self._env_max_h)*(1+1) - 1
-                    action = controller([norm_t])
+                    c_input = [(t/self._env_max_h)*(1+1) - 1]
                 else:
-                    action = controller([t])
+                    c_input = [t]
             else:
                 if self._norm_c_input:
-                    norm_obs = self.normalize_inputs_s_minmax(obs)
-                    action = controller(norm_obs)
+                    c_input = self.normalize_inputs_s_minmax(obs)
                 else:
-                    action = controller(obs)
+                    c_input = obs
+                c_input_traj.append(c_input)
+            if self.pred_mode == 'single':
+                action = controller(c_input)
+            elif self.pred_mode == 'all':
+                action = controller(c_input_traj)
+            elif self.pred_mode == 'window':
+                action = controller(c_input_traj[:-10])
+
             action = np.clip(action, self._action_min, self._action_max)
             cum_act += action
             # if 'fastsim' in self._env_name or 'maze' in self._env_name:

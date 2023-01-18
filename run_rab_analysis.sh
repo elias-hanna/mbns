@@ -14,7 +14,7 @@ nb_divs=(1) ## not taken into account anymore
 
 ## Model architectures
 # architectures=(ffnn_2l_10n ffnn_2l_64n ffnn_10l_10n ffnn_10l_64n)
-architectures=(ffnn_10l_10n_2)
+architectures=(rnn_2l_10h)
 
 ## Search methods
 # search_methods=(random-policies det det_ens) # considered search methods
