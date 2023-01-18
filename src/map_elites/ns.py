@@ -270,13 +270,27 @@ class NS:
             
         pool = multiprocessing.Pool(num_cores)
 
-        population = []
+        if params['bootstrap_archive'] != '':
+            arch_data = pd.read_csv(params['bootstrap_archive'])
+            arch_data = arch_data.iloc[:,:-1]
+            s_list = []
+            gen_cols = [col for col in arch_data.columns if 'x' in col]
+            bd_cols = [col for col in arch_data.columns if 'bd' in col]
+            for index, row in arch_data.iterrows():
+                genotype = row[gen_cols]
+                bd = row[bd_cols]
+                s = cm.Species(genotype, bd, row['fit'])
+                s_list.append(s)
+            population = s_list
+            archive = s_list
+        else:
+            population = []
         
         gen = 0 # generation
         n_evals = 0 # number of evaluations since the beginning
         b_evals = 0 # number evaluation since the last dump
 
-        print("################# Starting QD algorithm #################")
+        print("################# Starting NS algorithm #################")
 
         # main loop
         while (n_evals < max_evals):
@@ -370,7 +384,7 @@ class NS:
             print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
-        print("End of QD algorithm - saving final archive")        
+        print("End of NS algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         pool.close()
         self.log_file.close()

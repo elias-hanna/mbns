@@ -1358,6 +1358,7 @@ def main(args):
         'policy_param_init_min': -5,
         'policy_param_init_max': 5,
 
+        'bootstrap_archive': args.bootstrap_archive_path
         'fitness_func': args.fitness_func,
         'n_waypoints': n_waypoints,
         'num_cores': args.num_cores,
@@ -1630,6 +1631,7 @@ if __name__ == "__main__":
 
     #-------------Algo params-----------#
     parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
+    parser.add_argument('--bootstrap-archive-path', type=str, default='')
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
     ## Gen max_evals random policies and evaluate them
