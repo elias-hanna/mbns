@@ -176,6 +176,7 @@ class RNNController(Controller):
     def __init__(self, params):
         super().__init__(params)
         controller_params = params['controller_params']
+        self.pred_mode = controller_params['pred_mode']
         self.n_per_hidden = controller_params['n_neurons_per_hidden']
         self.n_hidden_layers = controller_params['n_hidden_layers']
         ## Exception error raised in super __init__ if controller_params not in params uwu
@@ -183,15 +184,18 @@ class RNNController(Controller):
         # batch is different observation sequences
         # seq_len is the length of each observation sequence
         # input dim is the dimension of each observation
-        self.controller = torch.nn.RNN(input_size=5,
-        # self.controller = torch.nn.RNN(input_size=self.input_dim,
-                                       # hidden_size=self.output_dim,
-                                       # num_layers=self.n_hidden_layers,
-                                       hidden_size=3,
-                                       num_layers=4,
+
+        ## First implem: hidden state (output of rnn) is of size output_dim
+        self.controller = torch.nn.RNN(input_size=self.input_dim,
+                                       hidden_size=self.output_dim,
+                                       num_layers=self.n_hidden_layers,
                                        nonlinearity='tanh',
                                        batch_first=True) 
 
+        ## Second implem: hidden state (output of rnn) is of arbitrary size
+        ## and a final layer of output_dim neurons adapts it
+        ## to do
+        
         ## keep the rnn params easily accessible
         self.hidden_size = self.controller.hidden_size
         self.input_size = self.controller.input_size
@@ -200,8 +204,6 @@ class RNNController(Controller):
         self.layers_sizes = []
         self.params = self.get_parameters()
         self.n_params = len(self.params)
-        self.set_parameters(np.empty((len(self.params))))
-        import pdb; pdb.set_trace()
         
     def set_parameters(self, flat_parameters):
         self.params = flat_parameters
@@ -214,47 +216,56 @@ class RNNController(Controller):
         layer_names = self.controller._flat_weights_names
         params_cpt = 0
                             
-        import pdb; pdb.set_trace()
-                            
         for (layer_name, layer_size) in zip(layer_names, self.layers_sizes):
             flat_to_set = flat_parameters[params_cpt:params_cpt+layer_size]
             params_cpt += layer_size
-            
-            # if 'weight_ih' in layer_name:
-            #     if 'l0' in layer_name:
-            #         to_set = np.array(flat_to_set, (self.hidden_size, self.input_size))
-            #     else:
-            #         to_set = np.array(flat_to_set, (self.hidden_size, self.hidden_size))
-            # if 'weight_hh' in layer_name:
-            #     to_set = np.array(flat_to_set, (self.hidden_size, self.hidden_size))
-            # if 'bias' in layer_name:
-            #     to_set = np.array(flat_to_set, (self.hidden_size))
+
             if 'weight' in layer_name:
                 if 'ih_l0' in layer_name:
-                    to_set = np.array(flat_to_set, (self.hidden_size, self.input_size))
+                    to_set = np.resize(flat_to_set, (self.hidden_size, self.input_size))
                 else:
-                    to_set = np.array(flat_to_set, (self.hidden_size, self.hidden_size))
+                    to_set = np.resize(flat_to_set, (self.hidden_size, self.hidden_size))
             if 'bias' in layer_name:
-                to_set = np.array(flat_to_set, (self.hidden_size))
-            import pdb; pdb.set_trace()
-            to_set = ptu.from_numpy(to_set)
-            self.controller.layer_name = to_set
+                to_set = np.resize(flat_to_set, (self.hidden_size))
 
+            to_set = ptu.from_numpy(to_set)
+            with torch.no_grad():
+                setattr(self.controller, layer_name, torch.nn.Parameter(to_set))
+            
     def get_parameters(self):
         layers_flat_weights = self.controller._flat_weights
         layers_names = self.controller._flat_weights_names
         flat_weights = []
         for (layer_flat_weights, layer_name) in zip(layers_flat_weights, layers_names):
-            flat_weights += list(ptu.get_numpy(layer_flat_weights).flatten())
-            self.layers_sizes.append(len(flat_weights))
+            loc_layer_flat_weights = list(ptu.get_numpy(layer_flat_weights).flatten())
+            flat_weights += loc_layer_flat_weights
+            self.layers_sizes.append(len(loc_layer_flat_weights))
         return flat_weights
 
-    def predict(self, x):
-        pass
-    
+    def predict(self, x, h0=None):
+        ## If x shape is dim 1 -> sequence with a single element
+        ## If x shape is dim 2 -> either batch of sequences with single element
+        ## or single sequence with multiple elements
+        ## If x shape is dim 3 -> batch of sequences with multiple elements
+        # import pdb; pdb.set_trace()
+        if self.pred_mode == 'single':
+            x = np.reshape(x, (1, len(x)))
+            x = ptu.from_numpy(x)
+        elif self.pred_mode == 'all':
+            pass
+        elif self.pred_mode == 'window':
+            pass
+        if h0 is not None:
+            output, hn = self.controller(x, h0)
+        else:
+            output, hn = self.controller(x) ## h0 is 0 tensor in this case
+        ## output contains the final hidden state for each element in the sequence
+        ## hn contains the final hidden state
+        import pdb; pdb.set_trace()
+        
     def __call__(self, x):
         """Calling the controller calls predict"""
-        pass
+        return self.predict(x)
 
         
 class WrappedEnv():
@@ -1036,6 +1047,8 @@ def main(args):
         "random_init": 0.005,  
         # batch for random initialization
         "random_init_batch": args.random_init_batch,
+        # path of bootstrap archive
+        'bootstrap_archive': args.bootstrap_archive_path,
         # when to write results (one generation = one batch)
         "dump_period": args.dump_period,
         # when to write results (budget = dump when dump period budget exhausted,
@@ -1047,8 +1060,8 @@ def main(args):
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
-        "min": -10 if args.environment != 'hexapod_omni' else 0.0,
-        "max": 10 if args.environment != 'hexapod_omni' else 1.0,
+        "min": -5 if args.environment != 'hexapod_omni' else 0.0,
+        "max": 5 if args.environment != 'hexapod_omni' else 1.0,
         
         #------------MUTATION PARAMS---------#
         # selector ["uniform", "random_search"]
@@ -1304,6 +1317,7 @@ def main(args):
         'n_neurons_per_hidden': args.c_n_neurons,
         'time_open_loop': args.open_loop_control,
         'norm_input': args.norm_controller_input,
+        'pred_mode': args.pred_mode,
     }
     dynamics_model_params = \
     {
@@ -1358,7 +1372,6 @@ def main(args):
         'policy_param_init_min': -5,
         'policy_param_init_max': 5,
 
-        'bootstrap_archive': args.bootstrap_archive_path,
         'fitness_func': args.fitness_func,
         'n_waypoints': n_waypoints,
         'num_cores': args.num_cores,
@@ -1644,8 +1657,10 @@ if __name__ == "__main__":
     #-----------Controller params--------#
     parser.add_argument('--norm-controller-input', type=bool, default=True) # minmax Normalize input space
     parser.add_argument('--open-loop-control', type=bool, default=False) # open loop (time) or closed loop (state) control
-    parser.add_argument('--c-n-layers', type=int, default=2) # open loop (time) or closed loop (state) control
-    parser.add_argument('--c-n-neurons', type=int, default=10) # open loop (time) or closed loop (state) control
+    parser.add_argument('--c-n-layers', type=int, default=2) # Number of hidden layers
+    parser.add_argument('--c-n-neurons', type=int, default=10) # Number of neurons per hidden layer
+    ## RNN inputs: (batch,seq_len,input_dim)
+    parser.add_argument('--pred-mode', type=str, default='single') # RNN prediction mode (single; all; window)
     
     #-------------Model params-----------#
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
