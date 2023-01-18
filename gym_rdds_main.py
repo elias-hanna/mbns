@@ -1358,7 +1358,7 @@ def main(args):
         'policy_param_init_min': -5,
         'policy_param_init_max': 5,
 
-        'bootstrap_archive': args.bootstrap_archive_path
+        'bootstrap_archive': args.bootstrap_archive_path,
         'fitness_func': args.fitness_func,
         'n_waypoints': n_waypoints,
         'num_cores': args.num_cores,
