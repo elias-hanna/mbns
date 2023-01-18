@@ -172,39 +172,34 @@ def get_surrogate_model(surrogate_model_params):
 
     return model, model_trainer
 
-class RNNController(Controller):
-    def __init__(self, params):
-        super().__init__(params)
-        controller_params = params['controller_params']
-        self.pred_mode = controller_params['pred_mode']
-        self.n_per_hidden = controller_params['n_neurons_per_hidden']
-        self.n_hidden_layers = controller_params['n_hidden_layers']
-        ## Exception error raised in super __init__ if controller_params not in params uwu
-        ## inputs: (batch,seq_len,input_dim)
-        # batch is different observation sequences
-        # seq_len is the length of each observation sequence
-        # input dim is the dimension of each observation
+class RNNLinearOutput(torch.nn.Module):
+    def __init__(self,
+                 input_size,
+                 output_size,
+                 hidden_size,
+                 num_layers,
+                 pred_mode):
+        super(RNNLinearOutput, self).__init__()
 
-        ## First implem: hidden state (output of rnn) is of size output_dim
-        self.controller = torch.nn.RNN(input_size=self.input_dim,
-                                       hidden_size=self.output_dim,
-                                       num_layers=self.n_hidden_layers,
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+        self.pred_mode = pred_mode
+        
+        self.rnn = torch.nn.RNN(input_size=self.input_size,
+                                       hidden_size=self.hidden_size,
+                                       num_layers=self.num_layers,
                                        nonlinearity='tanh',
-                                       batch_first=True) 
+                                       batch_first=True)
+        
+        self.fc_out = torch.nn.Linear(self.hidden_size, self.output_size)
 
-        ## Second implem: hidden state (output of rnn) is of arbitrary size
-        ## and a final layer of output_dim neurons adapts it
-        ## to do
-        
-        ## keep the rnn params easily accessible
-        self.hidden_size = self.controller.hidden_size
-        self.input_size = self.controller.input_size
-        
         ## First need to get n_params
         self.layers_sizes = []
         self.params = self.get_parameters()
         self.n_params = len(self.params)
-        
+
     def set_parameters(self, flat_parameters):
         self.params = flat_parameters
         ## ih layers
@@ -213,10 +208,11 @@ class RNNController(Controller):
         ## hh layers: all hh layers have shape (hidden_size, hidden_size)
         ## Biases: all biases have shape (hidden_size)
         assert len(flat_parameters) == self.n_params
-        layer_names = self.controller._flat_weights_names
+        layers_names = copy.copy(self.rnn._flat_weights_names)
+        layers_names += ['fc_out']
         params_cpt = 0
-                            
-        for (layer_name, layer_size) in zip(layer_names, self.layers_sizes):
+        
+        for (layer_name, layer_size) in zip(layers_names, self.layers_sizes):
             flat_to_set = flat_parameters[params_cpt:params_cpt+layer_size]
             params_cpt += layer_size
 
@@ -225,16 +221,24 @@ class RNNController(Controller):
                     to_set = np.resize(flat_to_set, (self.hidden_size, self.input_size))
                 else:
                     to_set = np.resize(flat_to_set, (self.hidden_size, self.hidden_size))
-            if 'bias' in layer_name:
+            elif 'bias' in layer_name:
                 to_set = np.resize(flat_to_set, (self.hidden_size))
+            elif 'fc_out' in layer_name:
+                to_set = np.resize(flat_to_set, (self.output_size, self.hidden_size))
 
             to_set = ptu.from_numpy(to_set)
             with torch.no_grad():
-                setattr(self.controller, layer_name, torch.nn.Parameter(to_set))
-            
+                if 'fc_out' in layer_name:
+                    setattr(self.fc_out, 'weight', torch.nn.Parameter(to_set))
+                else:
+                    setattr(self.rnn, layer_name, torch.nn.Parameter(to_set))
+        
     def get_parameters(self):
-        layers_flat_weights = self.controller._flat_weights
-        layers_names = self.controller._flat_weights_names
+        layers_flat_weights = copy.copy(self.rnn._flat_weights)
+        layers_names = copy.copy(self.rnn._flat_weights_names)
+        layers_flat_weights += [self.fc_out.weight]
+        layers_names += ['fc_out']
+        self.layers_sizes = []
         flat_weights = []
         for (layer_flat_weights, layer_name) in zip(layers_flat_weights, layers_names):
             loc_layer_flat_weights = list(ptu.get_numpy(layer_flat_weights).flatten())
@@ -247,7 +251,6 @@ class RNNController(Controller):
         ## If x shape is dim 2 -> either batch of sequences with single element
         ## or single sequence with multiple elements
         ## If x shape is dim 3 -> batch of sequences with multiple elements
-        # import pdb; pdb.set_trace()
         if self.pred_mode == 'single':
             x = np.reshape(x, (1, len(x)))
             x = ptu.from_numpy(x)
@@ -256,18 +259,171 @@ class RNNController(Controller):
         elif self.pred_mode == 'window':
             pass
         if h0 is not None:
-            output, hn = self.controller(x, h0)
+            output, hn = self.rnn(x, h0)
         else:
-            output, hn = self.controller(x) ## h0 is 0 tensor in this case
+            output, hn = self.rnn(x) ## h0 is 0 tensor in this case
         ## output contains the final hidden state for each element in the sequence
-        ## hn contains the final hidden state
-        import pdb; pdb.set_trace()
+        ## hn contains the final hidden state for the last element in the sequence for each layer
+        h = output[-1]
+
+        out = self.fc_out(h)
+        out = ptu.get_numpy(out)
+        return out
+
+class RNNController(Controller):
+    def __init__(self, params):
+        super().__init__(params)
+        controller_params = params['controller_params']
+        self.n_per_hidden = controller_params['n_neurons_per_hidden']
+        self.n_hidden_layers = controller_params['n_hidden_layers']
+        self.pred_mode = controller_params['pred_mode']
+
+        self.rnnlo = RNNLinearOutput(self.input_dim,
+                                     self.output_dim,
+                                     self.n_per_hidden,
+                                     self.n_hidden_layers,
+                                     self.pred_mode)
+        self.params = self.get_parameters()
+        self.n_params = len(self.params)
         
+    def set_parameters(self, flat_parameters):
+        assert len(flat_parameters) == self.n_params
+        self.rnnlo.set_parameters(flat_parameters)
+    
+    def get_parameters(self):
+        return self.rnnlo.get_parameters()
+
     def __call__(self, x):
         """Calling the controller calls predict"""
-        return self.predict(x)
+        return self.rnnlo.predict(x)
 
+    
+# class RNNController(Controller):
+#     def __init__(self, params):
+#         super().__init__(params)
+#         controller_params = params['controller_params']
+#         self.pred_mode = controller_params['pred_mode']
+#         self.n_per_hidden = controller_params['n_neurons_per_hidden']
+#         self.n_hidden_layers = controller_params['n_hidden_layers']
+#         ## Exception error raised in super __init__ if controller_params not in params uwu
+#         ## inputs: (batch,seq_len,input_dim)
+#         # batch is different observation sequences
+#         # seq_len is the length of each observation sequence
+#         # input dim is the dimension of each observation
+
+#         ## First implem: hidden state (output of rnn) is of size output_dim
+#         self.controller = torch.nn.RNN(input_size=self.input_dim,
+#                                        hidden_size=self.output_dim,
+#                                        num_layers=self.n_hidden_layers,
+#                                        nonlinearity='tanh',
+#                                        batch_first=True) 
+
+#         ## Second implem: hidden state (output of rnn) is of arbitrary size
+#         ## and a final layer of output_dim neurons adapts it
+#         ## to do
+#         self.rnn = torch.nn.RNN(input_size=self.input_dim,
+#                                        hidden_size=self.n_per_hidden,
+#                                        num_layers=self.n_hidden_layers,
+#                                        nonlinearity='tanh',
+#                                        batch_first=True)
         
+#         self.fc_out = torch.nn.Linear(self.n_per_hidden, self.output_dim)
+
+#         ## keep the rnn params easily accessible
+#         self.hidden_size = self.controller.hidden_size
+#         self.input_size = self.controller.input_size
+        
+#         ## First need to get n_params
+#         self.layers_sizes = []
+#         self.params = self.get_parameters()
+#         self.n_params = len(self.params)
+        
+#     def set_parameters(self, flat_parameters):
+#         self.params = flat_parameters
+#         ## ih layers
+#         # first ih layer has shape (hidden_size, input_size)
+#         # all other ih layers have shape (hidden_size, hidden_size)
+#         ## hh layers: all hh layers have shape (hidden_size, hidden_size)
+#         ## Biases: all biases have shape (hidden_size)
+#         assert len(flat_parameters) == self.n_params
+#         # layers_names = self.controller._flat_weights_names
+#         layers_names = self.rnn._flat_weights_names
+#         layers_names += ['fc_out']
+#         params_cpt = 0
+        
+#         for (layer_name, layer_size) in zip(layers_names, self.layers_sizes):
+#             flat_to_set = flat_parameters[params_cpt:params_cpt+layer_size]
+#             params_cpt += layer_size
+
+#             if 'weight' in layer_name:
+#                 if 'ih_l0' in layer_name:
+#                     to_set = np.resize(flat_to_set, (self.hidden_size, self.input_size))
+#                 else:
+#                     to_set = np.resize(flat_to_set, (self.hidden_size, self.hidden_size))
+#             elif 'bias' in layer_name:
+#                 to_set = np.resize(flat_to_set, (self.hidden_size))
+#             elif 'fc_out' in layer_name:
+#                 to_set = np.resize(to_set, (self.output_dim, self.hidden_size))
+
+#             to_set = ptu.from_numpy(to_set)
+#             with torch.no_grad():
+#                 # setattr(self.controller, layer_name, torch.nn.Parameter(to_set))
+#                 if 'fc_out' in layer_name:
+#                     setattr(self.fc_out, weight, torch.nn.Parameter(to_set))
+#                 else:
+#                     setattr(self.rnn, layer_name, torch.nn.Parameter(to_set))
+                    
+#     def get_parameters(self):
+#         # layers_flat_weights = self.controller._flat_weights
+#         # layers_names = self.controller._flat_weights_names
+#         layers_flat_weights = self.rnn._flat_weights
+#         layers_names = self.rnn._flat_weights_names
+#         layers_flat_weights += self.fc_out.weight
+#         layers_names += ['fc_out']
+#         flat_weights = []
+#         for (layer_flat_weights, layer_name) in zip(layers_flat_weights, layers_names):
+#             loc_layer_flat_weights = list(ptu.get_numpy(layer_flat_weights).flatten())
+#             flat_weights += loc_layer_flat_weights
+#             self.layers_sizes.append(len(loc_layer_flat_weights))
+        
+#         return flat_weights
+
+#     def predict(self, x, h0=None):
+#         ## If x shape is dim 1 -> sequence with a single element
+#         ## If x shape is dim 2 -> either batch of sequences with single element
+#         ## or single sequence with multiple elements
+#         ## If x shape is dim 3 -> batch of sequences with multiple elements
+#         if self.pred_mode == 'single':
+#             x = np.reshape(x, (1, len(x)))
+#             x = ptu.from_numpy(x)
+#         elif self.pred_mode == 'all':
+#             pass
+#         elif self.pred_mode == 'window':
+#             pass
+#         if h0 is not None:
+#             # output, hn = self.controller(x, h0)
+#             output, hn = self.rnn(x, h0)
+#         else:
+#             # output, hn = self.controller(x) ## h0 is 0 tensor in this case
+#             output, hn = self.rnn(x) ## h0 is 0 tensor in this case
+#         ## output contains the final hidden state for each element in the sequence
+#         ## hn contains the final hidden state for the last element in the sequence for each layer
+#         # if we output directly hidden state
+#         # output = ptu.get_numpy(output)
+#         # return output[-1]
+
+#         h = output[-1]
+
+#         out = self.fc_out(h)
+#         out = ptu.get_numpy(out)
+#         import pdb; pdb.set_trace()
+#         return out
+    
+#     def __call__(self, x):
+#         """Calling the controller calls predict"""
+#         return self.predict(x)
+
+    
 class WrappedEnv():
     def __init__(self, params):
         self._action_min = params['action_min']
