@@ -247,17 +247,16 @@ class RNNLinearOutput(torch.nn.Module):
         return flat_weights
 
     def predict(self, x, h0=None):
+        ## transform x from list to np array
+        x = np.array(x)
         ## If x shape is dim 1 -> sequence with a single element
         ## If x shape is dim 2 -> either batch of sequences with single element
         ## or single sequence with multiple elements
         ## If x shape is dim 3 -> batch of sequences with multiple elements
         if self.pred_mode == 'single':
             x = np.reshape(x, (1, len(x)))
-            x = ptu.from_numpy(x)
-        elif self.pred_mode == 'all':
-            pass
-        elif self.pred_mode == 'window':
-            pass
+        ## Transform x from np array to torch tensor
+        x = ptu.from_numpy(x)
         if h0 is not None:
             output, hn = self.rnn(x, h0)
         else:
@@ -389,7 +388,7 @@ class WrappedEnv():
             elif self.pred_mode == 'all':
                 action = controller(c_input_traj)
             elif self.pred_mode == 'window':
-                action = controller(c_input_traj[:-10])
+                action = controller(c_input_traj[-10:])
 
             action = np.clip(action, self._action_min, self._action_max)
             cum_act += action
