@@ -5,6 +5,7 @@ from src.map_elites.qd import QD
 from src.map_elites.ns import NS
 
 #----------Model imports--------#
+from src.models.observation_models.deterministic_model import DeterministicObsModel
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
 from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
 from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
@@ -159,6 +160,28 @@ def get_dynamics_model(params):
         dynamics_model_trainer = None
         
     return dynamics_model, dynamics_model_trainer
+
+def get_observation_model(params):
+    observation_model_params = params['observation_model_params']
+    state_dim = observation_model_params['state_dim']
+    obs_dim = observation_model_params['obs_dim']
+    observation_model_type = observation_model_params['model_type']
+    use_minmax_norm = False if params['pretrain'] != '' else True
+
+    from src.trainers.mbrl.mbrl_det import MBRLTrainer 
+    observation_model = DeterministicDynModel(
+        state_dim=state_dim,
+        obs_dim=obs_dim,
+        hidden_size=observation_model_params['layer_size'],
+        so_min=np.concatenate((params['state_min'])),
+        so_max=np.concatenate((params['state_max'])),
+        use_minmax_norm=use_minmax_norm)
+    observation_model_trainer = MBRLTrainer(
+        model=observation_model,
+        learning_rate=observation_model_params['learning_rate'],
+        batch_size=observation_model_params['batch_size'],)
+    
+    return observation_model, observation_model_trainer
 
 def get_surrogate_model(surrogate_model_params):
     from src.trainers.qd.surrogate import SurrogateTrainer
@@ -332,6 +355,8 @@ class WrappedEnv():
         self.policy_representation_dim = len(self.controller.get_parameters())
         ## Dynamics model parameters
         self.dynamics_model = None
+        self.observation_model = None
+        self.use_obs_model = params['use_obs_model']
         self._model_max_h = params['dynamics_model_params']['model_horizon']
         self._ens_size = params['dynamics_model_params']['ensemble_size']
         self.n_wps = params['n_waypoints']
@@ -347,6 +372,9 @@ class WrappedEnv():
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
 
+    def set_observation_model(self, observation_model):
+        self.observation_model = observation_model
+        
     ## Evaluate the individual on the REAL ENVIRONMENT
     def evaluate_solution(self, ctrl, render=False):
         """
@@ -382,14 +410,14 @@ class WrappedEnv():
                     c_input = self.normalize_inputs_s_minmax(obs)
                 else:
                     c_input = obs
-                c_input_traj.append(c_input)
+                    
             if self.pred_mode == 'single':
                 action = controller(c_input)
             elif self.pred_mode == 'all':
                 action = controller(c_input_traj)
             elif self.pred_mode == 'window':
                 action = controller(c_input_traj[-10:])
-
+            
             action = np.clip(action, self._action_min, self._action_max)
             cum_act += action
             # if 'fastsim' in self._env_name or 'maze' in self._env_name:
@@ -404,6 +432,7 @@ class WrappedEnv():
             # action[action>self._action_max] = self._action_max
             # action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
+            c_input_traj.append(c_input)
             act_traj.append(action)
             obs, reward, done, info = env.step(action)
             info_traj.append(info)
@@ -472,22 +501,29 @@ class WrappedEnv():
         ## WARNING: need to get previous obs
         # for t in range(self._env_max_h):
         for t in range(self._model_max_h):
+            c_input = None
             if self.time_open_loop:
                 if self._norm_c_input:
-                    norm_t = (t/self._env_max_h)*(1+1) - 1
-                    action = controller([norm_t])
+                    c_input = [(t/self._env_max_h)*(1+1) - 1]
                 else:
-                    action = controller([t])
+                    c_input = [t]
             else:
                 if self._norm_c_input:
-                    norm_obs = self.normalize_inputs_s_minmax(obs)
-                    action = controller(norm_obs)
+                    c_input = self.normalize_inputs_s_minmax(obs)
                 else:
-                    action = controller(obs)
+                    c_input = obs
+                if self._use_observation_model:
+                    c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+            if self.pred_mode == 'single':
+                action = controller(c_input)
+            elif self.pred_mode == 'all':
+                action = controller(c_input_traj)
+            elif self.pred_mode == 'window':
+                action = controller(c_input_traj[-10:])
+
             action = np.clip(action, self._action_min, self._action_max)
-            # action[action>self._action_max] = self._action_max
-            # action[action<self._action_min] = self._action_min
             obs_traj.append(obs)
+            c_input_traj.append(c_input)
             act_traj.append(action)
 
             s = ptu.from_numpy(np.array(obs))
@@ -525,7 +561,8 @@ class WrappedEnv():
         actions_list = []
         disagreements_list = []
         obs_list = []
-
+        c_input_traj_list = []
+        
         env = copy.copy(self._env) ## need to verify this works
         obs = self._init_obs
 
@@ -538,6 +575,7 @@ class WrappedEnv():
             traj_list.append([])
             traj_list[cpt].append(obs.copy())
             cpt += 1
+            c_input_traj_list.append([])
             actions_list.append([])
             disagreements_list.append([])
             obs_list.append(obs.copy())
@@ -549,18 +587,29 @@ class WrappedEnv():
 
         for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
             for i in range(len(ctrls)):
+                c_input = None
                 if self.time_open_loop:
                     if self._norm_c_input:
-                        norm_t = (t/self._env_max_h)*(1+1) - 1
-                        A[i] = controller_list[i]([norm_t])
+                        c_input = [(t/self._env_max_h)*(1+1) - 1]
                     else:
-                        A[i] = controller_list[i]([t])
+                        c_input = [t]
                 else:
                     if self._norm_c_input:
-                        norm_s = self.normalize_inputs_s_minmax(S[i])
-                        A[i] = controller_list[i](norm_s)
+                        c_input = self.normalize_inputs_s_minmax(S[i])
                     else:
-                        A[i] = controller_list[i](S[i])
+                        c_input = S[i]
+                    if self._use_observation_model:
+                        c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+
+                if self.pred_mode == 'single':
+                    A[i] = controller_list[i](c_input)
+                elif self.pred_mode == 'all':
+                    A[i] = controller_list[i](c_input_traj_list[i])
+                elif self.pred_mode == 'window':
+                    A[i] = controller_list[i](c_input_traj_list[i][-10:])
+
+                c_input_traj_list[i].append(c_input)
+
                 A[i] = np.clip(A[i], self._action_min, self._action_max)
 
             start = time.time()
@@ -609,7 +658,8 @@ class WrappedEnv():
         actions_list = []
         disagreements_list = []
         obs_list = []
-
+        c_input_traj_list = []
+        
         env = copy.copy(self._env) ## need to verify this works
         obs = self._init_obs
         ens_size = self._ens_size
@@ -626,6 +676,7 @@ class WrappedEnv():
             else:
                 traj_list[cpt].append(np.tile(obs, (ens_size, 1)))
             cpt += 1
+            c_input_traj_list.append([])
             actions_list.append([])
             disagreements_list.append([])
             obs_list.append(obs.copy())
@@ -641,41 +692,63 @@ class WrappedEnv():
         for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
             for i in range(len(ctrls)):
                 if mean:
+                    c_input = None
                     if self.time_open_loop:
                         if self._norm_c_input:
-                            norm_t = (t/self._env_max_h)*(1+1) - 1
-                            A[i] = controller_list[i](norm_t)
+                            c_input = [(t/self._env_max_h)*(1+1) - 1]
                         else:
-                            A[i] = controller_list[i]([t])
+                            c_input = [t]
                     else:
                         if self._norm_c_input:
-                            norm_s = self.normalize_inputs_s_minmax(S[i])
-                            A[i] = controller_list[i](norm_s)
+                            c_input = self.normalize_inputs_s_minmax(S[i])
                         else:
-                            A[i] = controller_list[i](S[i])
+                            c_input = S[i]
+                        if self.use_observation_model:
+                            c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+
+                    if self.pred_mode == 'single':
+                        A[i] = controller_list[i](c_input)
+                    elif self.pred_mode == 'all':
+                        A[i] = controller_list[i](c_input_traj_list[i])
+                    elif self.pred_mode == 'window':
+                        A[i] = controller_list[i](c_input_traj_list[i][-10:])
+
+                    c_input_traj_list[i].append(c_input)
+
                 else:
+                    c_input = None
                     if self.time_open_loop:
                         if self._norm_c_input:
-                            norm_t = (t/self._env_max_h)*(1+1) - 1
-                            norm_t_input = np.reshape(
-                                np.array([norm_t]*ens_size),(-1,1))
-                            A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i](norm_t_input)
+                            c_input = [(t/self._env_max_h)*(1+1) - 1]
                         else:
-                            t_input = np.reshape(
-                                np.array([t]*ens_size),(-1,1))
-                            A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i](t_input)
+                            c_input = [t]
+                        c_input = np.reshape(np.array([c_input]*ens_size), (-1,1))
                     else:
                         if self._norm_c_input:
-                            norm_s = self.normalize_inputs_s_minmax(
-                                    S[i*ens_size:i*ens_size+ens_size])
-                            A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i](norm_s)
+                            c_input = self.normalize_inputs_s_minmax(
+                                S[i*ens_size:i*ens_size+ens_size])
                         else:
-                            A[i*ens_size:i*ens_size+ens_size] = \
-                            controller_list[i](S[i*ens_size:i*ens_size+ens_size])
-                A[i] = np.clip(A[i], self._action_min, self._action_max)
+                            c_input = S[i*ens_size:i*ens_size+ens_size]
+                        if self._use_observation_model:
+                            c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+
+                    if self.pred_mode == 'single':
+                        A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](c_input)
+                        A[i] = controller_list[i](c_input)
+                    elif self.pred_mode == 'all':
+                        A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](c_input_traj_list[i])
+                    elif self.pred_mode == 'window':
+                        A[i*ens_size:i*ens_size+ens_size] = \
+                            controller_list[i](c_input_traj_list[i][-10:])
+
+                    c_input_traj_list[i].append(c_input)
+
+                A[i*ens_size:i*ens_size+ens_size] = np.clip(
+                    A[i*ens_size:i*ens_size+ens_size],
+                    self._action_min,
+                    self._action_max)
 
             start = time.time()
             if mean:
@@ -723,7 +796,9 @@ class WrappedEnv():
 
             fit_list.append(fitness)
             bd_list.append(desc)
-            
+
+        import pdb; pdb.set_trace()
+    
         if not self.log_ind_trajs:
             obs_trajs = [None]*len(ctrls)
             act_trajs = [None]*len(ctrls)
@@ -1375,6 +1450,19 @@ def main(args):
         'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
         'ensemble_size': args.ens_size,
     }
+    observation_model_params = \
+    {
+        'obs_dim': obs_dim,
+        'action_dim': act_dim,
+        'layer_size': [500, 400],
+        # 'layer_size': 500,
+        'batch_size': 512,
+        'learning_rate': 1e-3,
+        'train_unique_trans': False,
+        'model_type': args.model_type,
+        'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
+        'ensemble_size': args.ens_size,
+    }
     surrogate_model_params = \
     {
         'bd_dim': dim_map,
@@ -1409,7 +1497,7 @@ def main(args):
         'env': gym_env,
         'env_name': args.environment,
         'env_max_h': max_step,
-
+        'use_obs_model': args.use_obs_model,
         ## algo parameters
         'policy_param_init_min': -5,
         'policy_param_init_max': 5,
@@ -1460,6 +1548,7 @@ def main(args):
     
     # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
+    observation_model, observation_model_trainer = get_observation_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     if args.pretrain: ## won't go in with default value ''
@@ -1540,6 +1629,7 @@ def main(args):
                 
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
+        env.set_observation_model(observation_model)
     elif args.environment == 'hexapod_omni':
         env = HexapodEnv(dynamics_model=dynamics_model,
                          render=False,
@@ -1713,6 +1803,7 @@ if __name__ == "__main__":
     parser.add_argument('--perfect-model', action='store_true')
     parser.add_argument('--norm-bd', type=bool, default=False) # minmax Normalize BD space
     parser.add_argument('--nov-ens', type=str, default='sum') # min, mean, sum
+    parser.add_argument('--use-obs-model', action='store_true')
     ## '' does not pretrain, srf pretrains using data generated with
     ## spatial random fields
     parser.add_argument('--pretrain', type=str, default='')

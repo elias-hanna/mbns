@@ -18,7 +18,7 @@ architectures=(rnn_2l_10h_2)
 
 ## Search methods
 # search_methods=(random-policies det det_ens) # considered search methods
-search_methods=(random-policies) # considered search methods
+search_methods=(random-policies_ffnn_2l_10 random-policies_ffnn_2l_64 random-policies_ffnn_10l_10 random-policies_rnn_2l_10) # considered search methods
 
 # search methods params
 ens_sizes=(4) # considered ensemble sizes
@@ -39,23 +39,23 @@ daqd_folder=~/Documents/thesis/dev/model_init_exps/daqd
 
 ## for each environment, executes reps repetition of the given experiment
 cpt=0
-for architecture in "${architectures[@]}"; do
-    cd $architecture
-    for env in "${environments[@]}"; do
-        cd ${env}_dab_results
-        echo "Processing following folder"; pwd
+# for architecture in "${architectures[@]}"; do
+    # cd $architecture
+for env in "${environments[@]}"; do
+    cd ${env}_dab_results
+    echo "Processing following folder"; pwd
 
-            for final_asize in "${final_asizes[@]}"; do 
-                for nb_div in "${nb_divs[@]}"; do
-                    python ${daqd_folder}/vis_dab_results.py --nb_div ${nb_div} \
-                           --search-methods ${search_methods[*]} -e $env \
-                           --m-horizons ${m_horizons[*]} --sel-methods ${sel_methods[*]} \
-                           --n-reps $reps --asize $asize --final-asize ${final_asize} \
-                           --ens-sizes ${ens_sizes[*]} --n-waypoints ${n_waypoints[*]}
-                done
+        for final_asize in "${final_asizes[@]}"; do 
+            for nb_div in "${nb_divs[@]}"; do
+                python ${daqd_folder}/vis_dab_results.py --nb_div ${nb_div} \
+                       --search-methods ${search_methods[*]} -e $env \
+                       --m-horizons ${m_horizons[*]} --sel-methods ${sel_methods[*]} \
+                       --n-reps $reps --asize $asize --final-asize ${final_asize} \
+                       --ens-sizes ${ens_sizes[*]} --n-waypoints ${n_waypoints[*]}
             done
-        wait
-        cd ..
-    done
+        done
+    wait
     cd ..
 done
+    # cd ..
+# done
