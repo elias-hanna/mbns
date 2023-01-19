@@ -1352,7 +1352,7 @@ def main(args):
         controller_type = NeuralNetworkController
     elif args.c_type == 'rnn':
         controller_type = RNNController
-    
+
     controller_params = \
     {
         'controller_input_dim': obs_dim,
@@ -1699,8 +1699,8 @@ if __name__ == "__main__":
 
     #-----------Controller params--------#
     parser.add_argument('--c-type', type=str, default='ffnn') # Type of controller to use
-    parser.add_argument('--norm-controller-input', type=bool, default=True) # minmax Normalize input space
-    parser.add_argument('--open-loop-control', type=bool, default=False) # open loop (time) or closed loop (state) control
+    parser.add_argument('--norm-controller-input', type=int, default=1) # minmax Normalize input space
+    parser.add_argument('--open-loop-control', type=int, default=0) # open loop (time) or closed loop (state) control
     parser.add_argument('--c-n-layers', type=int, default=2) # Number of hidden layers
     parser.add_argument('--c-n-neurons', type=int, default=10) # Number of neurons per hidden layer
     ## RNN inputs: (batch,seq_len,input_dim)
