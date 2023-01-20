@@ -220,7 +220,6 @@ class NS:
         # Get novelty scores on all models of ensemble individually
         ind_novs = []
         ens_size = self.params['ensemble_size']
-        import pdb; pdb.set_trace()
         for i in range(ens_size):
             ind_novs.append([])
             # Convert the dataset to a numpy array

@@ -163,7 +163,7 @@ class DeterministicObsModel(nn.Module):
         rescaled_data_norm = data_norm * (1 + 1) - 1
         return rescaled_data_norm
 
-    def normalize_outputs_sa_minmax(self, data):
+    def normalize_outputs_so_minmax(self, data):
         # data_norm = (data - self.so_min[self.obs_dim:])/ \
         #             (self.so_max[self.obs_dim:] - self.so_min[self.obs_dim:])
         # rescaled_data_norm = data_norm * (1 + 1) - 1
@@ -171,7 +171,7 @@ class DeterministicObsModel(nn.Module):
         # return data_norm
         return data
 
-    def denormalize_output_sa_minmax(self, data):
+    def denormalize_output_so_minmax(self, data):
         # data_denorm = data*(self.so_max[self.obs_dim:] - self.so_min[self.obs_dim:]) + \
                       # self.so_min[self.obs_dim:]
         # data_denorm = ((data + 1)*(self.so_max[self.obs_dim:] - self.so_min[self.obs_dim:]) / \

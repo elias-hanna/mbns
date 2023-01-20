@@ -5,7 +5,7 @@ from src.map_elites.qd import QD
 from src.map_elites.ns import NS
 
 #----------Model imports--------#
-from src.models.observation_models.deterministic_model import DeterministicObsModel
+from src.models.observation_models.deterministic_obs_model import DeterministicObsModel
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
 from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
 from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
@@ -169,19 +169,15 @@ def get_observation_model(params):
     use_minmax_norm = False if params['pretrain'] != '' else True
 
     from src.trainers.mbrl.mbrl_det import MBRLTrainer 
-    observation_model = DeterministicDynModel(
+    observation_model = DeterministicObsModel(
         state_dim=state_dim,
         obs_dim=obs_dim,
         hidden_size=observation_model_params['layer_size'],
-        so_min=np.concatenate((params['state_min'])),
-        so_max=np.concatenate((params['state_max'])),
+        so_min=params['state_min'],
+        so_max=params['state_max'],
         use_minmax_norm=use_minmax_norm)
-    observation_model_trainer = MBRLTrainer(
-        model=observation_model,
-        learning_rate=observation_model_params['learning_rate'],
-        batch_size=observation_model_params['batch_size'],)
     
-    return observation_model, observation_model_trainer
+    return observation_model
 
 def get_surrogate_model(surrogate_model_params):
     from src.trainers.qd.surrogate import SurrogateTrainer
@@ -326,6 +322,8 @@ class WrappedEnv():
         self._action_max = params['action_max']
         self._state_min = params['state_min']
         self._state_max = params['state_max']
+        self._obs_min = params['obs_min']
+        self._obs_max = params['obs_max']
         self._sa_min = np.concatenate((params['state_min'], params['action_min']))
         self._sa_max = np.concatenate((params['state_max'], params['action_max']))
         self._dim_map = params['dim_map']
@@ -339,6 +337,7 @@ class WrappedEnv():
             self._init_obs = self._init_obs['observation']
         if 'init_obs' in params:
             self._init_obs = params['init_obs']
+        self._state_dim = params['state_dim']
         self._obs_dim = params['obs_dim']
         self._act_dim = params['action_dim']
         self.fitness_func = params['fitness_func']
@@ -407,7 +406,7 @@ class WrappedEnv():
                     c_input = [t]
             else:
                 if self._norm_c_input:
-                    c_input = self.normalize_inputs_s_minmax(obs)
+                    c_input = self.normalize_inputs_o_minmax(obs)
                 else:
                     c_input = obs
                     
@@ -512,8 +511,8 @@ class WrappedEnv():
                     c_input = self.normalize_inputs_s_minmax(obs)
                 else:
                     c_input = obs
-                if self._use_observation_model:
-                    c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+                if self.use_obs_model:
+                    c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
             if self.pred_mode == 'single':
                 action = controller(c_input)
             elif self.pred_mode == 'all':
@@ -598,8 +597,8 @@ class WrappedEnv():
                         c_input = self.normalize_inputs_s_minmax(S[i])
                     else:
                         c_input = S[i]
-                    if self._use_observation_model:
-                        c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+                    if self.use_obs_model:
+                        c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
 
                 if self.pred_mode == 'single':
                     A[i] = controller_list[i](c_input)
@@ -703,8 +702,8 @@ class WrappedEnv():
                             c_input = self.normalize_inputs_s_minmax(S[i])
                         else:
                             c_input = S[i]
-                        if self.use_observation_model:
-                            c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+                        if self.use_obs_model:
+                            c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
 
                     if self.pred_mode == 'single':
                         A[i] = controller_list[i](c_input)
@@ -729,13 +728,12 @@ class WrappedEnv():
                                 S[i*ens_size:i*ens_size+ens_size])
                         else:
                             c_input = S[i*ens_size:i*ens_size+ens_size]
-                        if self._use_observation_model:
-                            c_input = self.observation_model.output_pred(ptu.from_numpy(c_input), dim=-1)
+                        if self.use_obs_model:
+                            c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
 
                     if self.pred_mode == 'single':
                         A[i*ens_size:i*ens_size+ens_size] = \
                             controller_list[i](c_input)
-                        A[i] = controller_list[i](c_input)
                     elif self.pred_mode == 'all':
                         A[i*ens_size:i*ens_size+ens_size] = \
                             controller_list[i](c_input_traj_list[i])
@@ -797,8 +795,6 @@ class WrappedEnv():
             fit_list.append(fitness)
             bd_list.append(desc)
 
-        import pdb; pdb.set_trace()
-    
         if not self.log_ind_trajs:
             obs_trajs = [None]*len(ctrls)
             act_trajs = [None]*len(ctrls)
@@ -1073,11 +1069,7 @@ class WrappedEnv():
                 ## Return bd for each model and flatten it all
                 if self._env_name == 'ball_in_cup':
                     bd = obs_wps[:,:,:3].flatten()
-                if self._env_name == 'fastsim_maze':
-                    bd = obs_wps[:,:,:2].flatten()
-                if self._env_name == 'empty_maze':
-                    bd = obs_wps[:,:,:2].flatten()
-                if self._env_name == 'fastsim_maze_traps':
+                if 'maze' in self._env_name:
                     bd = obs_wps[:,:,:2].flatten()
                 if 'redundant_arm' in self._env_name:
                     bd = obs_wps[:,:,-2:].flatten()
@@ -1089,11 +1081,7 @@ class WrappedEnv():
 
         if self._env_name == 'ball_in_cup':
             bd = obs_wps[:,:3].flatten()
-        if self._env_name == 'fastsim_maze':
-            bd = obs_wps[:,:2].flatten()
-        if self._env_name == 'empty_maze':
-            bd = obs_wps[:,:2].flatten()
-        if self._env_name == 'fastsim_maze_traps':
+        if 'maze' in self._env_name:
             bd = obs_wps[:,:2].flatten()
         if 'redundant_arm' in self._env_name:
             bd = obs_wps[:,-2:].flatten()
@@ -1136,6 +1124,11 @@ class WrappedEnv():
 
     def normalize_inputs_s_minmax(self, data):
         data_norm = (data - self._state_min)/(self._state_max - self._state_min)
+        rescaled_data_norm = data_norm * (1 + 1) - 1 ## Rescale between -1 and 1
+        return rescaled_data_norm
+
+    def normalize_inputs_o_minmax(self, data):
+        data_norm = (data - self._obs_min)/(self._obs_max - self._obs_min)
         rescaled_data_norm = data_norm * (1 + 1) - 1 ## Rescale between -1 and 1
         return rescaled_data_norm
 
@@ -1300,23 +1293,33 @@ def main(args):
         env_register_id = 'FastsimSimpleNavigation-v0'
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
-        ss_min = np.array([0, 0, 0, 0, 0])
-        ss_max = np.array([100, 100, 100, 1, 1])
+        ss_min = np.array([0, 0, -1, -1, -1, -1])
+        ss_max = np.array([600, 600, 1, 1, 1, 1])
+        init_obs = np.array([60., 450., 0., 0., 0. , 0.])
+        state_dim = 6
+        obs_min = np.array([0, 0, 0, 0, 0])
+        obs_max = np.array([100, 100, 100, 1, 1])
         dim_map = 2
+        args.use_obs_model = True
     elif args.environment == 'empty_maze_laser':
         env_register_id = 'FastsimEmptyMapNavigation-v0'
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
-        ss_min = np.array([0, 0, 0, 0, 0])
-        ss_max = np.array([100, 100, 100, 1, 1])
+        ss_min = np.array([0, 0, -1, -1, -1, -1])
+        ss_max = np.array([600, 600, 1, 1, 1, 1])
+        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        state_dim = 6
+        obs_min = np.array([0, 0, 0, 0, 0])
+        obs_max = np.array([100, 100, 100, 1, 1])
         dim_map = 2
+        args.use_obs_model = True
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
         ss_max = np.array([600, 600, 1, 1, 1, 1])
-        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        # init_obs = np.array([60., 450., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'empty_maze':
         env_register_id = 'FastsimEmptyMapNavigationPos-v0'
@@ -1324,9 +1327,7 @@ def main(args):
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
         ss_max = np.array([600, 600, 1, 1, 1, 1])
-        ss_min = np.array([0, 0, -1, -1, -1, -1])
-        ss_max = np.array([600, 600, 1, 1, 1, 1])
-        init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        # init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
@@ -1439,7 +1440,7 @@ def main(args):
     }
     dynamics_model_params = \
     {
-        'obs_dim': obs_dim,
+        'obs_dim': state_dim,
         'action_dim': act_dim,
         'layer_size': [500, 400],
         # 'layer_size': 500,
@@ -1453,14 +1454,13 @@ def main(args):
     observation_model_params = \
     {
         'obs_dim': obs_dim,
-        'action_dim': act_dim,
+        'state_dim': state_dim,
         'layer_size': [500, 400],
         # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'model_type': args.model_type,
-        'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
         'ensemble_size': args.ens_size,
     }
     surrogate_model_params = \
@@ -1476,10 +1476,11 @@ def main(args):
     params = \
     {
         ## general parameters
+        'state_dim': state_dim,
         'obs_dim': obs_dim,
         'action_dim': act_dim,
         'dynamics_model_params': dynamics_model_params,
-
+        'observation_model_params': observation_model_params,
         ## controller parameters
         'controller_type': controller_type,
         'controller_params': controller_params,
@@ -1492,6 +1493,9 @@ def main(args):
 
         'state_min': ss_min,
         'state_max': ss_max,
+
+        'obs_min': obs_min,
+        'obs_max': obs_max,
         
         ## env parameters
         'env': gym_env,
@@ -1548,7 +1552,7 @@ def main(args):
     
     # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
-    observation_model, observation_model_trainer = get_observation_model(params)
+    observation_model = get_observation_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     if args.pretrain: ## won't go in with default value ''

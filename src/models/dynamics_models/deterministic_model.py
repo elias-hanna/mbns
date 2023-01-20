@@ -110,8 +110,6 @@ class DeterministicDynModel(nn.Module):
         # loss = np.mean((ptu.get_numpy( (norm_y - pred_y)**2 )))
         loss = self.MSEcriterion(pred_y, norm_y)
         #loss = self.L1criterion(pred_y, y)
-        # if loss < 1.1:
-            # import pdb; pdb.set_trace()
         return loss
 
     # get input data mean and std for normalization
