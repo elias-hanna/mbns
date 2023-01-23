@@ -24,8 +24,6 @@ class DeterministicObsModel(nn.Module):
     ):
         super(DeterministicObsModel, self).__init__()
 
-        torch.set_num_threads(16)
-        
         self.obs_dim, self.state_dim = obs_dim, state_dim
 
         self.input_dim = self.state_dim

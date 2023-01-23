@@ -34,39 +34,8 @@ class DeterministicEnsemble():
         self.output_dim = self.obs_dim # fitness always a scalar
         self.hidden_size = hidden_size
         
-        # self.fc1 = nn.Linear(self.input_dim, self.hidden_size)
-        # self.fc2 = nn.Linear(self.hidden_size, self.hidden_size)
-        # self.fc3 = nn.Linear(self.hidden_size, self.hidden_size)
-        # self.fc4 = nn.Linear(self.hidden_size, self.output_dim)
-
         self.MSEcriterion = nn.MSELoss()
         self.L1criterion = nn.L1Loss()
-
-        # if init_method == 'uniform':
-        #     a = -0.5; b = 0.5
-        #     # uniform intialization of weights
-        #     nn.init.uniform_(self.fc1.weight, a=a, b=b)
-        #     nn.init.uniform_(self.fc2.weight, a=a, b=b)
-        #     nn.init.uniform_(self.fc3.weight, a=a, b=b)
-        #     nn.init.uniform_(self.fc4.weight, a=a, b=b)
-        # elif init_method == 'xavier':
-        #     # xavier uniform intialization of weights
-        #     nn.init.xavier_uniform_(self.fc1.weight)
-        #     nn.init.xavier_uniform_(self.fc2.weight)
-        #     nn.init.xavier_uniform_(self.fc3.weight)
-        #     nn.init.xavier_uniform_(self.fc4.weight)
-        # elif init_method == 'kaiming':
-        #     # kaiming uniform intialization of weights
-        #     nn.init.kaiming_uniform_(self.fc1.weight)
-        #     nn.init.kaiming_uniform_(self.fc2.weight)
-        #     nn.init.kaiming_uniform_(self.fc3.weight)
-        #     nn.init.kaiming_uniform_(self.fc4.weight)
-        # elif init_method == 'orthogonal':
-        #     # orthogonal intialization of weights
-        #     nn.init.orthogonal_(self.fc1.weight)
-        #     nn.init.orthogonal_(self.fc2.weight)
-        #     nn.init.orthogonal_(self.fc3.weight)
-        #     nn.init.orthogonal_(self.fc4.weight)
 
         self.hidden_activation = hidden_activation
         
@@ -97,7 +66,7 @@ class DeterministicEnsemble():
 
         xs = []
         for model in self.models:
-            x.append(model.forward(h))
+            xs.append(model.forward(h))
 
         if mean:
             return np.mean(xs, axis=0)

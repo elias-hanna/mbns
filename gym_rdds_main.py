@@ -6,6 +6,8 @@ from src.map_elites.ns import NS
 
 #----------Model imports--------#
 from src.models.observation_models.deterministic_obs_model import DeterministicObsModel
+from src.models.observation_models.srf_deterministic_obs_model import SrfDeterministicObsModel
+from src.models.dynamics_models.srf_deterministic_ensemble import SrfDeterministicEnsemble
 from src.models.dynamics_models.deterministic_model import DeterministicDynModel
 from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
 from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
@@ -143,40 +145,62 @@ def get_dynamics_model(params):
     elif dynamics_model_type == "det_ens":
         from src.trainers.mbrl.mbrl_det import MBRLTrainer 
         dynamics_model = DeterministicEnsemble(
-                obs_dim=obs_dim,
-                action_dim=action_dim,
-                hidden_size=dynamics_model_params['layer_size'],
-                ensemble_size=dynamics_model_params['ensemble_size'],
-                sa_min=np.concatenate((params['state_min'],
-                                       params['action_min'])),
-                sa_max=np.concatenate((params['state_max'],
-                                       params['action_max'])),
-                use_minmax_norm=use_minmax_norm)
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+            hidden_size=dynamics_model_params['layer_size'],
+            ensemble_size=dynamics_model_params['ensemble_size'],
+            sa_min=np.concatenate((params['state_min'],
+                                   params['action_min'])),
+            sa_max=np.concatenate((params['state_max'],
+                                   params['action_max'])),
+            use_minmax_norm=use_minmax_norm)
         ## warning same trainer for all (need to call it n times) 
         # dynamics_model_trainer = MBRLTrainer(
         #     model=dynamics_model,
         #     learning_rate=dynamics_model_params['learning_rate'],
         #     batch_size=dynamics_model_params['batch_size'],)
         dynamics_model_trainer = None
-        
+    elif dynamics_model_type == "srf_ens":
+        dynamics_model = SrfDeterministicEnsemble(
+            obs_dim=obs_dim,
+            action_dim=action_dim,
+            sa_min=np.concatenate((params['state_min'],
+                                   params['action_min'])),
+            sa_max=np.concatenate((params['state_max'],
+                                   params['action_max'])),
+            var=params['srf_var'],
+            len_scale=params['srf_cor'],
+            ensemble_size=dynamics_model_params['ensemble_size'],
+            use_minmax_norm=use_minmax_norm)
+        dynamics_model_trainer = None
     return dynamics_model, dynamics_model_trainer
 
 def get_observation_model(params):
     observation_model_params = params['observation_model_params']
     state_dim = observation_model_params['state_dim']
     obs_dim = observation_model_params['obs_dim']
-    observation_model_type = observation_model_params['model_type']
+    observation_model_type = observation_model_params['obs_model_type']
     use_minmax_norm = False if params['pretrain'] != '' else True
 
-    from src.trainers.mbrl.mbrl_det import MBRLTrainer 
-    observation_model = DeterministicObsModel(
-        state_dim=state_dim,
-        obs_dim=obs_dim,
-        hidden_size=observation_model_params['layer_size'],
-        so_min=params['state_min'],
-        so_max=params['state_max'],
-        use_minmax_norm=use_minmax_norm)
-    
+    if observation_model_params['obs_model_type'] == 'nn':
+        observation_model = DeterministicObsModel(
+            state_dim=state_dim,
+            obs_dim=obs_dim,
+            hidden_size=observation_model_params['layer_size'],
+            so_min=params['state_min'],
+            so_max=params['state_max'],
+            use_minmax_norm=use_minmax_norm)
+
+    elif observation_model_params['obs_model_type'] == 'srf':
+        observation_model = SrfDeterministicObsModel(
+            state_dim=state_dim,
+            obs_dim=obs_dim,
+            so_min=params['state_min'],
+            so_max=params['state_max'],
+            var=params['srf_var'],
+            len_scale=params['srf_cor'],
+            use_minmax_norm=use_minmax_norm)
+        
     return observation_model
 
 def get_surrogate_model(surrogate_model_params):
@@ -1494,7 +1518,7 @@ def main(args):
         'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
-        'model_type': args.model_type,
+        'obs_model_type': args.obs_model_type,
         'ensemble_size': args.ens_size,
     }
     surrogate_model_params = \
@@ -1688,14 +1712,14 @@ def main(args):
     elif args.model_variant == "all_dynamics":
         if args.model_type == "det":
             f_model = env.evaluate_solution_model_all
-        elif args.model_type == "det_ens":
+        elif args.model_type == "det_ens" or args.model_type == "srf_ens":
             f_model = env.evaluate_solution_model_det_ensemble_all
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
     # elif args.model_variant == "direct":
         # f_model = env.evaluate_solution_model 
 
-    if args.model_type == "det_ens":
+    if args.model_type == "det_ens" or args.model_type == "srf_ens":
         px["ensemble_dump"] = True
         px["ensemble_size"] = dynamics_model_params["ensemble_size"]
 
@@ -1735,7 +1759,7 @@ def main(args):
         elif args.model_variant == "all_dynamics":
             if args.model_type == "det":
                 f_real = env.evaluate_solution_model_all
-            elif args.model_type == "det_ens":
+            elif args.model_type == "det_ens" or args.model_type == "srf_ens":
                 f_real = env.evaluate_solution_model_det_ensemble_all
             elif args.model_type == "prob":
                 f_real = env.evaluate_solution_model_ensemble_all
@@ -1835,6 +1859,8 @@ if __name__ == "__main__":
     parser.add_argument('--pred-mode', type=str, default='single') # RNN prediction mode (single; all; window)
     
     #-------------Model params-----------#
+    parser.add_argument('--obs-model-type', type=str, default='nn') # nn, srf
+    
     parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, surrogate
     parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
     parser.add_argument('--ens-size', type=int, default='4') # when using ens
