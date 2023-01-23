@@ -24,8 +24,6 @@ class DeterministicDynModel(nn.Module):
     ):
         super(DeterministicDynModel, self).__init__()
 
-        torch.set_num_threads(16)
-        
         self.obs_dim, self.action_dim = obs_dim, action_dim
 
         self.input_dim = self.obs_dim + self.action_dim
