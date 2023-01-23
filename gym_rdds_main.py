@@ -273,7 +273,10 @@ class RNNLinearOutput(torch.nn.Module):
         ## or single sequence with multiple elements
         ## If x shape is dim 3 -> batch of sequences with multiple elements
         if self.pred_mode == 'single':
-            x = np.reshape(x, (1, len(x)))
+            if len(x.shape) > 1:
+                x = np.reshape(x, (x.shape[0], 1, x.shape[1]))
+            else:
+                x = np.reshape(x, (1, len(x)))
         ## Transform x from np array to torch tensor
         x = ptu.from_numpy(x)
         if h0 is not None:
@@ -360,7 +363,8 @@ class WrappedEnv():
         self._ens_size = params['dynamics_model_params']['ensemble_size']
         self.n_wps = params['n_waypoints']
         self.log_ind_trajs = params["log_ind_trajs"]
-
+        self.clip_obs = params['clip_obs']
+        self.clip_state = params['clip_state']
         print('###############################################################')
         print('################ Environment parameters: ######################')
         print(f'###### - env name:        {self._env_name}                    ')
@@ -620,6 +624,8 @@ class WrappedEnv():
                 traj_list[i].append(S[i,:].copy())
                 disagreements_list[i].append(batch_disagreement[i])
                 actions_list[i].append(A[i,:])
+                if self.clip_state:
+                    S = np.clip(S, self._state_min, self._state_max)
 
         bd_list = []
         fit_list = []
@@ -704,6 +710,8 @@ class WrappedEnv():
                             c_input = S[i]
                         if self.use_obs_model:
                             c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
+                            if self.clip_obs:
+                                c_input = np.clip(c_input, self._obs_min, self._obs_max)
 
                     if self.pred_mode == 'single':
                         A[i] = controller_list[i](c_input)
@@ -730,6 +738,8 @@ class WrappedEnv():
                             c_input = S[i*ens_size:i*ens_size+ens_size]
                         if self.use_obs_model:
                             c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
+                            if self.clip_obs:
+                                c_input = np.clip(c_input, self._obs_min, self._obs_max)
 
                     if self.pred_mode == 'single':
                         A[i*ens_size:i*ens_size+ens_size] = \
@@ -775,7 +785,8 @@ class WrappedEnv():
                     S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[:,i]
                     traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
                     actions_list[i].append(A[i*ens_size:i*ens_size+ens_size])
-
+                if self.clip_state:
+                    S = np.clip(S, self._state_min, self._state_max)
         bd_list = []
         fit_list = []
 
@@ -911,6 +922,8 @@ class WrappedEnv():
                     traj_list[i].append(S[i,:].copy())
                     disagreements_list[i].append(batch_disagreement[i])
                     actions_list[i].append(A[i,:])
+                if self.clip_state:
+                    S = np.clip(S, self._state_min, self._state_max)
 
         bd_list = []
         fit_list = []
@@ -1485,7 +1498,6 @@ def main(args):
         'controller_type': controller_type,
         'controller_params': controller_params,
         'time_open_loop': controller_params['time_open_loop'],
-        
 
         ## state-action space params
         'action_min': a_min,
@@ -1496,7 +1508,9 @@ def main(args):
 
         'obs_min': obs_min,
         'obs_max': obs_max,
-        
+
+        'clip_obs': args.clip_obs, # clip models predictions 
+        'clip_state': args.clip_state, # clip models predictions 
         ## env parameters
         'env': gym_env,
         'env_name': args.environment,
@@ -1812,7 +1826,9 @@ if __name__ == "__main__":
     ## spatial random fields
     parser.add_argument('--pretrain', type=str, default='')
     parser.add_argument('--pretrain-budget', type=int, default=10000)
-
+    parser.add_argument('--clip-obs', action='store_true')
+    parser.add_argument('--clip-state', action='store_true')
+    
     args = parser.parse_args()
 
     main(args)

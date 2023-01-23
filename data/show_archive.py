@@ -175,7 +175,7 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             #data.plot.scatter(x=2,y=3,c=0,colormap='Spectral', s=2, ax=ax, vmin=-0.1, vmax=1.2)
             # data.plot.scatter(x=1,y=2,c=0,colormap='viridis', s=2, ax=ax) # color by fitness
             fig.set_size_inches(9, 9)
-            if 'maze' in args.environment:
+            if 'maze' in args.environment and 'real' in args.filename:
                 path_to_script = os.path.realpath(__file__)
                 path_to_dir = os.path.dirname(path_to_script)
                 if 'empty' in args.environment:
