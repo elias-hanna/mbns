@@ -207,10 +207,10 @@ class RNNLinearOutput(torch.nn.Module):
         self.pred_mode = pred_mode
         
         self.rnn = torch.nn.RNN(input_size=self.input_size,
-                                       hidden_size=self.hidden_size,
-                                       num_layers=self.num_layers,
-                                       nonlinearity='tanh',
-                                       batch_first=True)
+                                hidden_size=self.hidden_size,
+                                num_layers=self.num_layers,
+                                nonlinearity='tanh',
+                                batch_first=True)
         
         self.fc_out = torch.nn.Linear(self.hidden_size, self.output_size)
 
@@ -539,7 +539,7 @@ class WrappedEnv():
 
             obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
         obs_traj.append(obs)
-
+        
         desc = self.compute_bd(obs_traj)
         fitness = self.compute_fitness(obs_traj, act_traj)
 
@@ -603,6 +603,8 @@ class WrappedEnv():
                         c_input = S[i]
                     if self.use_obs_model:
                         c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
+                        if self.clip_obs:
+                            c_input = np.clip(c_input, self._obs_min, self._obs_max)
 
                 if self.pred_mode == 'single':
                     A[i] = controller_list[i](c_input)
@@ -621,11 +623,11 @@ class WrappedEnv():
                 ## Compute mean prediction from model samples
                 next_step_pred = batch_pred_delta_ns[i]
                 S[i,:] += next_step_pred.copy()
+                if self.clip_state:
+                    S[i,:] = np.clip(S[i,:], self._state_min, self._state_max)
                 traj_list[i].append(S[i,:].copy())
                 disagreements_list[i].append(batch_disagreement[i])
                 actions_list[i].append(A[i,:])
-                if self.clip_state:
-                    S = np.clip(S, self._state_min, self._state_max)
 
         bd_list = []
         fit_list = []
@@ -645,7 +647,6 @@ class WrappedEnv():
 
             fit_list.append(fitness)
             bd_list.append(desc)
-            
         if not self.log_ind_trajs:
             obs_trajs = [None]*len(ctrls)
             act_trajs = [None]*len(ctrls)
@@ -778,15 +779,21 @@ class WrappedEnv():
                     ## Compute mean prediction from model samples
                     next_step_pred = batch_pred_delta_ns[i]
                     S[i,:] += next_step_pred.copy()
+                    if self.clip_state:
+                        S[i,:] = np.clip(S[i,:],
+                                         self._state_min, self._state_max)
                     traj_list[i].append(S[i,:].copy())
                     disagreements_list[i].append(batch_disagreement[i])
                     actions_list[i].append(A[i,:])
                 else:
                     S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[:,i]
+                    if self.clip_state:
+                        S[i*ens_size:i*ens_size+ens_size] = np.clip(
+                            S[i*ens_size:i*ens_size+ens_size],
+                            self._state_min, self._state_max)
                     traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
                     actions_list[i].append(A[i*ens_size:i*ens_size+ens_size])
-                if self.clip_state:
-                    S = np.clip(S, self._state_min, self._state_max)
+
         bd_list = []
         fit_list = []
 
@@ -908,6 +915,10 @@ class WrappedEnv():
                     disagreements_list[i].append(disagreement.copy())
                     
                     S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[i]
+                    if self.clip_state:
+                        S[i*ens_size:i*ens_size+ens_size] = np.clip(
+                            S[i*ens_size:i*ens_size+ens_size],
+                            self._state_min, self._state_max)
                     traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
 
                     # disagreements_list[i].append(batch_disagreement[i])
@@ -919,11 +930,11 @@ class WrappedEnv():
                     mean_pred = [np.mean(next_step_pred[:,i]) for i
                                  in range(len(next_step_pred[0]))]
                     S[i,:] += mean_pred.copy()
+                    if self.clip_state:
+                        S[i,:] = np.clip(S[i,:], self._state_min, self._state_max)
                     traj_list[i].append(S[i,:].copy())
                     disagreements_list[i].append(batch_disagreement[i])
                     actions_list[i].append(A[i,:])
-                if self.clip_state:
-                    S = np.clip(S, self._state_min, self._state_max)
 
         bd_list = []
         fit_list = []
@@ -1819,7 +1830,7 @@ if __name__ == "__main__":
     parser.add_argument('--ens-size', type=int, default='4') # when using ens
     parser.add_argument('--model-horizon', type=int, default=-1) # model eval horizon
     parser.add_argument('--perfect-model', action='store_true')
-    parser.add_argument('--norm-bd', type=bool, default=False) # minmax Normalize BD space
+    parser.add_argument('--norm-bd', type=int, default=1) # minmax Normalize BD space
     parser.add_argument('--nov-ens', type=str, default='sum') # min, mean, sum
     parser.add_argument('--use-obs-model', action='store_true')
     ## '' does not pretrain, srf pretrains using data generated with

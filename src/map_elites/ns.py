@@ -193,7 +193,6 @@ class NS:
         all_bds += [ind.desc for ind in pop] # pop is usually pop + offspring
         all_bds += [ind.desc for ind in archive]
         all_bds = np.array(all_bds)
-
         novelty_scores = np.empty((len(all_bds)))
         # Compute the k-NN of the data point
         neighbors = NearestNeighbors(n_neighbors=k)
