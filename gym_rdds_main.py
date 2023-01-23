@@ -196,6 +196,7 @@ class RNNLinearOutput(torch.nn.Module):
                  input_size,
                  output_size,
                  hidden_size,
+                 hidden_layer_size,
                  num_layers,
                  pred_mode):
         super(RNNLinearOutput, self).__init__()
@@ -211,6 +212,14 @@ class RNNLinearOutput(torch.nn.Module):
                                 num_layers=self.num_layers,
                                 nonlinearity='tanh',
                                 batch_first=True)
+        
+        self.rnns = []
+        for _ in range(hidden_layer_size):
+            self.rnns.append(torch.nn.RNN(input_size=self.input_size,
+                                          hidden_size=self.hidden_size,
+                                          num_layers=1,
+                                          nonlinearity='tanh',
+                                          batch_first=True))
         
         self.fc_out = torch.nn.Linear(self.hidden_size, self.output_size)
 
@@ -291,16 +300,127 @@ class RNNLinearOutput(torch.nn.Module):
         out = ptu.get_numpy(out)
         return out
 
+class ElmanNetwork(torch.nn.Module):
+    def __init__(self,
+                 input_size,
+                 output_size,
+                 hidden_size,
+                 hidden_layer_size,
+                 num_layers,
+                 pred_mode):
+        super(ElmanNetwork, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.output_size = output_size
+        self.num_layers = num_layers
+        self.pred_mode = pred_mode
+        
+        self.rnns = []
+        for i in range(hidden_layer_size):
+            self.rnns.append(torch.nn.RNN(input_size=self.input_size,
+                                          hidden_size=self.hidden_size,
+                                          num_layers=1,
+                                          nonlinearity='tanh',
+                                          batch_first=True))
+            self.__setattr__("rnn{}".format(i), self.rnns[i])
+            
+        self.fc_out = torch.nn.Linear(self.hidden_size, self.output_size)
+
+        ## First need to get n_params
+        self.layers_sizes = []
+        self.params = self.get_parameters()
+        self.n_params = len(self.params)
+
+    def set_parameters(self, flat_parameters):
+        self.params = flat_parameters
+        ## ih layers
+        # first ih layer has shape (hidden_size, input_size)
+        # all other ih layers have shape (hidden_size, hidden_size)
+        ## hh layers: all hh layers have shape (hidden_size, hidden_size)
+        ## Biases: all biases have shape (hidden_size)
+        assert len(flat_parameters) == self.n_params
+        for rnn in self.rnns:
+            layers_names += copy.copy(rnn._flat_weights_names)
+        layers_names += ['fc_out']
+        params_cpt = 0
+        import pdb; pdb.set_trace()
+        for (layer_name, layer_size) in zip(layers_names, self.layers_sizes):
+            flat_to_set = flat_parameters[params_cpt:params_cpt+layer_size]
+            params_cpt += layer_size
+
+            if 'weight' in layer_name:
+                if 'ih_l0' in layer_name:
+                    to_set = np.resize(flat_to_set, (self.hidden_size, self.input_size))
+                else:
+                    to_set = np.resize(flat_to_set, (self.hidden_size, self.hidden_size))
+            elif 'bias' in layer_name:
+                to_set = np.resize(flat_to_set, (self.hidden_size))
+            elif 'fc_out' in layer_name:
+                to_set = np.resize(flat_to_set, (self.output_size, self.hidden_size))
+
+            to_set = ptu.from_numpy(to_set)
+            with torch.no_grad():
+                if 'fc_out' in layer_name:
+                    setattr(self.fc_out, 'weight', torch.nn.Parameter(to_set))
+                else:
+                    setattr(self.rnn, layer_name, torch.nn.Parameter(to_set))
+        
+    def get_parameters(self):
+        layers_flat_weights = []
+        layers_names = []
+        for rnn in self.rnns:
+            layers_flat_weights += copy.copy(rnn._flat_weights)
+            layers_names += copy.copy(rnn._flat_weights_names)
+        layers_flat_weights += [self.fc_out.weight]
+        layers_names += ['fc_out']
+        self.layers_sizes = []
+        flat_weights = []
+        for (layer_flat_weights, layer_name) in zip(layers_flat_weights, layers_names):
+            loc_layer_flat_weights = list(ptu.get_numpy(layer_flat_weights).flatten())
+            flat_weights += loc_layer_flat_weights
+            self.layers_sizes.append(len(loc_layer_flat_weights))
+        return flat_weights
+
+    def predict(self, x, h0=None):
+        ## transform x from list to np array
+        x = np.array(x)
+        ## If x shape is dim 1 -> sequence with a single element
+        ## If x shape is dim 2 -> either batch of sequences with single element
+        ## or single sequence with multiple elements
+        ## If x shape is dim 3 -> batch of sequences with multiple elements
+        if self.pred_mode == 'single':
+            if len(x.shape) > 1:
+                x = np.reshape(x, (x.shape[0], 1, x.shape[1]))
+            else:
+                x = np.reshape(x, (1, len(x)))
+        ## Transform x from np array to torch tensor
+        x = ptu.from_numpy(x)
+        if h0 is not None:
+            output, hn = self.rnn(x, h0)
+        else:
+            output, hn = self.rnn(x) ## h0 is 0 tensor in this case
+        ## output contains the final hidden state for each element in the sequence
+        ## hn contains the final hidden state for the last element in the sequence for each layer
+        h = output[-1]
+
+        out = self.fc_out(h)
+        out = ptu.get_numpy(out)
+        return out
+    
+
 class RNNController(Controller):
     def __init__(self, params):
         super().__init__(params)
         controller_params = params['controller_params']
+        self.hidden_size = controller_params['hidden_size']
         self.n_per_hidden = controller_params['n_neurons_per_hidden']
         self.n_hidden_layers = controller_params['n_hidden_layers']
         self.pred_mode = controller_params['pred_mode']
 
         self.rnnlo = RNNLinearOutput(self.input_dim,
                                      self.output_dim,
+                                     self.hidden_size,
                                      self.n_per_hidden,
                                      self.n_hidden_layers,
                                      self.pred_mode)
@@ -605,7 +725,8 @@ class WrappedEnv():
                         c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
                         if self.clip_obs:
                             c_input = np.clip(c_input, self._obs_min, self._obs_max)
-
+                        c_input = self.normalize_inputs_o_minmax(c_input)
+                        
                 if self.pred_mode == 'single':
                     A[i] = controller_list[i](c_input)
                 elif self.pred_mode == 'all':
@@ -713,6 +834,7 @@ class WrappedEnv():
                             c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
                             if self.clip_obs:
                                 c_input = np.clip(c_input, self._obs_min, self._obs_max)
+                            c_input = self.normalize_inputs_o_minmax(c_input)
 
                     if self.pred_mode == 'single':
                         A[i] = controller_list[i](c_input)
@@ -741,6 +863,7 @@ class WrappedEnv():
                             c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
                             if self.clip_obs:
                                 c_input = np.clip(c_input, self._obs_min, self._obs_max)
+                            c_input = self.normalize_inputs_o_minmax(c_input)
 
                     if self.pred_mode == 'single':
                         A[i*ens_size:i*ens_size+ens_size] = \
@@ -773,7 +896,7 @@ class WrappedEnv():
                         mean=mean,
                         ensemble=False,
                         det_ens=True)
-            
+
             for i in range(len(ctrls)):
                 if mean:
                     ## Compute mean prediction from model samples
@@ -793,7 +916,7 @@ class WrappedEnv():
                             self._state_min, self._state_max)
                     traj_list[i].append(S[i*ens_size:i*ens_size+ens_size].copy())
                     actions_list[i].append(A[i*ens_size:i*ens_size+ens_size])
-
+        
         bd_list = []
         fit_list = []
 
@@ -1456,6 +1579,7 @@ def main(args):
     {
         'controller_input_dim': obs_dim,
         'controller_output_dim': act_dim,
+        'hidden_size': 10,
         'n_hidden_layers': args.c_n_layers,
         'n_neurons_per_hidden': args.c_n_neurons,
         'time_open_loop': args.open_loop_control,
