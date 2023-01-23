@@ -223,6 +223,7 @@ class RNNLinearOutput(torch.nn.Module):
         self.n_params = len(self.params)
 
     def set_parameters(self, flat_parameters):
+        self.prev_h = None # reset prev h since we change NN params
         self.params = flat_parameters
         ## ih layers
         # first ih layer has shape (hidden_size, input_size)
@@ -316,7 +317,6 @@ class RNNController(Controller):
     def set_parameters(self, flat_parameters):
         assert len(flat_parameters) == self.n_params
         self.rnnlo.set_parameters(flat_parameters)
-        self.rnnlo.h0 = None
     
     def get_parameters(self):
         return self.rnnlo.get_parameters()
