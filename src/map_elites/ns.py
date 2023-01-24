@@ -332,14 +332,14 @@ class NS:
                 offspring = s_list
 
                 ## Update population nov (pop + offsprings)
-                if params['model_type'] == 'det_ens':
+                # if params['model_type'] == 'det_ens':
+                if params['model_type'] == 'det_ens' and not params['perfect_model_on']:
                     self.update_novelty_scores_ensemble(population + offspring,
                                                         self.archive,
                                                         nov=params['nov_ens'],
                                                         norm=params['norm_bd'])
                 else:
                     self.update_novelty_scores(population + offspring, self.archive)
-
                 ## Add offsprings to archive
                 self.archive, add_list, _ = self.addition_condition(offspring,
                                                                     self.archive,

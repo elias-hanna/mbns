@@ -175,7 +175,7 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
             #data.plot.scatter(x=2,y=3,c=0,colormap='Spectral', s=2, ax=ax, vmin=-0.1, vmax=1.2)
             # data.plot.scatter(x=1,y=2,c=0,colormap='viridis', s=2, ax=ax) # color by fitness
             fig.set_size_inches(9, 9)
-            if 'maze' in args.environment and 'real' in args.filename:
+            if 'maze' in args.environment and 'real' in args.filename and args.bounds:
                 path_to_script = os.path.realpath(__file__)
                 path_to_dir = os.path.dirname(path_to_script)
                 if 'empty' in args.environment:
@@ -186,7 +186,6 @@ def plot_archive(data, plt, args, ss_min, ss_max, bounds=False, name="", bd_col=
                 img = plt.imread(abs_path_to_img)
                 ax.set_ylim(600,0) # Decreasing
                 ax.imshow(img, extent=[0, 600, 600, 0])
-                
             bdx = data[bd_cols[0]]
             bdy = None
             if len(bd_cols) > 1:
@@ -351,7 +350,7 @@ def main(args):
     dim_x = len([col for col in data.columns if 'x' in col])
     bds = [col for col in data.columns if 'bd' in col]
     ## keep only the final two because others are waypoints
-    bd_cols = bds[-2:]
+    bd_cols = bds[:2]
     ## Need to filter the mx
     if args.ens_size > 1:
         splitted_cols = [bd_col.split('_') for bd_col in bd_cols]

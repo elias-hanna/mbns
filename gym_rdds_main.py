@@ -661,7 +661,6 @@ class WrappedEnv():
                 traj_list[i].append(S[i,:].copy())
                 disagreements_list[i].append(batch_disagreement[i])
                 actions_list[i].append(A[i,:])
-
         bd_list = []
         fit_list = []
 
