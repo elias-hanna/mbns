@@ -417,7 +417,7 @@ def pd_read_csv_fast(filename):
     data = pd.read_csv(filename, nrows=1)
     ## Only keep important columns and 10 genotype columns for merge purposes
     usecols = [col for col in data.columns if 'bd' in col or 'fit' in col]
-    usecols += [col for col in data.columns if 'x' in col][:10]
+    usecols += [col for col in data.columns if 'x' in col][:5]
     ## Return the complete dataset (without the << useless >> columns
     return pd.read_csv(filename, usecols=usecols)
 
@@ -569,7 +569,7 @@ def main(args):
     plt.title(f'Coverage for each archive bootstrapping method\n' \
               f'(Behavior space division in {args.nb_div} parts per dimension)\n'
               f'{final_asize} individuals transferred')
-    fig.set_size_inches(21, 14)
+    fig.set_size_inches(35, 14)
     
     plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{final_asize}",
                 dpi=300, bbox_inches='tight')

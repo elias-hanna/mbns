@@ -54,9 +54,11 @@ class SrfDeterministicEnsemble():
             ret_data.append(srf(input_data))
         ret_data = np.array(ret_data)
         ret_data = np.transpose(ret_data)
-        ret_data += input_data[:,:self.obs_dim]
+        ## Don't do below since its done in the evaluation loop
+        # ret_data -= input_data[:,:self.obs_dim]
         ## don't do below since we added --clip-state or --clip-obs option
         # ret_data = np.clip(ret_data, -1, 1) # clip in normalized space?
+        
         return ret_data
 
     def output_pred_with_ts(self, x_input, mean=False):
@@ -69,7 +71,10 @@ class SrfDeterministicEnsemble():
             # norm_output = self.query_srfs(norm_input, model)
             batch_pred = self.query_srfs(norm_input[i::self.ensemble_size], model)
             ## Denormalize data
+            ## Denormalize output
             output = self.denormalize_outputs_sa_minmax(batch_pred)
+            ## Remove previous state
+            output -= x_input[i::self.ensemble_size, :self.obs_dim]
             batch_preds.append(output)
 
         return np.array(batch_preds)

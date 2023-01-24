@@ -18,7 +18,7 @@ architectures=(rnn_2l_10h_2)
 
 ## Search methods
 # search_methods=(random-policies det det_ens) # considered search methods
-search_methods=(random-policies_ffnn_2l_10 random-policies_ffnn_2l_64 random-policies_ffnn_10l_10 random-policies_rnn_2l_10) # considered search methods
+search_methods=(random-policies_ffnn_2l_10 random-policies_ffnn_2l_64 random-policies_rnn_2l_10 random-policies_rnn_2l_64 ffnn_2l_10_det_ens ffnn_2l_64_det_ens rnn_2l_10_det_ens rnn_2l_64_det_ens) # considered search methods
 
 # search methods params
 ens_sizes=(4) # considered ensemble sizes
@@ -29,7 +29,7 @@ sel_methods=(random max nov kmeans) # selection methods
 
 ## Considered archives sizes 
 asize=15100 # saved archive sizes
-asize=211000 # saved archive sizes
+asize=67100 # saved archive sizes
 
 final_asizes=(5000) # number of random policies
 

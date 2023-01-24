@@ -400,6 +400,7 @@ class WrappedEnv():
         print('################ Environment parameters: ######################')
         print(f'###### - env name:        {self._env_name}                    ')
         print(f'###### - task horizon:    {self._env_max_h}                   ')
+        print(f'###### - model horizon:    {self._model_max_h}                ')
         print(f'###### - controller type: {params["controller_type"]}         ')
         print('###############################################################')
 
@@ -746,7 +747,7 @@ class WrappedEnv():
                             if self.clip_obs:
                                 c_input = np.clip(c_input, self._obs_min, self._obs_max)
                             c_input = self.normalize_inputs_o_minmax(c_input)
-
+                            
                     if self.pred_mode == 'single':
                         A[i] = controller_list[i](c_input)
                     elif self.pred_mode == 'all':
@@ -1573,8 +1574,8 @@ def main(args):
         ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
-        'srf_var': 0.00001,
-        'srf_cor': 0.0001,
+        'srf_var': 0.1,
+        'srf_cor': 0.1,
 
         ## Dump params/ memory gestion params
         "log_ind_trajs": args.log_ind_trajs,
