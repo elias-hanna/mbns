@@ -25,13 +25,15 @@ ens_sizes=(4) # considered ensemble sizes
 m_horizons=(10) # Considered model horizons
 
 ## Selection methods
-sel_methods=(random max nov kmeans) # selection methods
+# sel_methods=(random max nov kmeans) # selection methods
+sel_methods=(random max) # selection methods
 
 ## Considered archives sizes 
 asize=15100 # saved archive sizes
 asize=67100 # saved archive sizes
 
 final_asizes=(5000) # number of random policies
+sel_size=100
 
 n_waypoints=(1) # Number of waypoints for the BD (1 is last traj element)
 
@@ -51,7 +53,8 @@ for env in "${environments[@]}"; do
                        --search-methods ${search_methods[*]} -e $env \
                        --m-horizons ${m_horizons[*]} --sel-methods ${sel_methods[*]} \
                        --n-reps $reps --asize $asize --final-asize ${final_asize} \
-                       --ens-sizes ${ens_sizes[*]} --n-waypoints ${n_waypoints[*]}
+                       --ens-sizes ${ens_sizes[*]} --n-waypoints ${n_waypoints[*]} \
+                       --sel-size $sel_size
             done
         done
     wait
