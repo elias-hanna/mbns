@@ -286,7 +286,7 @@ ind_cpt = 0
 # fitness,  desc and x are vectors
 def save_archive(archive, gen, params, log_dir):
     global ind_cpt
-    if params['log_ind_trajs'] == True:
+    if params['dump_ind_trajs'] == True:
         path_to_trajs = os.path.join(log_dir, 'ind_trajs')
         os.makedirs(path_to_trajs, exist_ok=True)
     
@@ -316,7 +316,7 @@ def save_archive(archive, gen, params, log_dir):
                 headers += f'bd{i}' + ','
         for i in range(params['dim_x']):
             headers += f'x{i}' + ','
-        if params['log_ind_trajs'] == True:
+        if params['dump_ind_trajs'] == True:
             headers += 'ind_trajs' + ','
         f.write(headers + "\n")
 
@@ -339,7 +339,7 @@ def save_archive(archive, gen, params, log_dir):
                 ind_string += get_array_string(k.x)
 
                 ## Add the trajectories
-                if k.obs_traj is not None and params['log_ind_trajs'] == True:
+                if k.obs_traj is not None and params['dump_ind_trajs'] == True:
                     ## Good way ?
                     ind_trajs_filename = f'ind_trajs_{ind_cpt}'
                     ind_string += 'ind_trajs/' + ind_trajs_filename + '.npz' + ','

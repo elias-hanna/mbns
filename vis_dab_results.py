@@ -427,7 +427,7 @@ def update_archive_covs(working_dir, args, archive_covs,
 def pd_read_csv_fast(filename):
     ## Only read the first line to get the columns
     data = pd.read_csv(filename, nrows=1)
-    ## Only keep important columns and 10 genotype columns for merge purposes
+    ## Only keep important columns and 5 genotype columns for merge purposes
     usecols = [col for col in data.columns if 'bd' in col or 'fit' in col]
     usecols += [col for col in data.columns if 'x' in col][:5]
     ## Return the complete dataset (without the << useless >> columns
@@ -476,6 +476,19 @@ def main(args):
     rcolors = plt.cm.BuPu(np.full(len(row_headers), 0.1))
     ccolors = plt.cm.BuPu(np.full(len(column_headers), 0.1))
 
+    ## Read the baseline archive obtained with NS (archive size: 4995)
+    ns_data_ok = False
+    filename = '' ## get archive path
+    try:
+        ns_data = pd.read_csv(filename)
+        ns_data = ns_data.iloc[:,:-1]
+        ns_data_ok = True
+    except:
+        print(f'Could not find file: {filename}. NS baseline won\'t be printed')
+
+    if ns_data_ok:
+        ns_cov = compute_cov(ns_data, args)
+        
     ## Get rep folders abs paths
     cwd = os.getcwd()
     
@@ -595,6 +608,8 @@ def main(args):
             sel_cpt += 1
         ab_cpt += 1
     fig, ax = plt.subplots()
+    if ns_data_ok:
+        ax.axhline(y = ns_cov)#, xmin = 0.25, xmax = 0.9)
     ax.boxplot(all_ab_methods_covs)
     ax.set_xticklabels(all_ab_methods_labels)
     ax.set_ylabel("Coverage (max is 1)")

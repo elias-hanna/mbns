@@ -30,6 +30,7 @@ from src.data_generation.srf_training import get_ensemble_training_samples
 #----------Data manipulation imports--------#
 import numpy as np
 import copy
+import pandas as pd
 #----------Utils imports--------#
 import os, sys
 import argparse
@@ -1195,6 +1196,7 @@ class WrappedEnv():
 ################################################################################
 def main(args):
 
+    ## Parameters that are passed to NS or QD instance
     px = \
     {
         # type of qd 'unstructured, grid, cvt'
@@ -1271,6 +1273,7 @@ def main(args):
         "log_model_stats": False,
         "log_time_stats": False, 
         "log_ind_trajs": args.log_ind_trajs,
+        "dump_ind_trajs": args.dump_ind_trajs,
 
         "norm_bd": args.norm_bd,
         "nov_ens": args.nov_ens,
@@ -1455,7 +1458,8 @@ def main(args):
         dim_map = 2
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
-    
+
+    ## Get the environment task horizon, observation and action space dimensions
     if not is_local_env:
         gym_env = gym.make(env_register_id, **gym_args)
 
@@ -1477,15 +1481,18 @@ def main(args):
     else:
         gym_env = None
 
+    
     n_waypoints = args.n_waypoints
     dim_map *= n_waypoints
     px['dim_map'] = dim_map
 
+    ## Set the type of controller we use
     if args.c_type == 'ffnn':
         controller_type = NeuralNetworkController
     elif args.c_type == 'rnn':
         controller_type = RNNController
 
+    ## Controller parameters
     controller_params = \
     {
         'controller_input_dim': obs_dim,
@@ -1496,6 +1503,7 @@ def main(args):
         'norm_input': args.norm_controller_input,
         'pred_mode': args.pred_mode,
     }
+    ## Dynamics model parameters
     dynamics_model_params = \
     {
         'obs_dim': state_dim,
@@ -1507,8 +1515,9 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
-        'ensemble_size': args.ens_size,
+        'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
     }
+    ## Observation model parameters
     observation_model_params = \
     {
         'obs_dim': obs_dim,
@@ -1519,8 +1528,9 @@ def main(args):
         'learning_rate': 1e-3,
         'train_unique_trans': False,
         'obs_model_type': args.obs_model_type,
-        'ensemble_size': args.ens_size,
+        'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
     }
+    ## Surrogate model parameters 
     surrogate_model_params = \
     {
         'bd_dim': dim_map,
@@ -1531,6 +1541,7 @@ def main(args):
         'learning_rate': 1e-3,
         'train_unique_trans': False,
     }
+    ## General parameters
     params = \
     {
         ## general parameters
@@ -1608,12 +1619,13 @@ def main(args):
     # params['action_min'] = params['action_min'][:1]
     # params['action_max'] = params['action_max'][:1]
     #######
-    
-    # dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_params)
+
+    ## Get the various random models we need for the run
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
     observation_model = get_observation_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
+    ## Pretrain the random models on some generated data
     if args.pretrain: ## won't go in with default value ''
         ## initialize replay buffer
         replay_buffer = SimpleReplayBuffer(
@@ -1689,7 +1701,8 @@ def main(args):
                 plt.show()
                 
                 exit()
-                
+
+    ## Set the models for the considered environments
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
         env.set_observation_model(observation_model)
@@ -1698,12 +1711,15 @@ def main(args):
                          render=False,
                          record_state_action=True,
                          ctrl_freq=100)
-        
+
+    ## Define f_real and f_model
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
 
+    ## If we evaluate directly on the real system f_model = f_real 
     if args.perfect_model:
         f_model = f_real
         px['model_variant'] = "dynamics"
+    ## Else if we evaluate on the generated random models we use one of below
     elif args.model_variant == "dynamics" :
         if args.model_type == "det":
             f_model = env.evaluate_solution_model 
@@ -1719,10 +1735,75 @@ def main(args):
     # elif args.model_variant == "direct":
         # f_model = env.evaluate_solution_model 
 
-    if args.model_type == "det_ens" or args.model_type == "srf_ens":
+    ## Change some parameters that are passed to NS/QD instance if using an ensemble
+    ## (changes the way behaviors are dumped and how novelty is evaluated) 
+    if (args.model_type == "det_ens" or args.model_type == "srf_ens") \
+       and not args.perfect_model:
         px["ensemble_dump"] = True
         px["ensemble_size"] = dynamics_model_params["ensemble_size"]
 
+    ## Read the baseline archives obtained with NS (archive size: 4995)
+    ns_data_ok = False
+    filename = '' ## get archive path
+    try:
+        ns_data = pd.read_csv(filename)
+        ns_data = ns_data.iloc[:,:-1]
+        ns_data_ok = True
+    except:
+        print(f'Could not find file: {filename}. NS baseline won\'t be printed')
+        
+    if ns_data_ok:
+        ## Get real BD data from ns_data
+        ns_bd_data = [data['bd0'], data['bd1']]
+        ## Load archive genotypes
+        gen_cols = [col for col in ns_data.columns if 'x' in col]
+        ns_xs = []
+        for index, row in arch_data.iterrows():
+             ns_xs.append(row[gen_cols])
+        to_evaluate = list(zip(ns_xs, itertools.repeat(f_model)))
+        ## Evaluate on model(s)
+        s_list = evaluate_all_(to_evaluate)
+        ## Extract model(s) BD data from s_list
+        model_bd_data = [s.desc for s in s_list]
+        ## Format the bd data to plot with labels
+        all_bd_data = []
+        all_bd_data.append((ns_bd_data, 'real system'))
+        for m_idx in range(px['ensemble_size']):
+            all_bd_data.append(
+                ([bd[m_idx*dim_map:m_idx*dim_map+dim_map]
+                  for bd in model_bd_data], f'model n°{m_dix+1}')
+            )
+        ## Plot real archive and model(s) archive on plot
+        total_plots = len(all_bd_data)
+        ## make it as square as possible
+        rows = cols = round(sqrt(total_plots))
+        ## Add a row in case closest square cannot take all plots in
+        if total_plots < rows*cols:
+            rows += 1
+        
+        fig, axs = plt.subplots(rows, cols)
+
+        bd_cpt = 0
+        for col in cols:
+            for row in rows:
+                loc_bd_data, loc_system_name = all_bd_data[bd_cpt]
+                axs[row][col].scatter(x=loc_bd_data[:,0],y=loc_bd_data[:,1])
+                ax.set_xlabel('x-axis')
+                ax.set_ylabel('y-axis')
+                ax.set_title(f'Archive coverage on {loc_system_name}')
+                bd_cpt += 1
+                if bd_cpt >= total_plots:
+                    break
+            if bd_cpt >= total_plots:
+                break
+        
+        fig.suptitle('NS archive coverage obtained on real system shown on' \
+                     'various dynamic systems', fontsize=16)
+
+        plt.savefig(f"{args.environment}_real_to_model_cov",
+                    dpi=100, bbox_inches='tight')
+        
+    ## Perform the QD or NS search on f_model
     if args.algo == 'qd':
         algo = QD(dim_map, dim_x,
                 f_model,
@@ -1745,9 +1826,45 @@ def main(args):
             x = np.random.uniform(low=px['min'], high=px['max'], size=dim_x)
             to_evaluate += [(x, f_real)]
             n_evals = len(to_evaluate)
-            # fit, desc, obs, act, disagr = f_real(x, render=False)
-            # exit()
-            
+
+    ## Plot archive trajectories on model/real system
+    if not args.random_policies:
+        models_bd_traj_data = []
+        for _ in range(px['ensemble_size']): models_bd_traj_data.append([])
+        for ind in model_archive:
+            traj_data = ind.obs_traj
+            for m_idx in range(px['ensemble_size']):
+                bd_traj = traj_data[:,m_idx*dim_map:m_idx*dim_map+dim_map]
+                models_bd_traj_data[m_idx].append(bd_traj)
+                
+        ## Plot real archive and model(s) archive on plot
+        total_plots = len(models_bd_traj_data)
+        ## make it as square as possible
+        rows = cols = round(sqrt(total_plots))
+        ## Add a row in case closest square cannot take all plots in
+        if total_plots < rows*cols:
+            rows += 1
+        
+        fig, ax = plt.subplots(rows, cols)
+        m_cpt = 0
+        for col in cols:
+            for row in rows:
+                for ind_idx in range(len(model_archive)):
+                    bd_traj = mdoels_bd_traj_data[m_cpt][ind_idx]
+                    axs[row][col].plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, marker='o')
+                ax.set_xlabel('x-axis')
+                ax.set_ylabel('y-axis')
+                ax.set_title(f'Individuals trajectories on model n°{m_cpt}')
+                m_cpt += 1
+                if m_cpt >= total_plots:
+                    break
+            if m_cpt >= total_plots:
+                break
+        
+        fig.suptitle('Individuals trajectories on various dynamics systems')
+        plt.savefig(f"{args.environment}_model_ind_trajs",
+                    dpi=100, bbox_inches='tight')
+
     ## Evaluate the found solutions on the model
     if args.perfect_model:
         px['model_variant'] = args.model_variant
@@ -1760,6 +1877,8 @@ def main(args):
             if args.model_type == "det":
                 f_real = env.evaluate_solution_model_all
             elif args.model_type == "det_ens" or args.model_type == "srf_ens":
+                px["ensemble_dump"] = True
+                px["ensemble_size"] = dynamics_model_params["ensemble_size"]
                 f_real = env.evaluate_solution_model_det_ensemble_all
             elif args.model_type == "prob":
                 f_real = env.evaluate_solution_model_ensemble_all
@@ -1789,7 +1908,9 @@ def main(args):
     if px['type'] == "fixed":
         px['type'] = "unstructured"
 
-    px["ensemble_dump"] = False
+    if (args.model_type == "det_ens" or args.model_type == "srf_ens") \
+       and not args.perfect_model:
+        px["ensemble_dump"] = False
     
     # real_archive = []
             
@@ -1820,7 +1941,8 @@ if __name__ == "__main__":
     
     #-----------Store results + analysis-----------#
     parser.add_argument("--log_dir", type=str)
-    parser.add_argument('--log-ind-trajs', action="store_true") ## Store trajs?
+    parser.add_argument('--log-ind-trajs', action="store_true") ## Store trajs during run
+    parser.add_argument('--dump-ind-trajs', action="store_true") ## Dump traj in archive
     
     #-----------QD params for cvt or GRID---------------#
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
