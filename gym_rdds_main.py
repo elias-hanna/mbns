@@ -34,6 +34,7 @@ import pandas as pd
 #----------Utils imports--------#
 import os, sys
 import argparse
+import matplotlib.pyplot as plt
 
 import multiprocessing
 from multiprocessing import cpu_count
@@ -1676,7 +1677,6 @@ def main(args):
                 print('###########################################################')
                 print('###########################################################')
                 
-                import matplotlib.pyplot as plt
                 ## Plot generated srf
                 fig, (ax1, ax2) = plt.subplots(1, 2)
                 vmin = np.min(out_train_data[:,0]-in_train_data[:,0])
@@ -1776,7 +1776,7 @@ def main(args):
         ## Plot real archive and model(s) archive on plot
         total_plots = len(all_bd_data)
         ## make it as square as possible
-        rows = cols = round(sqrt(total_plots))
+        rows = cols = round(np.sqrt(total_plots))
         ## Add a row in case closest square cannot take all plots in
         if total_plots < rows*cols:
             rows += 1
@@ -1784,13 +1784,13 @@ def main(args):
         fig, axs = plt.subplots(rows, cols)
 
         bd_cpt = 0
-        for col in cols:
-            for row in rows:
+        for col in range(cols):
+            for row in range(rows):
                 loc_bd_data, loc_system_name = all_bd_data[bd_cpt]
                 axs[row][col].scatter(x=loc_bd_data[:,0],y=loc_bd_data[:,1])
-                ax.set_xlabel('x-axis')
-                ax.set_ylabel('y-axis')
-                ax.set_title(f'Archive coverage on {loc_system_name}')
+                axs[row][col].set_xlabel('x-axis')
+                axs[row][col].set_ylabel('y-axis')
+                axs[row][col].set_title(f'Archive coverage on {loc_system_name}')
                 bd_cpt += 1
                 if bd_cpt >= total_plots:
                     break
@@ -1828,42 +1828,49 @@ def main(args):
             n_evals = len(to_evaluate)
 
     ## Plot archive trajectories on model/real system
-    if not args.random_policies:
+    if not args.random_policies and not args.perfect_model:
         models_bd_traj_data = []
         for _ in range(px['ensemble_size']): models_bd_traj_data.append([])
         for ind in model_archive:
             traj_data = ind.obs_traj
             for m_idx in range(px['ensemble_size']):
-                bd_traj = traj_data[:,m_idx*dim_map:m_idx*dim_map+dim_map]
+                bd_traj = traj_data[:,m_idx,:2]
                 models_bd_traj_data[m_idx].append(bd_traj)
                 
         ## Plot real archive and model(s) archive on plot
         total_plots = len(models_bd_traj_data)
         ## make it as square as possible
-        rows = cols = round(sqrt(total_plots))
+        rows = cols = round(np.sqrt(total_plots))
         ## Add a row in case closest square cannot take all plots in
         if total_plots < rows*cols:
             rows += 1
         
-        fig, ax = plt.subplots(rows, cols)
+        fig, axs = plt.subplots(rows, cols)
         m_cpt = 0
-        for col in cols:
-            for row in rows:
-                for ind_idx in range(len(model_archive)):
-                    bd_traj = mdoels_bd_traj_data[m_cpt][ind_idx]
-                    axs[row][col].plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, marker='o')
-                ax.set_xlabel('x-axis')
-                ax.set_ylabel('y-axis')
-                ax.set_title(f'Individuals trajectories on model n°{m_cpt}')
+        import random
+        ind_idxs = np.random.permutation(len(model_archive))[:100]
+        for col in range(cols):
+            for row in range(rows):
+                # for ind_idx in range(len(model_archive)):
+                for ind_idx in ind_idxs:
+                    bd_traj = models_bd_traj_data[m_cpt][ind_idx]
+                    axs[row][col].plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
+                    for i in range(len(bd_traj)):
+                        axs[row][col].scatter(bd_traj[i,0,], bd_traj[i,1], alpha=(len(bd_traj)-i)/len(bd_traj), marker='o', s=10)
+                        
+                axs[row][col].set_xlabel('x-axis')
+                axs[row][col].set_ylabel('y-axis')
+                axs[row][col].set_title(f'Individuals trajectories on model n°{m_cpt}')
                 m_cpt += 1
                 if m_cpt >= total_plots:
                     break
             if m_cpt >= total_plots:
                 break
-        
+
+        fig.set_size_inches(8,8)
         fig.suptitle('Individuals trajectories on various dynamics systems')
         plt.savefig(f"{args.environment}_model_ind_trajs",
-                    dpi=100, bbox_inches='tight')
+                    dpi=300, bbox_inches='tight')
 
     ## Evaluate the found solutions on the model
     if args.perfect_model:
