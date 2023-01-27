@@ -1800,8 +1800,10 @@ def main(args):
         fig.suptitle('NS archive coverage obtained on real system shown on' \
                      'various dynamic systems', fontsize=16)
 
-        plt.savefig(f"{args.environment}_real_to_model_cov",
-                    dpi=100, bbox_inches='tight')
+        fig.set_size_inches(8,8)
+        file_path = os.path.join(args.log_dir, f"{args.environment}_real_to_model_cov")
+        plt.savefig(file_path,
+                    dpi=300, bbox_inches='tight')
         
     ## Perform the QD or NS search on f_model
     if args.algo == 'qd':
@@ -1869,7 +1871,8 @@ def main(args):
 
         fig.set_size_inches(8,8)
         fig.suptitle('Individuals trajectories on various dynamics systems')
-        plt.savefig(f"{args.environment}_model_ind_trajs",
+        file_path = os.path.join(args.log_dir, f"{args.environment}_model_ind_trajs")
+        plt.savefig(file_path,
                     dpi=300, bbox_inches='tight')
 
     ## Evaluate the found solutions on the model
