@@ -36,6 +36,9 @@ class SrfDeterministicEnsemble():
         # create ensemble_size models drawn from 'kernels'
         self.models = []
 
+        self.output_min = np.array([-5,-5,-0.25,-0.25,-0.05,-0.05])
+        self.output_max = np.array([5,5,0.25,0.25,0.05,0.05])
+
         print('Creating dynamics model ensemble...')
         for ens_idx in range(self.ensemble_size):
             kernel = kernels[np.random.randint(len(kernels))]
@@ -72,9 +75,11 @@ class SrfDeterministicEnsemble():
             batch_pred = self.query_srfs(norm_input[i::self.ensemble_size], model)
             ## Denormalize data
             ## Denormalize output
-            output = self.denormalize_outputs_sa_minmax(batch_pred)
+            # output = batch_pred
+            # output = self.denormalize_outputs_sa_minmax(batch_pred)
+            output = self.denormalize_outputs(batch_pred)
             ## Remove previous state
-            output -= x_input[i::self.ensemble_size, :self.obs_dim]
+            # output -= x_input[i::self.ensemble_size, :self.obs_dim]
             batch_preds.append(output)
 
         return np.array(batch_preds)
@@ -87,4 +92,9 @@ class SrfDeterministicEnsemble():
     def denormalize_outputs_sa_minmax(self, data):
         data_denorm = ((data + 1)*(self.sa_max[:self.obs_dim] - self.sa_min[:self.obs_dim]) / \
                        (1 + 1)) + self.sa_min[:self.obs_dim]
+        return data_denorm
+
+    def denormalize_outputs(self, data):
+        data_denorm = ((data + 1)*(self.output_max - self.output_min) / \
+                       (1 + 1)) + self.output_min
         return data_denorm

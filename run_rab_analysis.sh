@@ -18,7 +18,8 @@ architectures=(rnn_2l_10h_2)
 
 ## Search methods
 # search_methods=(random-policies det det_ens) # considered search methods
-search_methods=(random-policies_ffnn_2l_10 random-policies_ffnn_2l_64 random-policies_rnn_2l_10 random-policies_rnn_2l_64 ffnn_2l_10_det_ens ffnn_2l_64_det_ens rnn_2l_10_det_ens rnn_2l_64_det_ens) # considered search methods
+# search_methods=(random-policies_ffnn_2l_10 random-policies_ffnn_2l_64 random-policies_rnn_2l_10 random-policies_rnn_2l_64 ffnn_2l_10_det_ens ffnn_2l_64_det_ens rnn_2l_10_det_ens rnn_2l_64_det_ens) # considered search methods
+search_methods=(random-policies_ffnn_2l_10 random-policies_ffnn_2l_64 ffnn_2l_10h_srf_ens ffnn_2l_64h_srf_ens) # considered search methods
 
 # search methods params
 ens_sizes=(4) # considered ensemble sizes
@@ -26,14 +27,14 @@ m_horizons=(10) # Considered model horizons
 
 ## Selection methods
 # sel_methods=(random max nov kmeans) # selection methods
-sel_methods=(random max) # selection methods
+sel_methods=(random) # selection methods
 
 ## Considered archives sizes 
 asize=15100 # saved archive sizes
-asize=67100 # saved archive sizes
+asize=66500 # saved archive sizes
 
 final_asizes=(5000) # number of random policies
-sel_size=100
+sel_size=4995
 
 n_waypoints=(1) # Number of waypoints for the BD (1 is last traj element)
 

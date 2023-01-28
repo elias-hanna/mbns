@@ -11,8 +11,10 @@ class SrfDeterministicObsModel():
             self,
             state_dim,              # Observation dim of environment
             obs_dim,           # Action dim of environment
-            so_min,          # State-Action space min values
-            so_max,          # State-Action space max values
+            s_min,          # State space min values
+            s_max,          # State space max values
+            o_min,          # Obs space min values
+            o_max,          # Obs space max values
             var,          # Hidden size for model, either int or array
             len_scale,
             kernels=[gs.Gaussian],
@@ -24,9 +26,11 @@ class SrfDeterministicObsModel():
         self.input_dim = self.state_dim
         self.output_dim = self.obs_dim 
         
-        ## State-Action space params
-        self.so_min = so_min
-        self.so_max = so_max
+        ## State and obs space params
+        self.s_min = s_min
+        self.s_max = s_max
+        self.o_min = o_min
+        self.o_max = o_max
         self.use_minmax_norm = use_minmax_norm
 
         ## SRF params
@@ -58,18 +62,18 @@ class SrfDeterministicObsModel():
     def output_pred(self, x_input):
         x_input = ptu.get_numpy(x_input) # numpify it
         ## Normalize data
-        norm_input = self.normalize_inputs_so_minmax(x_input)
+        norm_input = x_input
+        # norm_input = self.normalize_inputs_s_minmax(x_input)
         batch_pred = self.query_srfs(norm_input, self.model)
-        output = self.denormalize_outputs_so_minmax(batch_pred)
-
+        output = self.denormalize_outputs_o_minmax(batch_pred)
         return np.array(output)
 
-    def normalize_inputs_so_minmax(self, data):
-        data_norm = (data - self.so_min)/(self.so_max - self.so_min)
+    def normalize_inputs_s_minmax(self, data):
+        data_norm = (data - self.s_min)/(self.s_max - self.s_min)
         rescaled_data_norm = data_norm * (1 + 1) - 1
         return rescaled_data_norm
 
-    def denormalize_outputs_so_minmax(self, data):
-        data_denorm = ((data + 1)*(self.so_max[:self.obs_dim] - self.so_min[:self.obs_dim]) / \
-                       (1 + 1)) + self.so_min[:self.obs_dim]
+    def denormalize_outputs_o_minmax(self, data):
+        data_denorm = ((data + 1)*(self.o_max - self.o_min) / \
+                       (1 + 1)) + self.o_min
         return data_denorm

@@ -31,6 +31,7 @@ from src.data_generation.srf_training import get_ensemble_training_samples
 import numpy as np
 import copy
 import pandas as pd
+import itertools
 #----------Utils imports--------#
 import os, sys
 import argparse
@@ -197,8 +198,10 @@ def get_observation_model(params):
         observation_model = SrfDeterministicObsModel(
             state_dim=state_dim,
             obs_dim=obs_dim,
-            so_min=params['state_min'],
-            so_max=params['state_max'],
+            s_min=params['state_min'],
+            s_max=params['state_max'],
+            o_min=params['obs_min'],
+            o_max=params['obs_max'],
             var=params['srf_var'],
             len_scale=params['srf_cor'],
             use_minmax_norm=use_minmax_norm)
@@ -493,7 +496,8 @@ class WrappedEnv():
             desc = []
             for info_wp in info_wps:
                 desc += info_wp['robot_pos'][:2]
-            
+            obs_traj = np.array([info['robot_pos'][:2] for info in info_traj])
+
         fitness = self.compute_fitness(obs_traj, act_traj)
 
         if render:
@@ -822,6 +826,7 @@ class WrappedEnv():
                     disagreements_list[i].append(batch_disagreement[i])
                     actions_list[i].append(A[i,:])
                 else:
+
                     S[i*ens_size:i*ens_size+ens_size] += batch_pred_delta_ns[:,i]
                     if self.clip_state:
                         S[i*ens_size:i*ens_size+ens_size] = np.clip(
@@ -1270,6 +1275,7 @@ def main(args):
         'model_type': args.model_type,
         "model_variant": args.model_variant, # "dynamics" or "direct" or "all_dynamics"  
         "perfect_model_on": args.perfect_model,
+        "ensemble_size": 1,
         
         "log_model_stats": False,
         "log_time_stats": False, 
@@ -1585,8 +1591,8 @@ def main(args):
         ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
-        'srf_var': 0.1,
-        'srf_cor': 0.1,
+        'srf_var': 0.001,
+        'srf_cor': 0.01,
 
         ## Dump params/ memory gestion params
         "log_ind_trajs": args.log_ind_trajs,
@@ -1700,7 +1706,6 @@ def main(args):
 
                 plt.show()
                 
-                exit()
 
     ## Set the models for the considered environments
     if not is_local_env:
@@ -1744,7 +1749,8 @@ def main(args):
 
     ## Read the baseline archives obtained with NS (archive size: 4995)
     ns_data_ok = False
-    filename = '' ## get archive path
+    archi = f"{args.c_type}_{args.c_n_layers}l_{args.c_n_neurons}n"
+    filename = f'~/ns_results/ns_results_{args.environment}_{archi}.dat' ## get archive path
     try:
         ns_data = pd.read_csv(filename)
         ns_data = ns_data.iloc[:,:-1]
@@ -1752,14 +1758,14 @@ def main(args):
     except:
         print(f'Could not find file: {filename}. NS baseline won\'t be printed')
         
-    if ns_data_ok:
+    if ns_data_ok and 'ens' in args.model_type:
         ## Get real BD data from ns_data
-        ns_bd_data = [data['bd0'], data['bd1']]
+        ns_bd_data = ns_data[['bd0','bd1']].to_numpy()
         ## Load archive genotypes
         gen_cols = [col for col in ns_data.columns if 'x' in col]
         ns_xs = []
-        for index, row in arch_data.iterrows():
-             ns_xs.append(row[gen_cols])
+        for index, row in ns_data.iterrows():
+             ns_xs.append(row[gen_cols].to_numpy())
         to_evaluate = list(zip(ns_xs, itertools.repeat(f_model)))
         ## Evaluate on model(s)
         s_list = evaluate_all_(to_evaluate)
@@ -1770,15 +1776,15 @@ def main(args):
         all_bd_data.append((ns_bd_data, 'real system'))
         for m_idx in range(px['ensemble_size']):
             all_bd_data.append(
-                ([bd[m_idx*dim_map:m_idx*dim_map+dim_map]
-                  for bd in model_bd_data], f'model n°{m_dix+1}')
+                (np.array([bd[m_idx*dim_map:m_idx*dim_map+dim_map]
+                  for bd in model_bd_data]), f'model n°{m_idx+1}')
             )
         ## Plot real archive and model(s) archive on plot
         total_plots = len(all_bd_data)
         ## make it as square as possible
         rows = cols = round(np.sqrt(total_plots))
         ## Add a row in case closest square cannot take all plots in
-        if total_plots < rows*cols:
+        if total_plots > rows*cols:
             rows += 1
         
         fig, axs = plt.subplots(rows, cols)
@@ -1786,25 +1792,29 @@ def main(args):
         bd_cpt = 0
         for col in range(cols):
             for row in range(rows):
-                loc_bd_data, loc_system_name = all_bd_data[bd_cpt]
-                axs[row][col].scatter(x=loc_bd_data[:,0],y=loc_bd_data[:,1])
-                axs[row][col].set_xlabel('x-axis')
-                axs[row][col].set_ylabel('y-axis')
-                axs[row][col].set_title(f'Archive coverage on {loc_system_name}')
-                bd_cpt += 1
-                if bd_cpt >= total_plots:
-                    break
-            if bd_cpt >= total_plots:
-                break
-        
+                try:
+                    loc_bd_data, loc_system_name = all_bd_data[bd_cpt]
+                    axs[row][col].scatter(x=loc_bd_data[:,0],y=loc_bd_data[:,1], s=3)
+                    axs[row][col].scatter(x=init_obs[0],y=init_obs[1], s=10, c='red')
+                    axs[row][col].set_xlabel('x-axis')
+                    axs[row][col].set_ylabel('y-axis')
+                    axs[row][col].set_title(f'Archive coverage on {loc_system_name}')
+                    axs[row][col].set_xlim(init_obs[0]-600, init_obs[0]+600)
+                    axs[row][col].set_ylim(init_obs[1]-600, init_obs[1]+600)
+                    axs[row][col].set_aspect('equal', adjustable='box')
+                    bd_cpt += 1
+                except:
+                    fig.delaxes(axs[row][col])
+                    
         fig.suptitle('NS archive coverage obtained on real system shown on' \
                      'various dynamic systems', fontsize=16)
 
-        fig.set_size_inches(8,8)
+        fig.set_size_inches(total_plots*2,total_plots*2)
         file_path = os.path.join(args.log_dir, f"{args.environment}_real_to_model_cov")
+        fig.tight_layout(pad=0.5)
         plt.savefig(file_path,
-                    dpi=300, bbox_inches='tight')
-        
+                    dpi=300)#, bbox_inches='tight')
+
     ## Perform the QD or NS search on f_model
     if args.algo == 'qd':
         algo = QD(dim_map, dim_x,
@@ -1830,21 +1840,26 @@ def main(args):
             n_evals = len(to_evaluate)
 
     ## Plot archive trajectories on model/real system
-    if not args.random_policies and not args.perfect_model:
+    # if not args.random_policies and not args.perfect_model:
+    if not args.random_policies:
         models_bd_traj_data = []
         for _ in range(px['ensemble_size']): models_bd_traj_data.append([])
         for ind in model_archive:
             traj_data = ind.obs_traj
-            for m_idx in range(px['ensemble_size']):
-                bd_traj = traj_data[:,m_idx,:2]
-                models_bd_traj_data[m_idx].append(bd_traj)
+            if not 'ens' in args.model_type or args.perfect_model:
+                bd_traj = traj_data[:,:2]
+                models_bd_traj_data[0].append(bd_traj)
+            else:
+                for m_idx in range(px['ensemble_size']):
+                    bd_traj = traj_data[:,m_idx,:2]
+                    models_bd_traj_data[m_idx].append(bd_traj)
                 
         ## Plot real archive and model(s) archive on plot
         total_plots = len(models_bd_traj_data)
         ## make it as square as possible
         rows = cols = round(np.sqrt(total_plots))
         ## Add a row in case closest square cannot take all plots in
-        if total_plots < rows*cols:
+        if total_plots > rows*cols:
             rows += 1
         
         fig, axs = plt.subplots(rows, cols)
@@ -1853,21 +1868,25 @@ def main(args):
         ind_idxs = np.random.permutation(len(model_archive))[:100]
         for col in range(cols):
             for row in range(rows):
-                # for ind_idx in range(len(model_archive)):
-                for ind_idx in ind_idxs:
-                    bd_traj = models_bd_traj_data[m_cpt][ind_idx]
-                    axs[row][col].plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
-                    for i in range(len(bd_traj)):
-                        axs[row][col].scatter(bd_traj[i,0,], bd_traj[i,1], alpha=(len(bd_traj)-i)/len(bd_traj), marker='o', s=10)
-                        
-                axs[row][col].set_xlabel('x-axis')
-                axs[row][col].set_ylabel('y-axis')
-                axs[row][col].set_title(f'Individuals trajectories on model n°{m_cpt}')
-                m_cpt += 1
-                if m_cpt >= total_plots:
-                    break
-            if m_cpt >= total_plots:
-                break
+                try:
+                    if not 'ens' in args.model_type or args.perfect_model:
+                        ax = axs
+                    else:
+                        ax = axs[row][col]
+                    # for ind_idx in range(len(model_archive)):
+                    for ind_idx in ind_idxs:
+                        bd_traj = models_bd_traj_data[m_cpt][ind_idx]
+                        ax.plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
+                        # for i in range(len(bd_traj)):
+                            # axs[row][col].scatter(bd_traj[i,0,], bd_traj[i,1], alpha=(len(bd_traj)-i)/len(bd_traj), marker='o', s=10)
+                    ax.set_xlabel('x-axis')
+                    ax.set_ylabel('y-axis')
+                    ax.set_title(f'Individuals trajectories on model n°{m_cpt}')
+                    ax.set_xlim(0,600)
+                    ax.set_ylim(0,600)
+                    m_cpt += 1
+                except:
+                    fig.delaxes(axs[row][col])
 
         fig.set_size_inches(8,8)
         fig.suptitle('Individuals trajectories on various dynamics systems')
@@ -1900,7 +1919,6 @@ def main(args):
     ## Selection based on nov, clustering, other?
     
     ## Create to evaluate vector
-    import itertools
     if not args.random_policies:
         to_evaluate = list(zip([ind.x.copy() for ind in model_archive], itertools.repeat(f_real)))
 
