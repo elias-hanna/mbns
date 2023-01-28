@@ -1751,7 +1751,7 @@ def main(args):
     ## Read the baseline archives obtained with NS (archive size: 4995)
     ns_data_ok = False
     archi = f"{args.c_type}_{args.c_n_layers}l_{args.c_n_neurons}n"
-    filename = f'~/ns_results/ns_results_{args.environment}_{archi}.dat' ## get archive path
+    filename = f'{os.getenv("HOME")}/ns_results/ns_results_{args.environment}_{archi}.dat' ## get archive path
     try:
         ns_data = pd.read_csv(filename)
         ns_data = ns_data.iloc[:,:-1]
