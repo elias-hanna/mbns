@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 
 import multiprocessing
 from multiprocessing import cpu_count
+import random
 
 import time
 import tqdm
@@ -1799,8 +1800,10 @@ def main(args):
                     axs[row][col].set_xlabel('x-axis')
                     axs[row][col].set_ylabel('y-axis')
                     axs[row][col].set_title(f'Archive coverage on {loc_system_name}')
-                    axs[row][col].set_xlim(init_obs[0]-600, init_obs[0]+600)
-                    axs[row][col].set_ylim(init_obs[1]-600, init_obs[1]+600)
+                    loc_bd_mins = np.min(loc_bd_data, axis=0) 
+                    loc_bd_maxs = np.max(loc_bd_data, axis=0) 
+                    axs[row][col].set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
+                    axs[row][col].set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
                     axs[row][col].set_aspect('equal', adjustable='box')
                     bd_cpt += 1
                 except:
@@ -1838,61 +1841,6 @@ def main(args):
             x = np.random.uniform(low=px['min'], high=px['max'], size=dim_x)
             to_evaluate += [(x, f_real)]
             n_evals = len(to_evaluate)
-
-    ## Plot archive trajectories on model/real system
-    # if not args.random_policies and not args.perfect_model:
-    if not args.random_policies:
-        models_bd_traj_data = []
-        for _ in range(px['ensemble_size']): models_bd_traj_data.append([])
-        for ind in model_archive:
-            traj_data = ind.obs_traj
-            if not 'ens' in args.model_type or args.perfect_model:
-                bd_traj = traj_data[:,:2]
-                models_bd_traj_data[0].append(bd_traj)
-            else:
-                for m_idx in range(px['ensemble_size']):
-                    bd_traj = traj_data[:,m_idx,:2]
-                    models_bd_traj_data[m_idx].append(bd_traj)
-                
-        ## Plot real archive and model(s) archive on plot
-        total_plots = len(models_bd_traj_data)
-        ## make it as square as possible
-        rows = cols = round(np.sqrt(total_plots))
-        ## Add a row in case closest square cannot take all plots in
-        if total_plots > rows*cols:
-            rows += 1
-        
-        fig, axs = plt.subplots(rows, cols)
-        m_cpt = 0
-        import random
-        ind_idxs = np.random.permutation(len(model_archive))[:100]
-        for col in range(cols):
-            for row in range(rows):
-                try:
-                    if not 'ens' in args.model_type or args.perfect_model:
-                        ax = axs
-                    else:
-                        ax = axs[row][col]
-                    # for ind_idx in range(len(model_archive)):
-                    for ind_idx in ind_idxs:
-                        bd_traj = models_bd_traj_data[m_cpt][ind_idx]
-                        ax.plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
-                        # for i in range(len(bd_traj)):
-                            # axs[row][col].scatter(bd_traj[i,0,], bd_traj[i,1], alpha=(len(bd_traj)-i)/len(bd_traj), marker='o', s=10)
-                    ax.set_xlabel('x-axis')
-                    ax.set_ylabel('y-axis')
-                    ax.set_title(f'Individuals trajectories on model n°{m_cpt}')
-                    ax.set_xlim(0,600)
-                    ax.set_ylim(0,600)
-                    m_cpt += 1
-                except:
-                    fig.delaxes(axs[row][col])
-
-        fig.set_size_inches(8,8)
-        fig.suptitle('Individuals trajectories on various dynamics systems')
-        file_path = os.path.join(args.log_dir, f"{args.environment}_model_ind_trajs")
-        plt.savefig(file_path,
-                    dpi=300, bbox_inches='tight')
 
     ## Evaluate the found solutions on the model
     if args.perfect_model:
@@ -1945,6 +1893,108 @@ def main(args):
     # real_archive, add_list, _ = addition_condition(s_list, real_archive, px)
     # cm.save_archive(real_archive, f"{n_evals}_real_added", px, args.log_dir)
     cm.save_archive(s_list, f"{n_evals}_real_all", px, args.log_dir)
+
+    ## Plot archive trajectories on model/real system
+    # if not args.random_policies and not args.perfect_model:
+    if not args.random_policies:
+        ## Extract real sys BD data from s_list
+        real_bd_traj_data = [s.obs_traj for s in s_list]
+        ## Format the bd data to plot with labels
+        all_bd_traj_data = []
+
+        all_bd_traj_data.append((real_bd_traj_data, 'real system'))
+        for m_idx in range(px['ensemble_size']):
+            loc_model_bd_traj_data= []
+            for ind in model_archive:
+                if not 'ens' in args.model_type or args.perfect_model:
+                    bd_traj = ind.obs_traj[:,:2]
+                else:
+                        bd_traj = ind.obs_traj[:,m_idx,:2]
+                loc_model_bd_traj_data.append(bd_traj)
+
+            all_bd_traj_data.append((loc_model_bd_traj_data, f'model n°{m_idx+1}'))
+
+        ## Plot real archive and model(s) archive on plot
+        total_plots = len(all_bd_traj_data)
+        ## make it as square as possible
+        rows = cols = round(np.sqrt(total_plots))
+        ## Add a row in case closest square cannot take all plots in
+        if total_plots > rows*cols:
+            rows += 1
+        
+        fig1, axs1 = plt.subplots(rows, cols)
+        fig2, axs2 = plt.subplots(rows, cols)
+        m_cpt = 0
+        
+        # ind_idxs = np.random.permutation(len(model_archive))[:100]
+
+        for col in range(cols):
+            for row in range(rows):
+                try:
+                    if not hasattr(axs1, '__len__'):
+                    # if not 'ens' in args.model_type or args.perfect_model:
+                        ax1 = axs1
+                        ax2 = axs2
+                    else:
+                        ax1 = axs1[row][col]
+                        ax2 = axs2[row][col]
+
+                    loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
+                    loc_bd_traj_data = np.array(loc_bd_traj_data)
+                    
+                    ## Plot BDs
+                    ax1.scatter(x=loc_bd_traj_data[:,-1,0],y=loc_bd_traj_data[:,-1,1], s=3)
+                    ax1.scatter(x=init_obs[0],y=init_obs[1], s=10, c='red')
+                    ## Plot trajectories
+                    # for ind_idx in range(len(model_archive)):
+                    for bd_traj in loc_bd_traj_data:
+                        ax2.plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
+
+                    ax1.set_xlabel('x-axis')
+                    ax1.set_ylabel('y-axis')
+                    ax1.set_title(f'Archive coverage on {loc_system_name}')
+                    if 'real' in loc_system_name:
+                        ax1.set_xlim(0, 600)
+                        ax1.set_ylim(0, 600)
+                    else:
+                        loc_bd_mins = np.min(loc_bd_traj_data[:,-1,:], axis=0) 
+                        loc_bd_maxs = np.max(loc_bd_traj_data[:,-1,:], axis=0) 
+                        ax1.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
+                        ax1.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
+                    ax1.set_aspect('equal', adjustable='box')
+                    
+                    ax2.set_xlabel('x-axis')
+                    ax2.set_ylabel('y-axis')
+                    ax2.set_title(f'Individuals trajectories on {loc_system_name}')
+                    if 'real' in loc_system_name:
+                        ax2.set_xlim(0, 600)
+                        ax2.set_ylim(0, 600)
+                    else:
+                        loc_bd_mins = np.min(loc_bd_traj_data, axis=(0,1)) 
+                        loc_bd_maxs = np.max(loc_bd_traj_data, axis=(0,1))
+                        ax2.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
+                        ax2.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
+                    ax2.set_aspect('equal', adjustable='box')
+
+                    m_cpt += 1
+                except:
+                    fig1.delaxes(axs1[row][col])
+                    fig2.delaxes(axs2[row][col])
+
+
+        fig1.set_size_inches(total_plots*2,total_plots*2)
+        fig1.suptitle('Archive coverage after DAB')
+        file_path = os.path.join(args.log_dir, f"{args.environment}_model_to_real_cov")
+        fig1.savefig(file_path,
+                    dpi=300, bbox_inches='tight')
+
+        fig2.set_size_inches(total_plots*2,total_plots*2)
+        fig2.suptitle('Individuals trajectories after DAB')
+        file_path = os.path.join(args.log_dir, f"{args.environment}_model_ind_trajs")
+        fig2.savefig(file_path,
+                    dpi=300, bbox_inches='tight')
+
+    exit()
     
 ################################################################################
 ############################## Params parsing ##################################

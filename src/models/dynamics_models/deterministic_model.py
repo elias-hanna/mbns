@@ -55,8 +55,8 @@ class DeterministicDynModel(nn.Module):
         if init_method == 'uniform':
             # uniform intialization of weights
             self.init_method = nn.init.uniform_
-            a = -0.5; b = 0.5
-            # a = -5; b = 5
+            # a = -0.5; b = 0.5
+            a = -5; b = 5
             kwargs['a'] = a; kwargs['b'] = b
         elif init_method == 'xavier':
             # xavier uniform intialization of weights
