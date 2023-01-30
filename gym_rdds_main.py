@@ -1851,7 +1851,7 @@ def main(args):
     
     if not args.random_policies:
         model_archive, n_evals = algo.compute(num_cores_set=args.num_cores,
-                                              max_evals=args.max_evals)
+                                              max_evals=args.max_evals*10)
     else:
         to_evaluate = []
         for i in range(0, args.max_evals):
@@ -2101,7 +2101,8 @@ def main(args):
     archive_cov_by_gen = np.array(archive_cov_by_gen)
     to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
     np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
-    import pdb; pdb.set_trace()
+    
+
 ################################################################################
 ############################## Params parsing ##################################
 ################################################################################
