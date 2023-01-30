@@ -1202,7 +1202,7 @@ class WrappedEnv():
 ################################### MAIN #######################################
 ################################################################################
 def main(args):
-
+    bootstrap_archive = None
     ## Parameters that are passed to NS or QD instance
     px = \
     {
@@ -1221,7 +1221,7 @@ def main(args):
         # batch for random initialization
         "random_init_batch": args.random_init_batch,
         # path of bootstrap archive
-        'bootstrap_archive': args.bootstrap_archive_path,
+        'bootstrap_archive': bootstrap_archive,
         # when to write results (one generation = one batch)
         "dump_period": args.dump_period,
         # when to write results (budget = dump when dump period budget exhausted,
@@ -2021,16 +2021,15 @@ def main(args):
     ## Now boostrap a NS on the real system with individuals from the previously found archive
 
     ## Select individuals from model_archive to make a bootstrap archive
-    bootstrap_archive = None
-    if args.bootstrap_selection == 'most_nov':
+    bootstrap_size = px['pop_size']
+    if args.bootstrap_selection == 'nov':
         sorted_archive = sorted(model_archive,
                                 key=lambda x:x.nov, reverse=True)
-        population = sorted_archive[:px['pop_size']]
+        bootstrap_archive = sorted_archive[:bootstrap_size]
     elif args.bootstrap_selection == 'final_pop':
         bootstrap_archive = algo.population
     elif args.bootstrap_selection == 'random':
-        rand_idxs = np.random.randint(len(model_archive), size=px['pop_size'])
-        bootstrap_archive = model_archive[rand_idxs]
+        bootstrap_archive = np.random.choice(model_archive, size=bootstrap_size, replace=False)
     else:
         raise ValueError(f'args.bootstrap_selection: {args.bootstrap_selection} is not valid')
     # either take the final population, only make sense with NS
@@ -2102,7 +2101,8 @@ def main(args):
     to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
     np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
     
-
+    print()
+    print('Finished dabbing successfully. ¯\_(ツ)_/¯')
 ################################################################################
 ############################## Params parsing ##################################
 ################################################################################
@@ -2147,7 +2147,7 @@ if __name__ == "__main__":
     #-------------Algo params-----------#
     parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
     parser.add_argument('--bootstrap-archive-path', type=str, default='')
-    parser.add_argument('--bootstrap-selection', type=str, default='final_pop') # final_pop, most_nov, random
+    parser.add_argument('--bootstrap-selection', type=str, default='final_pop') # final_pop, nov, random
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
     ## Gen max_evals random policies and evaluate them

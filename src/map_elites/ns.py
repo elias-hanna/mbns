@@ -305,7 +305,7 @@ class NS:
             self.model_train_time = 0
             # initialization of archive - start up
             if len(self.archive) == 0:
-                if params['bootstrap_archive'] != '':
+                if params['bootstrap_archive'] is not None:
                     for ind in params['bootstrap_archive']:
                         to_evaluate += [(ind.x, self.f_real)]
                 else:
@@ -387,7 +387,7 @@ class NS:
 
             self.gen_time = time.time() - gen_start_time 
 
-            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
+            print(f"n_evals: {n_evals}/{max_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
         print("End of NS algorithm - saving final archive")        
