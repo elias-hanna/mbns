@@ -1386,16 +1386,18 @@ def main(args):
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
-        ss_min = np.array([0, 0, -1, -1, -1, -1])
-        ss_max = np.array([600, 600, 1, 1, 1, 1])
+        obs_min = ss_min = np.array([0, 0, -1, -1, -1, -1])
+        obs_max = ss_max = np.array([600, 600, 1, 1, 1, 1])
+        state_dim = 6
         # init_obs = np.array([60., 450., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'empty_maze':
         env_register_id = 'FastsimEmptyMapNavigationPos-v0'
         a_min = np.array([-1, -1])
         a_max = np.array([1, 1])
-        ss_min = np.array([0, 0, -1, -1, -1, -1])
-        ss_max = np.array([600, 600, 1, 1, 1, 1])
+        obs_min = ss_min = np.array([0, 0, -1, -1, -1, -1])
+        obs_max = ss_max = np.array([600, 600, 1, 1, 1, 1])
+        state_dim = 6
         # init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
     elif args.environment == 'fastsim_maze_traps':
@@ -1404,6 +1406,7 @@ def main(args):
         a_max = np.array([1, 1])
         ss_min = np.array([0, 0, -1, -1, -1, -1])
         ss_max = np.array([600, 600, 1, 1, 1, 1])
+        state_dim = 6
         dim_map = 2
         gym_args['physical_traps'] = True
     elif args.environment == 'half_cheetah':
@@ -1525,19 +1528,22 @@ def main(args):
         'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
         'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
     }
+    if args.use_obs_model:
     ## Observation model parameters
-    observation_model_params = \
-    {
-        'obs_dim': obs_dim,
-        'state_dim': state_dim,
-        'layer_size': [500, 400],
-        # 'layer_size': 500,
-        'batch_size': 512,
-        'learning_rate': 1e-3,
-        'train_unique_trans': False,
-        'obs_model_type': args.obs_model_type,
-        'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
-    }
+        observation_model_params = \
+        {
+            'obs_dim': obs_dim,
+            'state_dim': state_dim,
+            'layer_size': [500, 400],
+            # 'layer_size': 500,
+            'batch_size': 512,
+            'learning_rate': 1e-3,
+            'train_unique_trans': False,
+            'obs_model_type': args.obs_model_type,
+            'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
+        }
+    else:
+        observation_model_params = {}
     ## Surrogate model parameters 
     surrogate_model_params = \
     {
@@ -1630,7 +1636,8 @@ def main(args):
 
     ## Get the various random models we need for the run
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
-    observation_model = get_observation_model(params)
+    if observation_model_params:
+        observation_model = get_observation_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     ## Pretrain the random models on some generated data
@@ -1711,7 +1718,8 @@ def main(args):
     ## Set the models for the considered environments
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
-        env.set_observation_model(observation_model)
+        if args.use_obs_model:
+            env.set_observation_model(observation_model)
     elif args.environment == 'hexapod_omni':
         env = HexapodEnv(dynamics_model=dynamics_model,
                          render=False,
@@ -1896,7 +1904,7 @@ def main(args):
 
     ## Plot archive trajectories on model/real system
     # if not args.random_policies and not args.perfect_model:
-    if not args.random_policies:
+    if args.log_ind_trajs and not args.random_policies:
         ## Extract real sys BD data from s_list
         real_bd_traj_data = [s.obs_traj for s in s_list]
         ## Format the bd data to plot with labels
@@ -1909,7 +1917,7 @@ def main(args):
                 if not 'ens' in args.model_type or args.perfect_model:
                     bd_traj = ind.obs_traj[:,:2]
                 else:
-                        bd_traj = ind.obs_traj[:,m_idx,:2]
+                    bd_traj = ind.obs_traj[:,m_idx,:2]
                 loc_model_bd_traj_data.append(bd_traj)
 
             all_bd_traj_data.append((loc_model_bd_traj_data, f'model n°{m_idx+1}'))
