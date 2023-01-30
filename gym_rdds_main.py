@@ -1776,6 +1776,7 @@ def main(args):
     except:
         print(f'Could not find file: {filename}. NS baseline won\'t be printed')
         
+    ns_data_ok = False
     if ns_data_ok and 'ens' in args.model_type:
         ## Get real BD data from ns_data
         ns_bd_data = ns_data[['bd0','bd1']].to_numpy()
@@ -1851,7 +1852,7 @@ def main(args):
     
     if not args.random_policies:
         model_archive, n_evals = algo.compute(num_cores_set=args.num_cores,
-                                              max_evals=args.max_evals*10)
+                                              max_evals=args.max_evals*args.multi_eval)
     else:
         to_evaluate = []
         for i in range(0, args.max_evals):
@@ -2140,6 +2141,7 @@ if __name__ == "__main__":
     parser.add_argument("--dump_period", default=5000, type=int) 
     parser.add_argument("--dump-mode", type=str, default="budget")
     parser.add_argument("--max_evals", default=1e6, type=int) # max number of evaluation
+    parser.add_argument("--multi-eval", default=1., type=float) # max number of evaluation
     parser.add_argument("--selector", default="uniform", type=str)
     # possible values: iso_dd, polynomial or sbx
     parser.add_argument("--mutation", default="iso_dd", type=str)
