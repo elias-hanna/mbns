@@ -122,7 +122,8 @@ class NS:
         
         self.archive = [] # init archive as list
         self.model_archive = []        
-
+        self.population = None
+        
     def random_archive_init(self, to_evaluate):
         for i in range(0, self.params['pop_size']):
             x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
@@ -263,27 +264,29 @@ class NS:
 
         # setup the parallel processing pool
         if num_cores_set == 0:
-            num_cores = multiprocessing.cpu_count() # use all cores
+            num_cores = multiprocessing.cpu_count() - 1 # use all cores
         else:
             num_cores = num_cores_set
             
         pool = multiprocessing.Pool(num_cores)
 
-        if params['bootstrap_archive'] != '':
-            arch_data = pd.read_csv(params['bootstrap_archive'])
-            arch_data = arch_data.iloc[:,:-1]
-            s_list = []
-            gen_cols = [col for col in arch_data.columns if 'x' in col]
-            bd_cols = [col for col in arch_data.columns if 'bd' in col]
-            for index, row in arch_data.iterrows():
-                genotype = row[gen_cols]
-                bd = row[bd_cols]
-                s = cm.Species(genotype, bd, row['fit'])
-                s_list.append(s)
-            population = s_list
-            archive = s_list
-        else:
-            population = []
+        # if params['bootstrap_archive'] != '':
+        #     arch_data = pd.read_csv(params['bootstrap_archive'])
+        #     arch_data = arch_data.iloc[:,:-1]
+        #     s_list = []
+        #     gen_cols = [col for col in arch_data.columns if 'x' in col]
+        #     bd_cols = [col for col in arch_data.columns if 'bd' in col]
+        #     for index, row in arch_data.iterrows():
+        #         genotype = row[gen_cols]
+        #         bd = row[bd_cols]
+        #         s = cm.Species(genotype, bd, row['fit'])
+        #         s_list.append(s)
+        #     population = s_list
+        #     archive = s_list
+        # else:
+        #     population = []
+
+        population = []
         
         gen = 0 # generation
         n_evals = 0 # number of evaluations since the beginning
@@ -300,10 +303,13 @@ class NS:
             ## intialize for time related stats ##
             gen_start_time = time.time()
             self.model_train_time = 0
-
-            # random initialization of archive - start up
+            # initialization of archive - start up
             if len(self.archive) == 0:
-                to_evaluate = self.random_archive_init(to_evaluate)
+                if params['bootstrap_archive'] != '':
+                    for ind in params['bootstrap_archive']:
+                        to_evaluate += [(ind.x, self.f_real)]
+                else:
+                    to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
                 if params["model_variant"]=="all_dynamics":
                     s_list = evaluate_all_(to_evaluate)
@@ -349,7 +355,8 @@ class NS:
                 sorted_pop = sorted(population + offspring,
                                     key=lambda x:x.nov, reverse=True)
                 population = sorted_pop[:params['pop_size']]
-            
+                self.population = population
+
             # count evals
             gen += 1 # generations
             n_evals += len(to_evaluate) # total number of  real evals

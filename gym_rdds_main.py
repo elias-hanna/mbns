@@ -1369,6 +1369,8 @@ def main(args):
         obs_min = np.array([0, 0, 0, 0, 0])
         obs_max = np.array([100, 100, 100, 1, 1])
         dim_map = 2
+        bd_inds = [0, 1]
+        nb_div = 50
         args.use_obs_model = True
     elif args.environment == 'empty_maze_laser':
         env_register_id = 'FastsimEmptyMapNavigation-v0'
@@ -1381,6 +1383,8 @@ def main(args):
         obs_min = np.array([0, 0, 0, 0, 0])
         obs_max = np.array([100, 100, 100, 1, 1])
         dim_map = 2
+        bd_inds = [0, 1]
+        nb_div = 50
         args.use_obs_model = True
     elif args.environment == 'fastsim_maze':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
@@ -1391,6 +1395,7 @@ def main(args):
         state_dim = 6
         # init_obs = np.array([60., 450., 0., 0., 0. , 0.])
         dim_map = 2
+        bd_inds = [0, 1]
     elif args.environment == 'empty_maze':
         env_register_id = 'FastsimEmptyMapNavigationPos-v0'
         a_min = np.array([-1, -1])
@@ -1400,6 +1405,8 @@ def main(args):
         state_dim = 6
         # init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         dim_map = 2
+        bd_inds = [0, 1]
+        nb_div = 50
     elif args.environment == 'fastsim_maze_traps':
         env_register_id = 'FastsimSimpleNavigationPos-v0'
         a_min = np.array([-1, -1])
@@ -1409,6 +1416,8 @@ def main(args):
         state_dim = 6
         dim_map = 2
         gym_args['physical_traps'] = True
+        bd_inds = [0, 1]
+        nb_div = 50
     elif args.environment == 'half_cheetah':
         env_register_id = 'HalfCheetah-v3'
         a_min = np.array([-1, -1, -1, -1, -1, -1])
@@ -1889,8 +1898,8 @@ def main(args):
 
     pool.close()
 
-    if px['type'] == "fixed":
-        px['type'] = "unstructured"
+    # if px['type'] == "fixed":
+        # px['type'] = "unstructured"
 
     if (args.model_type == "det_ens" or args.model_type == "srf_ens") \
        and not args.perfect_model:
@@ -2002,8 +2011,97 @@ def main(args):
         fig2.savefig(file_path,
                     dpi=300, bbox_inches='tight')
 
-    exit()
+
+    ## Exit if we already ran on real model or if it was a RP run
+    if args.perfect_model or args.random_policies:
+        exit()
+
+    ## otherwise...
     
+    ## Now boostrap a NS on the real system with individuals from the previously found archive
+
+    ## Select individuals from model_archive to make a bootstrap archive
+    bootstrap_archive = None
+    if args.bootstrap_selection == 'most_nov':
+        sorted_archive = sorted(model_archive,
+                                key=lambda x:x.nov, reverse=True)
+        population = sorted_archive[:px['pop_size']]
+    elif args.bootstrap_selection == 'final_pop':
+        bootstrap_archive = algo.population
+    elif args.bootstrap_selection == 'random':
+        rand_idxs = np.random.randint(len(model_archive), size=px['pop_size'])
+        bootstrap_archive = model_archive[rand_idxs]
+    else:
+        raise ValueError(f'args.bootstrap_selection: {args.bootstrap_selection} is not valid')
+    # either take the final population, only make sense with NS
+    # Set params['bootstrap_archive'] to an archive containing those individuals
+    px['bootstrap_archive'] = bootstrap_archive
+    px['model_variant'] = "dynamics"
+    px['perfect_model_on'] = True
+    # warning! Still need to evaluate them on the real system (done in NS)
+
+    # Instanciate a new NS (to reinit all previously set internal variables)
+    algo = NS(dim_map, dim_x,
+              f_real,
+              params=px,
+              log_dir=args.log_dir)
+    # Run NS for eval budget on real sys(maybe increase the budget on model to
+    # be like twice or thrice real NS one :thought:)
+    
+    real_archive, total_evals = algo.compute(num_cores_set=args.num_cores,
+                                             max_evals=args.max_evals)
+
+    ## Plot archive coverage evolution at each generation
+    # we can do that by looking at coverage of individuals in archive taking
+    # into account the first lambda, then adding to these the next lambda inds
+    # etc...
+    def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
+        df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
+
+        for i in range(dim_map):
+            df_min[f'bd{i}'] = ss_min[bd_inds[i]]
+            df_max[f'bd{i}'] = ss_max[bd_inds[i]]
+
+        ## Deprecated but oh well
+        data = data.append(df_min, ignore_index = True)
+        data = data.append(df_max, ignore_index = True)
+
+        for i in range(dim_map):
+            data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
+                                      bins = nb_div, 
+                                      labels = [p for p in range(nb_div)])
+
+        ## assign data to bins
+        data = data.assign(bins=pd.Categorical
+                           (data.filter(regex='_bin')
+                            .apply(tuple, 1)))
+
+        ## remove df min and df max
+        data.drop(data.tail(2).index,inplace=True)
+
+        return data
+
+    def compute_cov(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
+        ## add bins field to data
+        data = get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div)
+        ## count number of bins filled
+        counts = data['bins'].value_counts()
+        total_bins = nb_div**dim_map
+        ## return coverage (number of bins filled)
+        return len(counts[counts>=1])/total_bins
+
+    archive_cov_by_gen = []
+    for gen in range(1,len(real_archive)//px['lambda']):
+        archive_at_gen = real_archive[:gen*px['lambda']]
+        bds_at_gen = np.array([ind.desc for ind in archive_at_gen])
+        bd_cols = [f'bd{i}' for i in range(dim_map)]
+        archive_at_gen_data = pd.DataFrame(bds_at_gen, columns=bd_cols)
+        cov_at_gen = compute_cov(archive_at_gen_data, ss_min, ss_max, px['dim_map'], bd_inds, nb_div)
+        archive_cov_by_gen.append(cov_at_gen)
+    archive_cov_by_gen = np.array(archive_cov_by_gen)
+    to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
+    np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
+    import pdb; pdb.set_trace()
 ################################################################################
 ############################## Params parsing ##################################
 ################################################################################
@@ -2048,6 +2146,7 @@ if __name__ == "__main__":
     #-------------Algo params-----------#
     parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
     parser.add_argument('--bootstrap-archive-path', type=str, default='')
+    parser.add_argument('--bootstrap-selection', type=str, default='final_pop') # final_pop, most_nov, random
     parser.add_argument('--fitness-func', type=str, default='energy_minimization')
     parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
     ## Gen max_evals random policies and evaluate them
