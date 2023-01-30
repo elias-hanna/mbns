@@ -269,6 +269,48 @@ def get_novelty_scores(data, bd_cols, k=15, slow=False):
             novelty_scores[cpt] = np.mean(dists)
     return novelty_scores
 
+def get_novelty_scores_ensemble(data, bd_cols, k=15, nov='sum', norm=False):
+    from sklearn.neighbors import NearestNeighbors
+
+    import pdb; pdb.set_trace()
+    # Get novelty scores on all models of ensemble individually
+    ind_novs = []
+    ens_size = self.params['ensemble_size']
+    for i in range(ens_size):
+        ind_novs.append([])
+        # Convert the dataset to a numpy array
+        all_bds = []
+        all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
+                    for ind in pop] # pop is usually pop + offspring 
+
+        all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
+                    for ind in archive]
+        all_bds = np.array(all_bds)
+
+        if norm:
+            max_bd = np.max(all_bds, axis=0)
+            min_bd = np.min(all_bds, axis=0)
+            all_bds = (all_bds - min_bd)/(max_bd - min_bd)
+        novelty_scores = np.empty((len(all_bds)))
+        # Compute the k-NN of the data point
+        neighbors = NearestNeighbors(n_neighbors=k)
+        neighbors.fit(all_bds)
+
+        ## New way
+        neigh_dists, neigh_inds = neighbors.kneighbors()
+        for ind, dists in zip(pop, neigh_dists):
+            ind_novs[i].append(np.mean(dists))
+    ind_novs = np.array(ind_novs)
+    # update all individuals nov by minimum of novelty on all environments
+    for i in range(len(pop)):
+        if nov == 'min':
+            pop[i].nov = np.min(ind_novs[:,i])
+        elif nov == 'mean':
+            pop[i].nov = np.mean(ind_novs[:,i])
+        elif nov == 'sum':
+            pop[i].nov = sum(ind_novs[:,i])
+
+                
 def get_most_nov_data(data, n, bd_cols, ens_size=1):
     if ens_size > 1:
         ens_data_nov = np.empty((ens_size, len(data)))
@@ -276,7 +318,13 @@ def get_most_nov_data(data, n, bd_cols, ens_size=1):
             bd_cols_loc = [f"{bd_cols[k]}_m{i}" for k in range(len(bd_cols))]
             data_nov = get_novelty_scores(data, bd_cols_loc)
             ens_data_nov[i,:] = data_nov
-        data_nov = ens_data_nov.min(axis=0)
+        min_novs = np.min(ens_data_nov, axis=1)
+        max_novs = np.max(ens_data_nov, axis=1)
+        min_novs = np.reshape(min_novs, (len(min_novs),1))
+        max_novs = np.reshape(max_novs, (len(max_novs),1))
+        norm_ens_data_nov = (ens_data_nov - min_novs)/(max_novs - min_novs)
+        # data_nov = ens_data_nov.min(axis=0)
+        data_nov = norm_ens_data_nov.min(axis=0)
     else:
         data_nov = get_novelty_scores(data, bd_cols)
     sorted_data = data.assign(nov=data_nov)
@@ -478,7 +526,8 @@ def main(args):
 
     ## Read the baseline archive obtained with NS (archive size: 4995)
     ns_data_ok = False
-    filename = '' ## get archive path
+    archi = args.c_architecture
+    filename = f'{os.getenv("HOME")}/ns_results/ns_results_{args.environment}_{archi}.dat' ## get archive path
     try:
         ns_data = pd.read_csv(filename)
         ns_data = ns_data.iloc[:,:-1]
@@ -559,7 +608,8 @@ def main(args):
                             working_dir = os.path.join(
                                 cwd,
                                 f'{search_method}_1_h{m_horizon}_{n_wp}wps_results')
-                            
+                            print(f'Processing {search_method}_1_h{m_horizon}'\
+                                      f' with {sel_method} selection')
                             update_archive_covs(working_dir, args, archive_covs,
                                                 abm_cpt, selm_cpt,
                                                 search_method, m_horizon,
@@ -567,8 +617,8 @@ def main(args):
                                                 n_wp=n_wp)
                             selm_cpt += 1
                             print(f'Took {time.time() - start} seconds to '\
-                                      f'process {search_method}_1_h{m_horizon}'\
-                                      f' with {sel_method} selection')
+                                  f'process {search_method}_1_h{m_horizon}'\
+                                  f' with {sel_method} selection')
                         abm_cpt += 1
                     else:
                         for ens_size in ens_sizes:
@@ -578,7 +628,8 @@ def main(args):
                                 working_dir = os.path.join(
                                     cwd,
                                     f'{search_method}_{ens_size}_h{m_horizon}_{n_wp}wps_results')
-                                
+                                print(f'Processing {search_method}_{ens_size}_h{m_horizon}'\
+                                      f' with {sel_method} selection')
                                 update_archive_covs(working_dir, args, archive_covs,
                                                     abm_cpt, selm_cpt,
                                                     search_method, m_horizon,
@@ -609,7 +660,13 @@ def main(args):
         ab_cpt += 1
     fig, ax = plt.subplots()
     if ns_data_ok:
-        ax.axhline(y = ns_cov)#, xmin = 0.25, xmax = 0.9)
+        ax.axhline(y = ns_cov, c='red', linewidth=10, linestyle='dashed', label='NS')
+    max_reachable = args.sel_size/(args.nb_div**2) if args.sel_size/(args.nb_div**2) <= 1 else 1
+    ax.axhline(y = max_reachable,
+               c='blue', linewidth=3, linestyle='dashed', label='Max reachable')
+    rand_pol_idx = all_ab_methods_labels.index(f'random-policies_{args.c_architecture[:-1]}-random')
+    ax.axhline(y = np.median(all_ab_methods_covs[rand_pol_idx]),
+               c='green', linewidth=3, linestyle='dashed', label='Random Policies Median')
     ax.boxplot(all_ab_methods_covs)
     ax.set_xticklabels(all_ab_methods_labels)
     ax.set_ylabel("Coverage (max is 1)")
@@ -619,10 +676,11 @@ def main(args):
               # f'{final_asize} individuals transferred')
               f'{sel_size} individuals transferred')
     fig.set_size_inches(35, 14)
+    plt.legend()
     
     # plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{final_asize}",
                 # dpi=300, bbox_inches='tight')
-    plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{sel_size}",
+    plt.savefig(f"{args.c_architecture}_{args.environment}_bp_coverage_{args.nb_div}_{sel_size}",
                 dpi=300, bbox_inches='tight')
 
     if args.show:
@@ -642,6 +700,7 @@ if __name__ == "__main__":
     parser.add_argument('--n-waypoints', nargs="*",
                         type=int, default=[1])
     parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
+    parser.add_argument('--c-architecture', type=str, default='')
 
     parser.add_argument("--show", help="Show the plot and saves it." \
                         " Unless specified, just save the mean plot over all" \
