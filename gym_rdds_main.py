@@ -1776,7 +1776,6 @@ def main(args):
     except:
         print(f'Could not find file: {filename}. NS baseline won\'t be printed')
         
-    ns_data_ok = False
     if ns_data_ok and 'ens' in args.model_type:
         ## Get real BD data from ns_data
         ns_bd_data = ns_data[['bd0','bd1']].to_numpy()
