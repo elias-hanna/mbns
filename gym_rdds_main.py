@@ -2058,8 +2058,8 @@ def main(args):
         df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
 
         for i in range(dim_map):
-            df_min[f'bd{i}'] = ss_min[bd_inds[i]]
-            df_max[f'bd{i}'] = ss_max[bd_inds[i]]
+            df_min[f'bd{i}'] = ss_min[bd_inds[i%len(bd_inds)]]
+            df_max[f'bd{i}'] = ss_max[bd_inds[i%len(bd_inds)]]
 
         ## Deprecated but oh well
         data = data.append(df_min, ignore_index = True)
@@ -2090,10 +2090,11 @@ def main(args):
         return len(counts[counts>=1])/total_bins
 
     archive_cov_by_gen = []
+    bd_cols = [f'bd{i}' for i in range(dim_map)]
+    bd_cols = bd_cols[-2:]
     for gen in range(1,len(real_archive)//px['lambda']):
         archive_at_gen = real_archive[:gen*px['lambda']]
-        bds_at_gen = np.array([ind.desc for ind in archive_at_gen])
-        bd_cols = [f'bd{i}' for i in range(dim_map)]
+        bds_at_gen = np.array([ind.desc[-2:] for ind in archive_at_gen])
         archive_at_gen_data = pd.DataFrame(bds_at_gen, columns=bd_cols)
         cov_at_gen = compute_cov(archive_at_gen_data, ss_min, ss_max, px['dim_map'], bd_inds, nb_div)
         archive_cov_by_gen.append(cov_at_gen)
