@@ -1852,6 +1852,8 @@ def main(args):
     if not args.random_policies:
         model_archive, n_evals = algo.compute(num_cores_set=args.num_cores,
                                               max_evals=args.max_evals*args.multi_eval)
+        cm.save_archive(model_archive, f"{n_evals}_model_all", px, args.log_dir)
+
     else:
         to_evaluate = []
         for i in range(0, args.max_evals):
@@ -2056,16 +2058,15 @@ def main(args):
     # etc...
     def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
         df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
-
-        for i in range(dim_map):
+        
+        for i in range(dim_map-1, dim_map-3, -1):
             df_min[f'bd{i}'] = ss_min[bd_inds[i%len(bd_inds)]]
             df_max[f'bd{i}'] = ss_max[bd_inds[i%len(bd_inds)]]
-
         ## Deprecated but oh well
         data = data.append(df_min, ignore_index = True)
         data = data.append(df_max, ignore_index = True)
 
-        for i in range(dim_map):
+        for i in range(dim_map-1, dim_map-3, -1):
             data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
                                       bins = nb_div, 
                                       labels = [p for p in range(nb_div)])
@@ -2085,7 +2086,7 @@ def main(args):
         data = get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div)
         ## count number of bins filled
         counts = data['bins'].value_counts()
-        total_bins = nb_div**dim_map
+        total_bins = nb_div**(dim_map//args.n_waypoints)
         ## return coverage (number of bins filled)
         return len(counts[counts>=1])/total_bins
 
@@ -2101,7 +2102,7 @@ def main(args):
     archive_cov_by_gen = np.array(archive_cov_by_gen)
     to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
     np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
-    
+
     print()
     print('Finished dabbing successfully. ¯\_(ツ)_/¯')
 ################################################################################

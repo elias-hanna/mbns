@@ -272,7 +272,6 @@ def get_novelty_scores(data, bd_cols, k=15, slow=False):
 def get_novelty_scores_ensemble(data, bd_cols, k=15, nov='sum', norm=False):
     from sklearn.neighbors import NearestNeighbors
 
-    import pdb; pdb.set_trace()
     # Get novelty scores on all models of ensemble individually
     ind_novs = []
     ens_size = self.params['ensemble_size']
@@ -392,6 +391,7 @@ def compute_cov(data, args):
     return len(counts[counts>=1])/total_bins
 
 def update_archive_covs(working_dir, args, archive_covs,
+                        archive_covs_by_gen,
                         abm_cpt, selm_cpt,
                         search_method, m_horizon, sel_method,
                         dim_x, final_asize, sel_size, n_wp=1, ens_size=1):
@@ -404,6 +404,7 @@ def update_archive_covs(working_dir, args, archive_covs,
                        for rep_folder in rep_folders]
 
     rep_cpt = 0
+    
     for abs_rep_folder in abs_rep_folders:
         if 'random-policies' in search_method:
             filename = os.path.join(abs_rep_folder,
@@ -416,6 +417,7 @@ def update_archive_covs(working_dir, args, archive_covs,
             # rep_data = pd.read_csv(filename)
         except FileNotFoundError:
             print(f'WARNING: No archive file for: {abs_rep_folder}')
+            rep_cpt += 1
             continue ## we keep nans where there is missing data
         # drop the last column which was made because there is a
         # comma after last value i a line
@@ -428,7 +430,6 @@ def update_archive_covs(working_dir, args, archive_covs,
                                    # final_asize, search_method,
                                    sel_size, search_method,
                                    m_horizon, sel_method, ens_size, args)
-
 
         if ok:
             ## Load real evaluations of individuals
@@ -469,8 +470,26 @@ def update_archive_covs(working_dir, args, archive_covs,
                              selm_cpt,
                              rep_cpt] = compute_cov(merged_data, args)
             except:
-                import pdb; pdb.set_trace()
+                pass
+                # import pdb; pdb.set_trace()
+
+        try:
+            archive_cov_by_gen = np.load(os.path.join(abs_rep_folder, 'archive_cov_by_gen.npz'))
+        except:
+            print(f'WARNING: No coverage file for: {abs_rep_folder}')
             rep_cpt += 1
+            continue
+
+        if n_wp==2:
+            import pdb; pdb.set_trace()
+
+        archive_cov_by_gen = archive_cov_by_gen['archive_cov_by_gen'] 
+        archive_covs_by_gen[abm_cpt,
+                            selm_cpt,
+                            rep_cpt] = archive_cov_by_gen
+
+        rep_cpt += 1
+
 
 def pd_read_csv_fast(filename):
     ## Only read the first line to get the columns
@@ -543,6 +562,9 @@ def main(args):
     
     archive_covs = np.zeros((len(ab_methods), len(sel_methods), n_reps))
     archive_covs[:] = np.nan
+    bootstrapped_ns_archive_covs_by_gen = np.zeros(
+        (len(ab_methods), len(sel_methods), n_reps, (args.asize-100)//200))
+    bootstrapped_ns_archive_covs_by_gen[:] = np.nan
     # archive_std_covs = np.zeros((len(ab_methods), len(sel_methods), len(n_reps)))
     # archive_std_covs[:] = np.nan
 
@@ -561,6 +583,7 @@ def main(args):
             start = time.time()
         
             update_archive_covs(working_dir, args, archive_covs,
+                                bootstrapped_ns_archive_covs_by_gen,
                                 abm_cpt, 0,
                                 search_method, m_horizon,
                                 'random', dim_x, final_asize, sel_size,
@@ -611,6 +634,7 @@ def main(args):
                             print(f'Processing {search_method}_1_h{m_horizon}'\
                                       f' with {sel_method} selection')
                             update_archive_covs(working_dir, args, archive_covs,
+                                                bootstrapped_ns_archive_covs_by_gen,
                                                 abm_cpt, selm_cpt,
                                                 search_method, m_horizon,
                                                 sel_method, dim_x, final_asize, sel_size,
@@ -631,6 +655,7 @@ def main(args):
                                 print(f'Processing {search_method}_{ens_size}_h{m_horizon}'\
                                       f' with {sel_method} selection')
                                 update_archive_covs(working_dir, args, archive_covs,
+                                                    bootstrapped_ns_archive_covs_by_gen,
                                                     abm_cpt, selm_cpt,
                                                     search_method, m_horizon,
                                                     sel_method, dim_x, final_asize, sel_size,
@@ -646,6 +671,8 @@ def main(args):
     #================================== PLOT ===================================#
     all_ab_methods_labels = []
     all_ab_methods_covs = []
+    all_ab_methods_labels_by_gen = []
+    all_ab_methods_covs_by_gen = []
 
     ab_cpt = 0
     for ab_method in ab_methods:
@@ -656,6 +683,12 @@ def main(args):
                 filtered_cov_vals = cov_vals[~np.isnan(cov_vals)]
                 all_ab_methods_covs.append(filtered_cov_vals)
                 all_ab_methods_labels.append(f'{ab_method}-{sel_method}')
+            cov_vals_by_gen = bootstrapped_ns_archive_covs_by_gen[ab_cpt, sel_cpt]
+            # if not np.isnan(cov_vals_by_gen).all():
+                # filtered_cov_vals_by_gen = cov_vals_by_gen[~np.isnan(cov_vals_by_gen)]
+                # all_ab_methods_covs_by_gen.append(filtered_cov_vals_by_gen)
+            all_ab_methods_covs_by_gen.append(cov_vals_by_gen)
+            all_ab_methods_labels_by_gen.append(f'{ab_method}-{sel_method}')
             sel_cpt += 1
         ab_cpt += 1
     fig, ax = plt.subplots()
@@ -664,9 +697,12 @@ def main(args):
     max_reachable = args.sel_size/(args.nb_div**2) if args.sel_size/(args.nb_div**2) <= 1 else 1
     ax.axhline(y = max_reachable,
                c='blue', linewidth=3, linestyle='dashed', label='Max reachable')
-    rand_pol_idx = all_ab_methods_labels.index(f'random-policies_{args.c_architecture[:-1]}-random')
-    ax.axhline(y = np.median(all_ab_methods_covs[rand_pol_idx]),
-               c='green', linewidth=3, linestyle='dashed', label='Random Policies Median')
+    try:
+        rand_pol_idx = all_ab_methods_labels.index(f'random-policies_{args.c_architecture[:-1]}-random')
+        ax.axhline(y = np.median(all_ab_methods_covs[rand_pol_idx]),
+                   c='green', linewidth=3, linestyle='dashed', label='Random Policies Median')
+    except:
+        print('No random policies, will not print bottom line')
     ax.boxplot(all_ab_methods_covs)
     ax.set_xticklabels(all_ab_methods_labels)
     ax.set_ylabel("Coverage (max is 1)")
@@ -681,6 +717,32 @@ def main(args):
     # plt.savefig(f"{args.environment}_bp_coverage_{args.nb_div}_{final_asize}",
                 # dpi=300, bbox_inches='tight')
     plt.savefig(f"{args.c_architecture}_{args.environment}_bp_coverage_{args.nb_div}_{sel_size}",
+                dpi=300, bbox_inches='tight')
+
+    ### Plot bootstrapped NS coverage per generation
+    fig, ax = plt.subplots()
+
+    all_ab_methods_covs_by_gen_median = np.median(all_ab_methods_covs_by_gen, axis=1)
+    all_ab_methods_covs_by_gen_1q = np.quantile(all_ab_methods_covs_by_gen, 1/4, axis=1)
+    all_ab_methods_covs_by_gen_3q = np.quantile(all_ab_methods_covs_by_gen, 3/4, axis=1)
+
+    gens = [gen+1 for gen in range((args.asize-100)//200)]
+    for meth_idx in range(len(all_ab_methods_covs_by_gen_median)):
+        ax.plot(gens, all_ab_methods_covs_by_gen_median[meth_idx],
+                label=all_ab_methods_labels[meth_idx])
+        ax.fill_between(gens,
+                        all_ab_methods_covs_by_gen_1q[meth_idx],
+                        all_ab_methods_covs_by_gen_3q[meth_idx],
+                        alpha=0.2)
+
+    ax.set_xlabel("Generations")
+    ax.set_ylabel("Archive coverage")
+    
+    plt.title(f'Archive coverage evolution of NS on real system with various bootstrapping methods\n')
+    fig.set_size_inches(35, 14)
+    plt.legend()
+    
+    plt.savefig(f"{args.c_architecture}_{args.environment}_real_ns_arch_coverage_evolution",
                 dpi=300, bbox_inches='tight')
 
     if args.show:
