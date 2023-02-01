@@ -1776,7 +1776,7 @@ def main(args):
     except:
         print(f'Could not find file: {filename}. NS baseline won\'t be printed')
         
-    if ns_data_ok and 'ens' in args.model_type:
+    if ns_data_ok and 'ens' in args.model_type and not args.perfect_model and not args.random_policies:
         ## Get real BD data from ns_data
         ns_bd_data = ns_data[['bd0','bd1']].to_numpy()
         ## Load archive genotypes
@@ -1892,7 +1892,7 @@ def main(args):
     if args.model_type == 'det_ens':
         px['parallel'] = False
 
-    ## Evaluate on real sys
+    ## Evaluate on real sys or model(if perfect_model on)
     if args.perfect_model and px['model_variant'] == 'all_dynamics':
         s_list = evaluate_all_(to_evaluate)
     else:
@@ -2014,44 +2014,45 @@ def main(args):
                     dpi=300, bbox_inches='tight')
 
 
-    ## Exit if we already ran on real model or if it was a RP run
-    if args.perfect_model or args.random_policies:
+    # Exit if we just checked RP cov
+    if args.random_policies:
         exit()
+    ## Run again with bootstrap if we ran on model previously 
+    if not args.perfect_model:
+        ## Now boostrap a NS on the real system with individuals from the previously found archive
 
-    ## otherwise...
-    
-    ## Now boostrap a NS on the real system with individuals from the previously found archive
+        ## Select individuals from model_archive to make a bootstrap archive
+        bootstrap_size = px['pop_size']
+        if args.bootstrap_selection == 'nov':
+            sorted_archive = sorted(model_archive,
+                                    key=lambda x:x.nov, reverse=True)
+            bootstrap_archive = sorted_archive[:bootstrap_size]
+        elif args.bootstrap_selection == 'final_pop':
+            bootstrap_archive = algo.population
+        elif args.bootstrap_selection == 'random':
+            bootstrap_archive = np.random.choice(model_archive, size=bootstrap_size, replace=False)
+        else:
+            raise ValueError(f'args.bootstrap_selection: {args.bootstrap_selection} is not valid')
+        # either take the final population, only make sense with NS
+        # Set params['bootstrap_archive'] to an archive containing those individuals
+        px['bootstrap_archive'] = bootstrap_archive
+        px['model_variant'] = "dynamics"
+        px['perfect_model_on'] = True
+        # warning! Still need to evaluate them on the real system (done in NS)
 
-    ## Select individuals from model_archive to make a bootstrap archive
-    bootstrap_size = px['pop_size']
-    if args.bootstrap_selection == 'nov':
-        sorted_archive = sorted(model_archive,
-                                key=lambda x:x.nov, reverse=True)
-        bootstrap_archive = sorted_archive[:bootstrap_size]
-    elif args.bootstrap_selection == 'final_pop':
-        bootstrap_archive = algo.population
-    elif args.bootstrap_selection == 'random':
-        bootstrap_archive = np.random.choice(model_archive, size=bootstrap_size, replace=False)
+        # Instanciate a new NS (to reinit all previously set internal variables)
+        algo = NS(dim_map, dim_x,
+                  f_real,
+                  params=px,
+                  log_dir=args.log_dir)
+        # Run NS for eval budget on real sys(maybe increase the budget on model to
+        # be like twice or thrice real NS one :thought:)
+
+        real_archive, total_evals = algo.compute(num_cores_set=args.num_cores,
+                                                 max_evals=args.max_evals)
+
     else:
-        raise ValueError(f'args.bootstrap_selection: {args.bootstrap_selection} is not valid')
-    # either take the final population, only make sense with NS
-    # Set params['bootstrap_archive'] to an archive containing those individuals
-    px['bootstrap_archive'] = bootstrap_archive
-    px['model_variant'] = "dynamics"
-    px['perfect_model_on'] = True
-    # warning! Still need to evaluate them on the real system (done in NS)
-
-    # Instanciate a new NS (to reinit all previously set internal variables)
-    algo = NS(dim_map, dim_x,
-              f_real,
-              params=px,
-              log_dir=args.log_dir)
-    # Run NS for eval budget on real sys(maybe increase the budget on model to
-    # be like twice or thrice real NS one :thought:)
-    
-    real_archive, total_evals = algo.compute(num_cores_set=args.num_cores,
-                                             max_evals=args.max_evals)
-
+        real_archive = model_archive
     ## Plot archive coverage evolution at each generation
     # we can do that by looking at coverage of individuals in archive taking
     # into account the first lambda, then adding to these the next lambda inds
