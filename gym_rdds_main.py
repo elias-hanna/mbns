@@ -540,6 +540,7 @@ class WrappedEnv():
         obs = self._init_obs
         act_traj = []
         obs_traj = []
+        c_input_traj = []
         ## WARNING: need to get previous obs
         # for t in range(self._env_max_h):
         for t in range(self._model_max_h):
