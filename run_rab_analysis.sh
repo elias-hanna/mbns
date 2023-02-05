@@ -31,7 +31,7 @@ search_methods=(random-policies_ffnn_2l_64 ffnn_2l_64n_det_ens) # considered sea
 architecture=ffnn_2l_64n
 
 # search_methods=(random-policies_ffnn_2l_10 ffnn_2l_10n_det_ens) # considered search methods
-search_methods=(ffnn_2l_10n_det_ens) # considered search methods
+search_methods=(ffnn_2l_10n_det_ens ffnn_2l_10n_perfect_model) # considered search methods
 architecture=ffnn_2l_10n
 
 # search methods params
@@ -48,9 +48,9 @@ asize=66500 # saved archive sizes
 
 final_asizes=(5000) # number of random policies
 sel_size=4995
-sel_size=500
+# sel_size=500
 
-n_waypoints=(1 2) # Number of waypoints for the BD (1 is last traj element)
+n_waypoints=(1) # Number of waypoints for the BD (1 is last traj element)
 
 daqd_folder=~/Documents/thesis/dev/model_init_exps/daqd
 

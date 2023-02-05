@@ -193,6 +193,7 @@ def select_inds(data, path, sel_size, search_method, horizon, sel_method,
     ret_data = None
     if sel_method == 'random':
         ## Select sel_size individuals randomly from archive
+        sel_size = sel_size if sel_size <= len(data) else len(data)
         ret_data = data.sample(n=sel_size)
     elif sel_method == 'max':
         ## select sel_size individuals that cover the most from real archive
@@ -409,6 +410,9 @@ def update_archive_covs(working_dir, args, archive_covs,
         if 'random-policies' in search_method:
             filename = os.path.join(abs_rep_folder,
                                     f'archive_{final_asize}_real_all.dat')
+        elif 'perfect' in search_method:
+            filename = os.path.join(abs_rep_folder,
+                                    f'archive_{args.asize}_model_all.dat')
         else:
             filename = os.path.join(abs_rep_folder,
                                     f'archive_{args.asize}.dat')
@@ -436,6 +440,9 @@ def update_archive_covs(working_dir, args, archive_covs,
             if 'random-policies' in search_method:
                 filename = os.path.join(abs_rep_folder,
                                         f'archive_{final_asize}_real_all.dat')
+            elif 'perfect' in search_method:
+                filename = os.path.join(abs_rep_folder,
+                                    f'archive_{args.asize}_model_all.dat')
             else:
                 filename = os.path.join(abs_rep_folder,
                                         f'archive_{args.asize}_real_all.dat')
@@ -474,16 +481,18 @@ def update_archive_covs(working_dir, args, archive_covs,
                 # import pdb; pdb.set_trace()
 
         try:
-            archive_cov_by_gen = np.load(os.path.join(abs_rep_folder, 'archive_cov_by_gen.npz'))
+            archive_cov_by_gen_data = np.load(os.path.join(abs_rep_folder, 'archive_cov_by_gen.npz'))
         except:
             print(f'WARNING: No coverage file for: {abs_rep_folder}')
             rep_cpt += 1
             continue
 
-        if n_wp==2:
-            import pdb; pdb.set_trace()
-
-        archive_cov_by_gen = archive_cov_by_gen['archive_cov_by_gen'] 
+        archive_cov_by_gen = archive_cov_by_gen_data['archive_cov_by_gen'] 
+        loc_len = len(archive_cov_by_gen_data['archive_cov_by_gen']) 
+        archive_cov_by_gen = np.zeros(archive_covs_by_gen[abm_cpt,
+                                                          selm_cpt,
+                                                          rep_cpt].shape)
+        archive_cov_by_gen[:loc_len] = archive_cov_by_gen_data['archive_cov_by_gen']
         archive_covs_by_gen[abm_cpt,
                             selm_cpt,
                             rep_cpt] = archive_cov_by_gen
@@ -727,6 +736,8 @@ def main(args):
     all_ab_methods_covs_by_gen_3q = np.quantile(all_ab_methods_covs_by_gen, 3/4, axis=1)
 
     gens = [gen+1 for gen in range((args.asize-100)//200)]
+
+    # import pdb; pdb.set_trace()
     for meth_idx in range(len(all_ab_methods_covs_by_gen_median)):
         ax.plot(gens, all_ab_methods_covs_by_gen_median[meth_idx],
                 label=all_ab_methods_labels[meth_idx])

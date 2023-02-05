@@ -1777,7 +1777,7 @@ def main(args):
     except:
         print(f'Could not find file: {filename}. NS baseline won\'t be printed')
         
-    if ns_data_ok and 'ens' in args.model_type and not args.perfect_model and not args.random_policies:
+    if ns_data_ok and 'ens' in args.model_type and not args.perfect_model and not args.random_policies and args.ens_size <= 10:
         ## Get real BD data from ns_data
         ns_bd_data = ns_data[['bd0','bd1']].to_numpy()
         ## Load archive genotypes
