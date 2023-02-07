@@ -255,6 +255,29 @@ def make_hashable(array):
     return tuple(map(float, array))
 
 
+def training_and_target_evaluate_all_(to_evaluate, params):
+    Z = [to_evaluate[i][0] for i in range(len(to_evaluate))]
+    ## Evaluate on training system(s)
+    f = params['f_training']
+    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z) 
+
+    ## Evaluate on target system
+    f = params['f_target']
+    for idx in range(len(Z)):
+        fit, desc, obs_traj, act_traj, disagr = f(Z[idx]) 
+        fit_list[idx] += fit
+        desc_list[idx] += desc,
+        obs_traj_list[idx] += obs_traj
+        act_traj_list[idx] += act_traj
+        disagr_list[idx] += disagr
+        
+    # return a list of species object (containing genotype, descriptor and fitness)
+    inds = []
+    for i in range(len(T)):
+        inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=obs_traj_list[i],
+                               act_traj=act_traj_list[i], model_dis=disagr_list[i]))
+    return inds
+
 '''
 - pool.map(f,x) applies the list of x to the function f and returns the outputs of the function as a list as well which corresponds in order/index to the inputs
 - evaluate_function returns fitness and the descriptor as tuple

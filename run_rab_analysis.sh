@@ -50,7 +50,7 @@ final_asizes=(5000) # number of random policies
 sel_size=4995
 # sel_size=500
 
-n_waypoints=(1) # Number of waypoints for the BD (1 is last traj element)
+n_waypoints=(1 2) # Number of waypoints for the BD (1 is last traj element)
 
 daqd_folder=~/Documents/thesis/dev/model_init_exps/daqd
 

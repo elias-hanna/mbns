@@ -1290,6 +1290,12 @@ def main(args):
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
 
+        #--------EVAL FUNCTORS-------#
+        "f_target": None,
+        "f_training": None,
+
+        #--------EXPS FLAGS-------#
+        "include_target": False,
         
         "env_name": args.environment,
         ## for dump
@@ -1738,7 +1744,7 @@ def main(args):
 
     ## Define f_real and f_model
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
-
+    
     ## If we evaluate directly on the real system f_model = f_real 
     if args.perfect_model:
         f_model = f_real
@@ -1837,6 +1843,9 @@ def main(args):
                     dpi=300)#, bbox_inches='tight')
 
     ## Perform the QD or NS search on f_model
+    px['f_target'] = f_real
+    px['f_training'] = f_model
+    
     if args.algo == 'qd':
         algo = QD(dim_map, dim_x,
                 f_model,

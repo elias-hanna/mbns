@@ -90,6 +90,30 @@ def evaluate_all_(T):
                                act_traj=act_traj_list[i], model_dis=disagr_list[i]))
     return inds
 
+def training_and_target_evaluate_all_(to_evaluate, params):
+    Z = [to_evaluate[i][0] for i in range(len(to_evaluate))]
+    ## Evaluate on training system(s)
+    f = params['f_training']
+    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z) 
+
+    ## Evaluate on target system
+    f = params['f_target']
+    for idx in range(len(Z)):
+        fit, desc, obs_traj, act_traj, disagr = f(Z[idx]) 
+        fit_list[idx] += fit
+        desc_list[idx] += desc,
+        obs_traj_list[idx] += obs_traj
+        act_traj_list[idx] += act_traj
+        disagr_list[idx] += disagr
+        
+    # return a list of species object (containing genotype, descriptor and fitness)
+    inds = []
+    for i in range(len(T)):
+        inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=obs_traj_list[i],
+                               act_traj=act_traj_list[i], model_dis=disagr_list[i]))
+    return inds
+
+
 class NS:
     def __init__(self,
                  dim_map, dim_x,
@@ -311,7 +335,9 @@ class NS:
                 else:
                     to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
-                if params["model_variant"]=="all_dynamics":
+                if params["include_target"] == True:
+                    training_and_target_evaluate_all_(to_evaluate, params)  
+                elif params["model_variant"]=="all_dynamics":
                     s_list = evaluate_all_(to_evaluate)
                 else:
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
@@ -329,7 +355,9 @@ class NS:
 
                 to_evaluate = self.select_and_mutate(to_evaluate, population,
                                                      self.f_real, params)
-                if params["model_variant"]=="all_dynamics":
+                if params["include_target"] == True:
+                    training_and_target_evaluate_all_(to_evaluate, params)
+                elif params["model_variant"]=="all_dynamics":
                     s_list = evaluate_all_(to_evaluate)
                 else:
                     s_list = cm.parallel_eval(evaluate_, to_evaluate,
