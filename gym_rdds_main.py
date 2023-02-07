@@ -1295,7 +1295,7 @@ def main(args):
         "f_training": None,
 
         #--------EXPS FLAGS-------#
-        "include_target": False,
+        "include_target": True,
         
         "env_name": args.environment,
         ## for dump
@@ -1783,6 +1783,7 @@ def main(args):
     except:
         print(f'Could not find file: {filename}. NS baseline won\'t be printed')
         
+    ns_data_ok = False
     if ns_data_ok and 'ens' in args.model_type and not args.perfect_model and not args.random_policies and args.ens_size <= 10:
         ## Get real BD data from ns_data
         ns_bd_data = ns_data[['bd0','bd1']].to_numpy()
@@ -1932,6 +1933,8 @@ def main(args):
         all_bd_traj_data = []
 
         all_bd_traj_data.append((real_bd_traj_data, 'real system'))
+        if px['include_target'] == True:
+            px['ensemble_size'] += 1
         for m_idx in range(px['ensemble_size']):
             loc_model_bd_traj_data= []
             for ind in model_archive:

@@ -98,19 +98,34 @@ def training_and_target_evaluate_all_(to_evaluate, params):
 
     ## Evaluate on target system
     f = params['f_target']
-    for idx in range(len(Z)):
-        fit, desc, obs_traj, act_traj, disagr = f(Z[idx]) 
-        fit_list[idx] += fit
-        desc_list[idx] += desc,
-        obs_traj_list[idx] += obs_traj
-        act_traj_list[idx] += act_traj
-        disagr_list[idx] += disagr
-        
+
+    all_obs_traj_list = []
+    all_act_traj_list = []
+    all_disagr_list = []
+    for i in range(len(Z)):
+        fit, desc, obs_traj, act_traj, disagr = f(Z[i]) 
+        # fit_list[i] += fit
+        desc_list[i] = np.concatenate((desc_list[i], desc))
+        if params['log_ind_trajs'] == True:
+            m_h = params['dab_params']['dynamics_model_params']['model_horizon']
+            m_h += 1
+            state_dim = params['dab_params']['state_dim']
+            action_dim = params['dab_params']['action_dim']
+            obs_traj_loc = np.empty((m_h, 1, state_dim))
+            obs_traj_loc[:,0,:2] = obs_traj[-m_h:]
+            act_traj_loc = np.empty((m_h-1, 1, action_dim))
+            act_traj_loc[:,0,:2] = act_traj[-m_h+1:]
+            all_obs_traj_list.append(np.concatenate((obs_traj_list[i], obs_traj_loc), axis=1))
+            all_act_traj_list.append(np.concatenate((act_traj_list[i], act_traj_loc), axis=1))
+            all_disagr_list.append([])
+    all_obs_traj_list = np.array(all_obs_traj_list)
+    all_act_traj_list = np.array(all_obs_traj_list)
+    all_disagr_list = np.array(all_disagr_list)
     # return a list of species object (containing genotype, descriptor and fitness)
     inds = []
-    for i in range(len(T)):
-        inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=obs_traj_list[i],
-                               act_traj=act_traj_list[i], model_dis=disagr_list[i]))
+    for i in range(len(Z)):
+        inds.append(cm.Species(Z[i], desc_list[i], fit_list[i], obs_traj=all_obs_traj_list[i],
+                               act_traj=all_act_traj_list[i], model_dis=all_disagr_list[i]))
     return inds
 
 
@@ -244,6 +259,8 @@ class NS:
         # Get novelty scores on all models of ensemble individually
         ind_novs = []
         ens_size = self.params['ensemble_size']
+        if self.params["include_target"]:
+            ens_size += 1
         for i in range(ens_size):
             ind_novs.append([])
             # Convert the dataset to a numpy array
@@ -336,7 +353,7 @@ class NS:
                     to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
                 if params["include_target"] == True:
-                    training_and_target_evaluate_all_(to_evaluate, params)  
+                    s_list = training_and_target_evaluate_all_(to_evaluate, params)  
                 elif params["model_variant"]=="all_dynamics":
                     s_list = evaluate_all_(to_evaluate)
                 else:
