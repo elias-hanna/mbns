@@ -272,10 +272,6 @@ class NS:
                         for ind in archive]
             all_bds = np.array(all_bds)
 
-            if norm:
-                max_bd = np.max(all_bds, axis=0)
-                min_bd = np.min(all_bds, axis=0)
-                all_bds = (all_bds - min_bd)/(max_bd - min_bd)
             novelty_scores = np.empty((len(all_bds)))
             # Compute the k-NN of the data point
             neighbors = NearestNeighbors(n_neighbors=k)
@@ -283,8 +279,28 @@ class NS:
 
             ## New way
             neigh_dists, neigh_inds = neighbors.kneighbors()
-            for ind, dists in zip(pop, neigh_dists):
-                ind_novs[i].append(np.mean(dists))
+            for idx, dists in zip(range(len(pop)), neigh_dists):
+                novelty_scores[idx] = np.mean(dists)
+            max_nov = np.max(novelty_scores)
+            min_nov = np.min(novelty_scores)
+            novelty_scores = (novelty_scores - min_nov)/(max_nov - min_nov)
+
+            for idx in range(len(pop)):
+                ind_novs[i].append(novelty_scores[idx])
+                
+            # if norm:
+            #     max_bd = np.max(all_bds, axis=0)
+            #     min_bd = np.min(all_bds, axis=0)
+            #     all_bds = (all_bds - min_bd)/(max_bd - min_bd)
+            # # Compute the k-NN of the data point
+            # neighbors = NearestNeighbors(n_neighbors=k)
+            # neighbors.fit(all_bds)
+
+            # ## New way
+            # neigh_dists, neigh_inds = neighbors.kneighbors()
+            # for ind, dists in zip(pop, neigh_dists):
+            #     ind_novs[i].append(np.mean(dists))
+
         ind_novs = np.array(ind_novs)
         # update all individuals nov by minimum of novelty on all environments
         for i in range(len(pop)):
@@ -399,6 +415,7 @@ class NS:
                 ## Update population
                 sorted_pop = sorted(population + offspring,
                                     key=lambda x:x.nov, reverse=True)
+                filtered_s_pop = [ind for ind in sorted_pop if ind not in self.archive]
                 population = sorted_pop[:params['pop_size']]
                 self.population = population
 
@@ -411,7 +428,7 @@ class NS:
             
             if b_evals >= params['dump_period'] and params['dump_period'] != -1:
                 # write archive
-                print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
+                print("[{}/{}]".format(int(n_evals), int(max_evals)), end=" ", flush=True)
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
                 b_evals = 0
 
@@ -432,7 +449,7 @@ class NS:
 
             self.gen_time = time.time() - gen_start_time 
 
-            print(f"n_evals: {n_evals}/{max_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
+            print(f"n_evals: {int(n_evals)}/{int(max_evals)}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
         print("End of NS algorithm - saving final archive")        
