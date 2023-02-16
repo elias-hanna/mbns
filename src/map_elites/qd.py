@@ -241,7 +241,11 @@ class QD:
             if len(self.archive) <= params['random_init']*self.n_niches:
                 to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
-                if params["model_variant"]=="all_dynamics":
+                eval_all = False
+                if "model_variant" in params:
+                    if params["model_variant"]=="all_dynamics":
+                        eval_all = True
+                if eval_all:
                     s_list = evaluate_all_(to_evaluate)
                 else:
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
@@ -324,7 +328,11 @@ class QD:
         all_eval = []
         
         to_evaluate = self.select_and_mutate(to_evaluate, self.archive, self.f_real, params)
-        if params["model_variant"]=="all_dynamics":
+        eval_all = False
+        if "model_variant" in params:
+            if params["model_variant"]=="all_dynamics":
+                eval_all = True
+        if eval_all:
             s_list = evaluate_all_(to_evaluate)
         else:
             s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)

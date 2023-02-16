@@ -44,8 +44,10 @@ import gym
 import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
 import mb_ge ## Contains ball in cup
 import redundant_arm ## contains redundant arm
-from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
-
+try:
+    from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
+except Exception as e:
+    print('Could not import hexapod env: {e}')
 #----------Utils imports--------#
 from multiprocessing import cpu_count
 import copy
@@ -547,6 +549,192 @@ class WrappedEnv():
             fit = fit_func(act_traj, disagr_traj)
         return fit
 
+def get_env_params(args):
+    env_params = {}
+
+    env_params['env_register_id'] = 'fastsim_maze_laser'
+    env_params['is_local_env'] = False
+    env_params['init_obs'] = None
+    env_params['gym_args'] = {}
+    env_params['a_min'] = None
+    env_params['a_max'] = None
+    env_params['ss_min'] = None
+    env_params['ss_max'] = None
+    env_params['dim_map'] = None
+    
+    if args.environment == 'ball_in_cup':
+        import mb_ge ## Contains ball in cup
+        env_params['env_register_id'] = 'BallInCup3d-v0'
+        env_params['a_min'] = np.array([-1, -1, -1])
+        env_params['a_max'] = np.array([1, 1, 1])
+        env_params['ss_min'] = -0.4
+        env_params['ss_max'] = 0.4
+        env_params['dim_map'] = 3
+    elif args.environment == 'redundant_arm':
+        import redundant_arm ## contains classic redundant arm
+        env_params['gym_args']['dof'] = 20
+        
+        env_register_id = 'RedundantArmPos-v0'
+        env_params['a_min'] = np.array([-1]*env_params['gym_args']['dof'])
+        env_params['a_max'] = np.array([1]*env_params['gym_args']['dof'])
+        env_params['ss_min'] = np.array([-0.5]*env_params['gym_args']['dof']+[0,0])
+        env_params['ss_max'] = np.array([0.8]*env_params['gym_args']['dof']+[1,1])
+        # ss_min = np.array([-2.91586418e-01, -2.91059290e-01, -4.05994661e-01,
+        #                    -3.43161155e-01, -4.48797687e-01, -3.42430607e-01,
+        #                    -4.64587165e-01, -4.57486040e-01, -4.40965296e-01,
+        #                    -3.74359165e-01, -4.73628034e-01, -3.64009843e-01,
+        #                    -4.78609985e-01, -4.22113313e-01, -5.27555361e-01,
+        #                    -5.18617559e-01, -4.36935815e-01, -5.31945509e-01,
+        #                    -4.44923835e-01, -5.36581457e-01, 2.33058244e-05,
+        #                    7.98103927e-05])
+        # ss_max = np.array([0.8002732,  0.74879046, 0.68724849, 0.76289724,
+        #                    0.66943127, 0.77772601, 0.67210694, 0.56392794,
+        #                    0.65394265, 0.74616584, 0.61193007, 0.73037668,
+        #                    0.59987872, 0.71458412, 0.58088037, 0.60106068,
+        #                    0.66026566, 0.58433874, 0.64901992, 0.44800244,
+        #                    0.99999368, 0.99999659])
+        env_params['dim_map'] = 2
+    elif args.environment == 'redundant_arm_no_walls':
+        env_params['env_register_id'] = 'RedundantArmPosNoWalls-v0'
+        env_params['a_min'] = np.array([-1]*20)
+        env_params['a_max'] = np.array([1]*20)
+        env_params['ss_min'] = -1
+        env_params['ss_max'] = 1
+        env_params['dim_map'] = 2
+    elif args.environment == 'redundant_arm_no_walls_no_collision':
+        env_params['env_register_id'] = 'RedundantArmPosNoWallsNoCollision-v0'
+        env_params['a_min'] = np.array([-1]*20)
+        env_params['a_max'] = np.array([1]*20)
+        env_params['ss_min'] = -1
+        env_params['ss_max'] = 1
+        env_params['dim_map'] = 2
+    elif args.environment == 'redundant_arm_no_walls_limited_angles':
+        env_params['env_register_id'] = 'RedundantArmPosNoWallsLimitedAngles-v0'
+        env_params['a_min'] = np.array([-1]*100)
+        env_params['a_max'] = np.array([1]*100)
+        env_params['ss_min'] = -1
+        env_params['ss_max'] = 1
+        env_params['dim_map'] = 2
+        env_params['gym_args']['dof'] = 100
+    elif args.environment == 'fastsim_maze_laser':
+        env_params['env_register_id'] = 'FastsimSimpleNavigation-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['init_obs'] = np.array([60., 450., 0., 0., 0. , 0.])
+        env_params['state_dim'] = 6
+        env_params['obs_min'] = np.array([0, 0, 0, 0, 0])
+        env_params['obs_max'] = np.array([100, 100, 100, 1, 1])
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 1]
+        args.use_obs_model = True
+    elif args.environment == 'empty_maze_laser':
+        env_params['env_register_id'] = 'FastsimEmptyMapNavigation-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['init_obs'] = np.array([300., 300., 0., 0., 0. , 0.])
+        env_params['state_dim'] = 6
+        env_params['obs_min'] = np.array([0, 0, 0, 0, 0])
+        env_params['obs_max'] = np.array([100, 100, 100, 1, 1])
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 1]
+        args.use_obs_model = True
+    elif args.environment == 'fastsim_maze':
+        env_params['env_register_id'] = 'FastsimSimpleNavigationPos-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['state_dim'] = 6
+        #env_params['init_obs'] = np.array([60., 450., 0., 0., 0. , 0.])
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 1]
+    elif args.environment == 'empty_maze':
+        env_params['env_register_id'] = 'FastsimEmptyMapNavigationPos-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['state_dim'] = 6
+        #env_params['init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 1]
+    elif args.environment == 'fastsim_maze_traps':
+        env_params['env_register_id'] = 'FastsimSimpleNavigationPos-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['state_dim'] = 6
+        env_params['dim_map'] = 2
+        env_params['gym_args']['physical_traps'] = True
+        env_params['bd_inds'] = [0, 1]
+    elif args.environment == 'half_cheetah':
+        env_params['env_register_id'] = 'HalfCheetah-v3'
+        env_params['a_min'] = np.array([-1, -1, -1, -1, -1, -1])
+        env_params['a_max'] = np.array([1, 1, 1, 1, 1, 1])
+        ## Got these with NS 100 000 eval budget
+        env_params['ss_min'] = np.array([-49.02189923, -0.61095456, -16.64607454, -0.70108701,
+                           -1.00943152, -0.65815842, -1.19701832, -1.28944137,
+                           -0.76604915, -5.2375874, -5.51574707, -10.4422284,
+                           -26.43682609, -31.22491269, -31.96452725,
+                           -26.68346276, -32.95576583, -32.70174356])
+        env_params['ss_max'] = np.array([32.47642872, 0.83392967, 38.93965081, 1.14752425,
+                           0.93195033, 0.95062493, 0.88961483, 1.11808423,
+                           0.76134696, 4.81465142, 4.9208565, 10.81297147,
+                           25.82911106, 28.41785798, 24.95866255, 31.30177305,
+                           34.88956652, 30.07857634])
+
+        env_params['init_obs'] = np.array([0.]*18)
+        env_params['dim_map'] = 1
+        env_params['gym_args']['exclude_current_positions_from_observation'] = False
+        env_params['gym_args']['reset_noise_scale'] = 0
+    elif args.environment == 'walker2d':
+        env_params['env_register_id'] = 'Walker2d-v3'
+        env_params['a_min'] = np.array([-1, -1, -1, -1, -1, -1])
+        env_params['a_max'] = np.array([1, 1, 1, 1, 1, 1])
+        ## Got these with NS 100 000 eval budget
+        env_params['ss_min'] = np.array([-4.26249395, 0.75083099, -1.40787207, -2.81284653,
+                           -2.93150238, -1.5855295, -3.04205169, -2.91603065,
+                           -1.62175821, -7.11379591, -10., -10., -10., -10.,
+                           -10., -10., -10., -10.])
+        env_params['ss_max'] = np.array([1.66323372, 1.92256493, 1.15429141, 0.43140988,
+                           0.49341738, 1.50477799, 0.47811355, 0.63702984,
+                           1.50380045, 4.98763458, 4.00820283, 10., 10., 10.,
+                           10., 10., 10., 10.])
+
+        ## Got these with NS 100 000 eval budget
+        env_params['ss_min'] = np.array([-5.62244541, 0.7439814, -1.41163676, -3.1294922,
+                           -2.97025984, -1.67482138, -3.1644274, -3.01373681,
+                           -1.78557467, -8.55243269, -10., -10., -10., -10.,
+                           -10., -10., -10., -10.])
+        env_params['ss_max'] = np.array([1.45419434, 1.98069464, 1.1196152, 0.5480219,
+                           0.65664259, 1.54582436, 0.53905455, 0.61275703,
+                           1.5541609, 6.12093722, 5.9363082, 10., 10., 10.,
+                           10., 10., 10., 10.])
+        env_params['init_obs'] = np.array([0.]*18)
+        env_params['dim_map'] = 1
+        env_params['gym_args']['exclude_current_positions_from_observation'] = False
+        env_params['gym_args']['reset_noise_scale'] = 0
+    elif args.environment == 'hexapod_omni':
+        from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
+        env_params['is_local_env'] = True
+        max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
+        env_params['obs_dim'] = 48
+        env_params['act_dim'] = 18
+        env_params['dim_x'] = 36
+        ## Need to check the dims for hexapod
+        env_params['ss_min']= -1
+        env_params['ss_max'] = 1
+        env_params['dim_map'] = 2
+    else:
+        raise ValueError(f"{args.environment} is not a defined environment")
+
+    return env_params
+
 def main(args):
 
     px = \
@@ -729,6 +917,23 @@ def main(args):
         dim_map = 2
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
+
+    env_params = get_env_params(args)
+
+    is_local_env = env_params['is_local_env'] 
+    gym_args = env_params['gym_args']  
+    env_register_id = env_params['env_register_id']
+    a_min = env_params['a_min'] 
+    a_max = env_params['a_max'] 
+    ss_min = env_params['ss_min']
+    ss_max = env_params['ss_max']
+    init_obs = env_params['init_obs'] 
+    state_dim = env_params['state_dim']
+    obs_min = env_params['obs_min']
+    obs_max = env_params['obs_max']
+    dim_map = env_params['dim_map']
+    bd_inds = env_params['bd_inds']
+    
     
     if not is_local_env:
         gym_env = gym.make(env_register_id, **gym_args)

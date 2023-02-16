@@ -368,9 +368,17 @@ class NS:
                 else:
                     to_evaluate = self.random_archive_init(to_evaluate)
                 start = time.time()
-                if params["include_target"] == True:
+                include_target = False
+                eval_all = False
+                if 'include_target' in params:
+                    if params['include_target']==True:
+                        include_target = True
+                if 'model_variant' in params:
+                    if params['model_variant']:
+                        eval_all = True
+                if include_target:
                     s_list = training_and_target_evaluate_all_(to_evaluate, params)  
-                elif params["model_variant"]=="all_dynamics":
+                elif eval_all:
                     s_list = evaluate_all_(to_evaluate)
                 else:
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
@@ -388,9 +396,17 @@ class NS:
 
                 to_evaluate = self.select_and_mutate(to_evaluate, population,
                                                      self.f_real, params)
-                if params["include_target"] == True:
-                    training_and_target_evaluate_all_(to_evaluate, params)
-                elif params["model_variant"]=="all_dynamics":
+                include_target = False
+                eval_all = False
+                if 'include_target' in params:
+                    if params['include_target']==True:
+                        include_target = True
+                if 'model_variant' in params:
+                    if params['model_variant']:
+                        eval_all = True
+                if include_target:
+                    s_list = training_and_target_evaluate_all_(to_evaluate, params)  
+                elif eval_all:
                     s_list = evaluate_all_(to_evaluate)
                 else:
                     s_list = cm.parallel_eval(evaluate_, to_evaluate,
@@ -400,7 +416,13 @@ class NS:
 
                 ## Update population nov (pop + offsprings)
                 # if params['model_type'] == 'det_ens':
-                if params['model_type'] == 'det_ens' and not params['perfect_model_on']:
+                ensembling = False
+                if 'model_type' in params:
+                    if perfect_model_on in params:
+                        ensembling = False if params['perfect_model_on'] else True
+                    else:
+                        ensembling = True
+                if ensembling:
                     self.update_novelty_scores_ensemble(population + offspring,
                                                         self.archive,
                                                         nov=params['nov_ens'],

@@ -1495,7 +1495,8 @@ def main(args):
     
     ##TODO##
     env_params = get_env_params(args)
-
+    nb_div = 50
+    
     is_local_env = env_params['is_local_env'] 
     gym_args = env_params['gym_args']  
     env_register_id = env_params['env_register_id']
