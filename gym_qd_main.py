@@ -798,7 +798,10 @@ def main(args):
     obs_max = env_params['obs_max']
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
-    
+
+    nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
+    px['nov_l'] = nov_l
+    print(f'INFO: nov_l param set to {nov_l} for environment {args.environment}')
     ## Get the environment task horizon, observation and action space dimensions
     if not is_local_env:
         gym_env = gym.make(env_register_id, **gym_args)
@@ -940,9 +943,29 @@ def main(args):
         ## Add a row in case closest square cannot take all plots in
         if total_plots > rows*cols:
             rows += 1
-        
-        fig1, axs1 = plt.subplots(rows, cols)
-        fig2, axs2 = plt.subplots(rows, cols)
+
+        if dim_map == 3:
+            fig1 = plt.figure()
+            fig2 = plt.figure()
+            axs1 = []
+            axs2 = []
+            plt_num = 0
+            import pdb; pdb.set_trace()
+            #for plt_num in range(total_plots):
+            for col in range(cols):
+                axs1_cols = []
+                axs2_cols = []
+                for row in range(rows):
+                    axs1_cols.append(fig1.add_subplot(cols, rows, plt_num+1, projection='3d'))
+                    axs2_cols.append(fig2.add_subplot(cols, rows, plt_num+1, projection='3d'))
+                    plt_num += 1
+                axs1.append(axs1_cols)
+                axs2.append(axs2_cols)
+            #fig1, axs1 = plt.subplots(rows, cols, projection='3d')
+            #fig2, axs2 = plt.subplots(rows, cols, projection='3d')
+        else:
+            fig1, axs1 = plt.subplots(rows, cols)
+            fig2, axs2 = plt.subplots(rows, cols)
         m_cpt = 0
         
         # ind_idxs = np.random.permutation(len(model_archive))[:100]
@@ -962,23 +985,41 @@ def main(args):
                     loc_bd_traj_data = np.array(loc_bd_traj_data)
                     
                     ## Plot BDs
-                    if len(loc_bd_traj_data.shape) > 2: 
-                        ax1.scatter(x=loc_bd_traj_data[:,-1,0],y=loc_bd_traj_data[:,-1,1], s=3, alpha=0.1)
+                    if dim_map == 3:
+                        if len(loc_bd_traj_data.shape) > 2: 
+                            ax1.scatter(xs=loc_bd_traj_data[:,-1,0],
+                                        ys=loc_bd_traj_data[:,-1,1],
+                                        zs=loc_bd_traj_data[:,-1,2], s=3, alpha=0.1)
+                        else:
+                            for loc_bd_traj in loc_bd_traj_data:
+                                 ax1.scatter(xs=loc_bd_traj[-1,0],
+                                             ys=loc_bd_traj[-1,1],
+                                             zs=loc_bd_traj[-1,2], s=3, alpha=0.1)
+                        ax1.scatter(xs=init_obs[0],ys=init_obs[1],zs=init_obs[2], s=10, c='red')
+                        ## Plot trajectories
+                        # for ind_idx in range(len(model_archive)):
+                        for bd_traj in loc_bd_traj_data:
+                            ax2.plot(bd_traj[:,0], bd_traj[:,1], bd_traj[:,2], alpha=0.1, markersize=1)
                     else:
-                        for loc_bd_traj in loc_bd_traj_data:
-                             ax1.scatter(x=loc_bd_traj[-1,0],y=loc_bd_traj[-1,1], s=3, alpha=0.1)
-                    ax1.scatter(x=init_obs[0],y=init_obs[1], s=10, c='red')
-                    ## Plot trajectories
-                    # for ind_idx in range(len(model_archive)):
-                    for bd_traj in loc_bd_traj_data:
-                        ax2.plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
-
+                        if len(loc_bd_traj_data.shape) > 2: 
+                            ax1.scatter(x=loc_bd_traj_data[:,-1,0],y=loc_bd_traj_data[:,-1,1], s=3, alpha=0.1)
+                        else:
+                            for loc_bd_traj in loc_bd_traj_data:
+                                ax1.scatter(x=loc_bd_traj[-1,0],y=loc_bd_traj[-1,1], s=3, alpha=0.1)
+                        ax1.scatter(x=init_obs[0],y=init_obs[1], s=10, c='red')
+                        ## Plot trajectories
+                        # for ind_idx in range(len(model_archive)):
+                        for bd_traj in loc_bd_traj_data:
+                            ax2.plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
                     ax1.set_xlabel('x-axis')
                     ax1.set_ylabel('y-axis')
                     ax1.set_title(f'Archive coverage on {loc_system_name}')
                     if 'real' in loc_system_name:
-                        ax1.set_xlim(0, 600)
-                        ax1.set_ylim(0, 600)
+                        ax1.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
+                        ax1.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
+                        if dim_map == 3:
+                            ax1.set_ylabel('z-axis')
+                            ax1.set_zlim(ss_min[bd_inds[2]], ss_max[bd_inds[2]])
                     else:
                         loc_bd_mins = np.min(loc_bd_traj_data[:,-1,:], axis=0) 
                         loc_bd_maxs = np.max(loc_bd_traj_data[:,-1,:], axis=0) 
@@ -990,8 +1031,11 @@ def main(args):
                     ax2.set_ylabel('y-axis')
                     ax2.set_title(f'Individuals trajectories on {loc_system_name}')
                     if 'real' in loc_system_name:
-                        ax2.set_xlim(0, 600)
-                        ax2.set_ylim(0, 600)
+                        ax2.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
+                        ax2.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
+                        if dim_map == 3:
+                            ax2.set_ylabel('z-axis')
+                            ax2.set_zlim(ss_min[bd_inds[2]], ss_max[bd_inds[2]])
                     else:
                         loc_bd_mins = np.min(loc_bd_traj_data, axis=(0,1)) 
                         loc_bd_maxs = np.max(loc_bd_traj_data, axis=(0,1))
@@ -1087,7 +1131,7 @@ if __name__ == "__main__":
     parser.add_argument("--algo", type=str, default="qd")
     #-----------------Type of QD---------------------#
     # options are 'cvt', 'grid', 'unstructured', 'fixed'
-    parser.add_argument("--qd_type", type=str, default="fixed")
+    parser.add_argument("--qd_type", type=str, default="unstructured")
     
     #---------------CPU usage-------------------#
     parser.add_argument("--parallel", action="store_true")
