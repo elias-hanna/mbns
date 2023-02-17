@@ -749,16 +749,8 @@ def main(args):
         "lambda": args.lambda_add, # For fixed ind add during runs (Gomes 2015)
         "arch_sel": args.arch_sel, # random, novelty
 
-        #--------MODEL BASED PARAMS-------#
-        "t_nov": 0.03,
-        "t_qua": 0.0, 
-        "k_model": 15,
-        # Comments on model parameters:
-        # t_nov is correlated to the nov_l value in the unstructured archive
-        # If it is smaller than the nov_l value, we are giving the model more chances which might be more wasteful 
-        # If it is larger than the nov_l value, we are imposing that the model must predict something more novel than we would normally have before even trying it out
-        # fitness is always positive - so t_qua
-
+        
+        #--------LOG/DUMP-------#
         "log_time_stats": False, 
         "log_ind_trajs": args.log_ind_trajs,
         "dump_ind_trajs": args.dump_ind_trajs,
@@ -776,7 +768,9 @@ def main(args):
         "ensemble_dump": False,
     }
 
-    
+    if args.algo == 'ns':
+        px['type'] = 'fixed'
+        
     #########################################################################
     ####################### Preparation of run ##############################
     #########################################################################
@@ -950,7 +944,6 @@ def main(args):
             axs1 = []
             axs2 = []
             plt_num = 0
-            import pdb; pdb.set_trace()
             #for plt_num in range(total_plots):
             for col in range(cols):
                 axs1_cols = []
@@ -995,22 +988,22 @@ def main(args):
                                  ax1.scatter(xs=loc_bd_traj[-1,0],
                                              ys=loc_bd_traj[-1,1],
                                              zs=loc_bd_traj[-1,2], s=3, alpha=0.1)
-                        ax1.scatter(xs=init_obs[0],ys=init_obs[1],zs=init_obs[2], s=10, c='red')
+                        ax1.scatter(xs=init_obs[bd_inds[0]],ys=init_obs[bd_inds[1]],zs=init_obs[bd_inds[2]], s=10, c='red')
                         ## Plot trajectories
                         # for ind_idx in range(len(model_archive)):
                         for bd_traj in loc_bd_traj_data:
-                            ax2.plot(bd_traj[:,0], bd_traj[:,1], bd_traj[:,2], alpha=0.1, markersize=1)
+                            ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], bd_traj[:,bd_inds[2]], alpha=0.1, markersize=1)
                     else:
                         if len(loc_bd_traj_data.shape) > 2: 
-                            ax1.scatter(x=loc_bd_traj_data[:,-1,0],y=loc_bd_traj_data[:,-1,1], s=3, alpha=0.1)
+                            ax1.scatter(x=loc_bd_traj_data[:,-1,bd_inds[0]],y=loc_bd_traj_data[:,-1,bd_inds[1]], s=3, alpha=0.1)
                         else:
                             for loc_bd_traj in loc_bd_traj_data:
-                                ax1.scatter(x=loc_bd_traj[-1,0],y=loc_bd_traj[-1,1], s=3, alpha=0.1)
-                        ax1.scatter(x=init_obs[0],y=init_obs[1], s=10, c='red')
+                                ax1.scatter(x=loc_bd_traj[-1,bd_inds[0]],y=loc_bd_traj[-1,bd_inds[1]], s=3, alpha=0.1)
+                        ax1.scatter(x=init_obs[bd_inds[0]],y=init_obs[bd_inds[1]], s=10, c='red')
                         ## Plot trajectories
                         # for ind_idx in range(len(model_archive)):
                         for bd_traj in loc_bd_traj_data:
-                            ax2.plot(bd_traj[:,0], bd_traj[:,1], alpha=0.1, markersize=1)
+                            ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], alpha=0.1, markersize=1)
                     ax1.set_xlabel('x-axis')
                     ax1.set_ylabel('y-axis')
                     ax1.set_title(f'Archive coverage on {loc_system_name}')
@@ -1025,7 +1018,8 @@ def main(args):
                         loc_bd_maxs = np.max(loc_bd_traj_data[:,-1,:], axis=0) 
                         ax1.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
                         ax1.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
-                    ax1.set_aspect('equal', adjustable='box')
+                    if dim_map != 3:
+                        ax1.set_aspect('equal', adjustable='box')
                     
                     ax2.set_xlabel('x-axis')
                     ax2.set_ylabel('y-axis')
@@ -1041,8 +1035,8 @@ def main(args):
                         loc_bd_maxs = np.max(loc_bd_traj_data, axis=(0,1))
                         ax2.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
                         ax2.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
-                    ax2.set_aspect('equal', adjustable='box')
-
+                    if dim_map != 3:
+                        ax2.set_aspect('equal', adjustable='box')
                     m_cpt += 1
                 except:
                     fig1.delaxes(axs1[row][col])

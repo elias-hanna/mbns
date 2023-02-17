@@ -1086,9 +1086,198 @@ def main(args):
                         params=px, log_dir=args.log_dir)
 
     #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
-    mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    archive = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    
+    cm.save_archive(archive, f"{n_evals}_real_all", px, args.log_dir)
         
+    ## Plot archive trajectories on real system
+    if args.log_ind_trajs:
+        ## Extract real sys BD data from s_list
+        real_bd_traj_data = [s.obs_traj for s in archive]
+        ## Format the bd data to plot with labels
+        all_bd_traj_data = []
 
+        all_bd_traj_data.append((real_bd_traj_data, 'real system'))
+        ## Plot real archive and model(s) archive on plot
+        total_plots = len(all_bd_traj_data)
+        ## make it as square as possible
+        rows = cols = round(np.sqrt(total_plots))
+        ## Add a row in case closest square cannot take all plots in
+        if total_plots > rows*cols:
+            rows += 1
+
+        if dim_map == 3:
+            fig1 = plt.figure()
+            fig2 = plt.figure()
+            axs1 = []
+            axs2 = []
+            plt_num = 0
+            #for plt_num in range(total_plots):
+            for col in range(cols):
+                axs1_cols = []
+                axs2_cols = []
+                for row in range(rows):
+                    axs1_cols.append(fig1.add_subplot(cols, rows, plt_num+1, projection='3d'))
+                    axs2_cols.append(fig2.add_subplot(cols, rows, plt_num+1, projection='3d'))
+                    plt_num += 1
+                axs1.append(axs1_cols)
+                axs2.append(axs2_cols)
+            #fig1, axs1 = plt.subplots(rows, cols, projection='3d')
+            #fig2, axs2 = plt.subplots(rows, cols, projection='3d')
+        else:
+            fig1, axs1 = plt.subplots(rows, cols)
+            fig2, axs2 = plt.subplots(rows, cols)
+        m_cpt = 0
+        
+        # ind_idxs = np.random.permutation(len(model_archive))[:100]
+
+        for col in range(cols):
+            for row in range(rows):
+                try:
+                    if not hasattr(axs1, '__len__'):
+                    # if not 'ens' in args.model_type or args.perfect_model:
+                        ax1 = axs1
+                        ax2 = axs2
+                    else:
+                        ax1 = axs1[row][col]
+                        ax2 = axs2[row][col]
+
+                    loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
+                    loc_bd_traj_data = np.array(loc_bd_traj_data)
+                    
+                    ## Plot BDs
+                    if dim_map == 3:
+                        if len(loc_bd_traj_data.shape) > 2: 
+                            ax1.scatter(xs=loc_bd_traj_data[:,-1,0],
+                                        ys=loc_bd_traj_data[:,-1,1],
+                                        zs=loc_bd_traj_data[:,-1,2], s=3, alpha=0.1)
+                        else:
+                            for loc_bd_traj in loc_bd_traj_data:
+                                 ax1.scatter(xs=loc_bd_traj[-1,0],
+                                             ys=loc_bd_traj[-1,1],
+                                             zs=loc_bd_traj[-1,2], s=3, alpha=0.1)
+                        ax1.scatter(xs=init_obs[bd_inds[0]],ys=init_obs[bd_inds[1]],zs=init_obs[bd_inds[2]], s=10, c='red')
+                        ## Plot trajectories
+                        # for ind_idx in range(len(model_archive)):
+                        for bd_traj in loc_bd_traj_data:
+                            ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], bd_traj[:,bd_inds[2]], alpha=0.1, markersize=1)
+                    else:
+                        if len(loc_bd_traj_data.shape) > 2: 
+                            ax1.scatter(x=loc_bd_traj_data[:,-1,bd_inds[0]],y=loc_bd_traj_data[:,-1,bd_inds[1]], s=3, alpha=0.1)
+                        else:
+                            for loc_bd_traj in loc_bd_traj_data:
+                                ax1.scatter(x=loc_bd_traj[-1,bd_inds[0]],y=loc_bd_traj[-1,bd_inds[1]], s=3, alpha=0.1)
+                        ax1.scatter(x=init_obs[bd_inds[0]],y=init_obs[bd_inds[1]], s=10, c='red')
+                        ## Plot trajectories
+                        # for ind_idx in range(len(model_archive)):
+                        for bd_traj in loc_bd_traj_data:
+                            ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], alpha=0.1, markersize=1)
+                    ax1.set_xlabel('x-axis')
+                    ax1.set_ylabel('y-axis')
+                    ax1.set_title(f'Archive coverage on {loc_system_name}')
+                    if 'real' in loc_system_name:
+                        ax1.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
+                        ax1.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
+                        if dim_map == 3:
+                            ax1.set_ylabel('z-axis')
+                            ax1.set_zlim(ss_min[bd_inds[2]], ss_max[bd_inds[2]])
+                    else:
+                        loc_bd_mins = np.min(loc_bd_traj_data[:,-1,:], axis=0) 
+                        loc_bd_maxs = np.max(loc_bd_traj_data[:,-1,:], axis=0) 
+                        ax1.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
+                        ax1.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
+                    if dim_map != 3:
+                        ax1.set_aspect('equal', adjustable='box')
+                    
+                    ax2.set_xlabel('x-axis')
+                    ax2.set_ylabel('y-axis')
+                    ax2.set_title(f'Individuals trajectories on {loc_system_name}')
+                    if 'real' in loc_system_name:
+                        ax2.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
+                        ax2.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
+                        if dim_map == 3:
+                            ax2.set_ylabel('z-axis')
+                            ax2.set_zlim(ss_min[bd_inds[2]], ss_max[bd_inds[2]])
+                    else:
+                        loc_bd_mins = np.min(loc_bd_traj_data, axis=(0,1)) 
+                        loc_bd_maxs = np.max(loc_bd_traj_data, axis=(0,1))
+                        ax2.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
+                        ax2.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
+                    if dim_map != 3:
+                        ax2.set_aspect('equal', adjustable='box')
+                    m_cpt += 1
+                except:
+                    fig1.delaxes(axs1[row][col])
+                    fig2.delaxes(axs2[row][col])
+
+
+        fig1.set_size_inches(total_plots*2,total_plots*2)
+        fig1.suptitle('Archive coverage after DAB')
+        file_path = os.path.join(args.log_dir, f"{args.environment}_real_cov")
+        fig1.savefig(file_path,
+                    dpi=300, bbox_inches='tight')
+
+        fig2.set_size_inches(total_plots*2,total_plots*2)
+        fig2.suptitle('Individuals trajectories after DAB')
+        file_path = os.path.join(args.log_dir, f"{args.environment}_ind_trajs")
+        fig2.savefig(file_path,
+                    dpi=300, bbox_inches='tight')
+
+
+    ## Plot archive coverage evolution at each generation
+    # we can do that by looking at coverage of individuals in archive taking
+    # into account the first lambda, then adding to these the next lambda inds
+    # etc...
+    def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
+        df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
+        
+        for i in range(dim_map-1, dim_map-3, -1):
+            df_min[f'bd{i}'] = ss_min[bd_inds[i%len(bd_inds)]]
+            df_max[f'bd{i}'] = ss_max[bd_inds[i%len(bd_inds)]]
+        ## Deprecated but oh well
+        data = data.append(df_min, ignore_index = True)
+        data = data.append(df_max, ignore_index = True)
+
+        for i in range(dim_map-1, dim_map-3, -1):
+            data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
+                                      bins = nb_div, 
+                                      labels = [p for p in range(nb_div)])
+
+        ## assign data to bins
+        data = data.assign(bins=pd.Categorical
+                           (data.filter(regex='_bin')
+                            .apply(tuple, 1)))
+
+        ## remove df min and df max
+        data.drop(data.tail(2).index,inplace=True)
+
+        return data
+
+    def compute_cov(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
+        ## add bins field to data
+        data = get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div)
+        ## count number of bins filled
+        counts = data['bins'].value_counts()
+        total_bins = nb_div**(dim_map//args.n_waypoints)
+        ## return coverage (number of bins filled)
+        return len(counts[counts>=1])/total_bins
+
+    archive_cov_by_gen = []
+    bd_cols = [f'bd{i}' for i in range(dim_map)]
+    bd_cols = bd_cols[-2:]
+    for gen in range(1,len(archive)//px['lambda']):
+        archive_at_gen = archive[:gen*px['lambda']]
+        bds_at_gen = np.array([ind.desc[-2:] for ind in archive_at_gen])
+        archive_at_gen_data = pd.DataFrame(bds_at_gen, columns=bd_cols)
+        cov_at_gen = compute_cov(archive_at_gen_data, ss_min, ss_max, px['dim_map'], bd_inds, nb_div)
+        archive_cov_by_gen.append(cov_at_gen)
+    archive_cov_by_gen = np.array(archive_cov_by_gen)
+    to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
+    np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
+
+    print()
+    print(f'Finished performing {args.algo} search successfully.')
+    
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
