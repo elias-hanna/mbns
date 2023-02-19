@@ -2,7 +2,8 @@
 from src.map_elites.mbqd import ModelBasedQD
 
 from exps_utils import get_dynamics_model, get_surrogate_model, \
-    get_observation_model, addition_condition, evaluate_, evaluate_all_
+    get_observation_model, addition_condition, evaluate_, evaluate_all_, \
+    process_args
 
 #----------Model imports--------#
 from src.models.observation_models.deterministic_obs_model import DeterministicObsModel
@@ -25,14 +26,6 @@ from exps_utils import RNNController
 import gym
 from exps_utils import get_env_params
 from exps_utils import WrappedEnv
-# import gym
-# import diversity_algorithms.environments.env_imports ## Contains deterministic ant + fetch
-# import mb_ge ## Contains ball in cup
-# import redundant_arm ## contains redundant arm
-# try:
-#     from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
-# except Exception as e:
-#     print('Could not import hexapod env: {e}')
 
 #----------Init methods imports--------#
 from model_init_study.initializers.random_policy_initializer \
@@ -895,66 +888,66 @@ def main(args):
         raise Exception(f"Warning {args.init_method} isn't a valid initializer")
     
     
-    ### Environment initialization ###
-    env_register_id = 'BallInCup3d-v0'
-    gym_args = {}
-    is_local_env = False
-    if args.environment == 'ball_in_cup':
-        env_register_id = 'BallInCup3d-v0'
-        separtor = BallInCupSeparator
-        ss_min = -0.4
-        ss_max = 0.4
-        dim_map = 3
-    elif args.environment == 'redundant_arm':
-        env_register_id = 'RedundantArmPos-v0'
-        separator = RedundantArmSeparator
-        ss_min = -1
-        ss_max = 1
-        dim_map = 2
-    elif args.environment == 'redundant_arm_no_walls':
-        env_register_id = 'RedundantArmPosNoWalls-v0'
-        separator = RedundantArmSeparator
-        ss_min = -1
-        ss_max = 1
-        dim_map = 2
-    elif args.environment == 'redundant_arm_no_walls_no_collision':
-        env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
-        separator = RedundantArmSeparator
-        ss_min = -1
-        ss_max = 1
-        dim_map = 2
-    elif args.environment == 'redundant_arm_no_walls_limited_angles':
-        env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
-        separator = RedundantArmSeparator
-        ss_min = -1
-        ss_max = 1
-        dim_map = 2
-        gym_args['dof'] = 100
-    elif args.environment == 'fastsim_maze':
-        env_register_id = 'FastsimSimpleNavigationPos-v0'
-        separator = FastsimSeparator
-        ss_min = -10
-        ss_max = 10
-        dim_map = 2
-    elif args.environment == 'fastsim_maze_traps':
-        env_register_id = 'FastsimSimpleNavigationPos-v0'
-        separator = FastsimSeparator
-        ss_min = -10
-        ss_max = 10
-        dim_map = 2
-        gym_args['physical_traps'] = True
-    elif args.environment == 'hexapod_omni':
-        is_local_env = True
-        max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
-        obs_dim = 48
-        act_dim = 18
-        dim_x = 36
-        separator = None
-        ss_min = -1
-        ss_max = 1
-        dim_map = 2
-    else:
-        raise ValueError(f"{args.environment} is not a defined environment")
+    # ### Environment initialization ###
+    # env_register_id = 'BallInCup3d-v0'
+    # gym_args = {}
+    # is_local_env = False
+    # if args.environment == 'ball_in_cup':
+    #     env_register_id = 'BallInCup3d-v0'
+    #     separtor = BallInCupSeparator
+    #     ss_min = -0.4
+    #     ss_max = 0.4
+    #     dim_map = 3
+    # elif args.environment == 'redundant_arm':
+    #     env_register_id = 'RedundantArmPos-v0'
+    #     separator = RedundantArmSeparator
+    #     ss_min = -1
+    #     ss_max = 1
+    #     dim_map = 2
+    # elif args.environment == 'redundant_arm_no_walls':
+    #     env_register_id = 'RedundantArmPosNoWalls-v0'
+    #     separator = RedundantArmSeparator
+    #     ss_min = -1
+    #     ss_max = 1
+    #     dim_map = 2
+    # elif args.environment == 'redundant_arm_no_walls_no_collision':
+    #     env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
+    #     separator = RedundantArmSeparator
+    #     ss_min = -1
+    #     ss_max = 1
+    #     dim_map = 2
+    # elif args.environment == 'redundant_arm_no_walls_limited_angles':
+    #     env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
+    #     separator = RedundantArmSeparator
+    #     ss_min = -1
+    #     ss_max = 1
+    #     dim_map = 2
+    #     gym_args['dof'] = 100
+    # elif args.environment == 'fastsim_maze':
+    #     env_register_id = 'FastsimSimpleNavigationPos-v0'
+    #     separator = FastsimSeparator
+    #     ss_min = -10
+    #     ss_max = 10
+    #     dim_map = 2
+    # elif args.environment == 'fastsim_maze_traps':
+    #     env_register_id = 'FastsimSimpleNavigationPos-v0'
+    #     separator = FastsimSeparator
+    #     ss_min = -10
+    #     ss_max = 10
+    #     dim_map = 2
+    #     gym_args['physical_traps'] = True
+    # elif args.environment == 'hexapod_omni':
+    #     is_local_env = True
+    #     max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
+    #     obs_dim = 48
+    #     act_dim = 18
+    #     dim_x = 36
+    #     separator = None
+    #     ss_min = -1
+    #     ss_max = 1
+    #     dim_map = 2
+    # else:
+    #     raise ValueError(f"{args.environment} is not a defined environment")
 
     env_params = get_env_params(args)
 
@@ -997,65 +990,138 @@ def main(args):
         act_dim = gym_env.action_space.shape[0]
     else:
         gym_env = None
-        
+
+    n_waypoints = args.n_waypoints
+    dim_map *= n_waypoints
+    px['dim_map'] = dim_map
+
+    ## Set the type of controller we use
+    if args.c_type == 'ffnn':
+        controller_type = NeuralNetworkController
+    elif args.c_type == 'rnn':
+        controller_type = RNNController
+
+    ## Controller parameters
     controller_params = \
     {
         'controller_input_dim': obs_dim,
         'controller_output_dim': act_dim,
-        'n_hidden_layers': 2,
-        'n_neurons_per_hidden': 10
+        'n_hidden_layers': args.c_n_layers,
+        'n_neurons_per_hidden': args.c_n_neurons,
+        'time_open_loop': args.open_loop_control,
+        'norm_input': args.norm_controller_input,
+        'pred_mode': args.pred_mode,
     }
+    ## Dynamics model parameters
     dynamics_model_params = \
     {
-        'obs_dim': obs_dim,
+        'obs_dim': state_dim,
         'action_dim': act_dim,
-        'dynamics_model_type': 'prob', # possible values: prob, det
-        'ensemble_size': 4, # only used if dynamics_model_type == prob
-        'layer_size': 500,
+        'layer_size': [500, 400],
+        # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
         'train_unique_trans': False,
+        'model_type': args.model_type,
+        'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
+        'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
     }
-    params = \
+    ## Observation model parameters
+    if args.use_obs_model:
+        observation_model_params = \
+        {
+            'obs_dim': obs_dim,
+            'state_dim': state_dim,
+            'layer_size': [500, 400],
+            'batch_size': 512,
+            'learning_rate': 1e-3,
+            'train_unique_trans': False,
+            'obs_model_type': args.obs_model_type,
+            'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
+        }
+    else:
+        observation_model_params = {}
+    ## Surrogate model parameters 
+    surrogate_model_params = \
     {
+        'bd_dim': dim_map,
         'obs_dim': obs_dim,
         'action_dim': act_dim,
-
-        'n_init_episodes': args.init_episodes,
-        # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
-        'n_test_episodes': 2,
-        
-        'controller_type': NeuralNetworkController,
-        'controller_params': controller_params,
-
+        'layer_size': 64,
+        'batch_size': 32,
+        'learning_rate': 1e-3,
+        'train_unique_trans': False,
+    }
+    ## General parameters
+    params = \
+    {
+        ## general parameters
+        'state_dim': state_dim,
+        'obs_dim': obs_dim,
+        'action_dim': act_dim,
         'dynamics_model_params': dynamics_model_params,
+        'observation_model_params': observation_model_params,
+        ## controller parameters
+        'controller_type': controller_type,
+        'controller_params': controller_params,
+        'time_open_loop': controller_params['time_open_loop'],
 
-        'action_min': -1,
-        'action_max': 1,
-        'action_init': 0,
-
-        ## Random walks parameters
-        'step_size': 0.1,
-        'noise_beta': noise_beta,
-        
-        'action_lasting_steps': 5,
+        ## state-action space params
+        'action_min': a_min,
+        'action_max': a_max,
 
         'state_min': ss_min,
         'state_max': ss_max,
-        
-        'policy_param_init_min': -5,
-        'policy_param_init_max': 5,
-        
-        # 'dump_path': args.dump_path,
-        # 'path_to_test_trajectories': 'examples/'+args.environment+'_example_trajectories.npz',
-        # 'path_to_test_trajectories': path_to_examples,
 
+        'obs_min': obs_min,
+        'obs_max': obs_max,
+
+        'clip_obs': args.clip_obs, # clip models predictions 
+        'clip_state': args.clip_state, # clip models predictions 
+        ## env parameters
         'env': gym_env,
         'env_name': args.environment,
         'env_max_h': max_step,
-        'fitness_func': args.fitness_func,
-    }
+        'use_obs_model': args.use_obs_model,
+        ## algo parameters
+        'policy_param_init_min': -5,
+        'policy_param_init_max': 5,
 
+        'fitness_func': args.fitness_func,
+        'n_waypoints': n_waypoints,
+        'num_cores': args.num_cores,
+        'dim_map': dim_map,
+        
+        ## pretraining parameters
+        'pretrain': args.pretrain,
+        ## srf parameters
+        'srf_var': 0.001,
+        'srf_cor': 0.01,
+
+        ## Dump params/ memory gestion params
+        "log_ind_trajs": args.log_ind_trajs,
+
+        ## Model Init Study params
+        'n_init_episodes': args.init_episodes,
+        # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
+        'n_test_episodes': 2,
+        'action_init': 0,
+        ## Random walks parameters
+        'step_size': 0.1,
+        'noise_beta': noise_beta,
+        ## RA parameters
+        'action_lasting_steps': 5,
+
+    }
+    px['dab_params'] = params
+    px['min'] = params['policy_param_init_min']
+    px['max'] = params['policy_param_init_max']
+    ## Correct obs dim for controller if open looping on time
+    if params['time_open_loop'] == True:
+        controller_params['obs_dim'] = 1
+    if init_obs is not None:
+        params['init_obs'] = init_obs
+        
     #########################################################################
     ####################### End of Preparation of run #######################
     #########################################################################
@@ -1066,14 +1132,15 @@ def main(args):
         dim_x = env.policy_representation_dim
     obs_dim = obs_dim
     action_dim = act_dim
-    
-    # Deterministic = "det", Probablistic = "prob"
-    dynamics_model_type = "prob"
 
-    print("Dynamics model type: ", dynamics_model_type)
-    dynamics_model, dynamics_model_trainer = get_dynamics_model(dynamics_model_type,
-                                                                action_dim, obs_dim)
-    surrogate_model, surrogate_model_trainer = get_surrogate_model(dim_x)
+    surrogate_model_params['gen_dim'] = dim_x
+    px['dim_x'] = dim_x
+    
+    ## Get the various models we need for the run
+    dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
+    if observation_model_params:
+        observation_model = get_observation_model(params)
+    surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     ## Initialize model with wnb from previous run if an init method is to be used
     if args.init_method != 'no-init' and args.init_method != 'vanilla':
@@ -1100,15 +1167,24 @@ def main(args):
         
     f_real = env.evaluate_solution # maybe move f_real and f_model inside
 
+    ## If we evaluate directly on the real system f_model = f_real 
     if args.perfect_model:
         f_model = f_real
-    elif dynamics_model_type == "det":
-        f_model = env.evaluate_solution_model 
-    elif dynamics_model_type == "prob":
-        f_model = env.evaluate_solution_model_ensemble
-        if px["model_variant"] == "all_dynamics":
+        px['model_variant'] = "dynamics"
+    ## Else if we evaluate on the generated random models we use one of below
+    elif args.model_variant == "dynamics" :
+        if args.model_type == "det":
+            f_model = env.evaluate_solution_model 
+        elif args.model_type == "prob" and args.environment == 'hexapod_omni':
+            f_model = env.evaluate_solution_model_ensemble
+    elif args.model_variant == "all_dynamics":
+        if args.model_type == "det":
+            f_model = env.evaluate_solution_model_all
+        elif args.model_type == "det_ens" or args.model_type == "srf_ens":
+            f_model = env.evaluate_solution_model_det_ensemble_all
+        elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
-
+            
     # initialize replay buffer
     replay_buffer = SimpleReplayBuffer(
         max_replay_buffer_size=1000000,

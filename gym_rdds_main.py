@@ -1540,7 +1540,6 @@ def main(args):
     else:
         gym_env = None
 
-    
     n_waypoints = args.n_waypoints
     dim_map *= n_waypoints
     px['dim_map'] = dim_map
