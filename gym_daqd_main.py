@@ -567,9 +567,15 @@ def get_env_params(args):
         env_params['env_register_id'] = 'BallInCup3d-v0'
         env_params['a_min'] = np.array([-1, -1, -1])
         env_params['a_max'] = np.array([1, 1, 1])
-        env_params['ss_min'] = -0.4
-        env_params['ss_max'] = 0.4
+        env_params['ss_min'] = np.array([-0.4]*6)
+        env_params['ss_max'] = np.array([0.4]*6)
+        env_params['obs_min'] = np.array([-0.4]*6)
+        env_params['obs_max'] = np.array([0.4]*6)
         env_params['dim_map'] = 3
+        env_params['init_obs'] = np.array([300., 300., 0., 0., 0. , 0.])
+        env_params['state_dim'] = 6
+        env_params['bd_inds'] = [0, 1, 2]
+        
     elif args.environment == 'redundant_arm':
         import redundant_arm ## contains classic redundant arm
         env_params['gym_args']['dof'] = 20
@@ -593,29 +599,54 @@ def get_env_params(args):
         #                    0.59987872, 0.71458412, 0.58088037, 0.60106068,
         #                    0.66026566, 0.58433874, 0.64901992, 0.44800244,
         #                    0.99999368, 0.99999659])
+        env_params['obs_min'] = env_params['ss_min']
+        env_params['obs_max'] = env_params['ss_max']
+        env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
+        env_params['bd_inds'] = [-2, -1]
     elif args.environment == 'redundant_arm_no_walls':
+        env_params['gym_args']['dof'] = 20
         env_params['env_register_id'] = 'RedundantArmPosNoWalls-v0'
-        env_params['a_min'] = np.array([-1]*20)
-        env_params['a_max'] = np.array([1]*20)
+        env_params['a_min'] = np.array([-1]*env_params['gym_args']['dof'])
+        env_params['a_max'] = np.array([1]*env_params['gym_args']['dof'])
         env_params['ss_min'] = -1
         env_params['ss_max'] = 1
+        env_params['ss_min'] = np.array([-0.5]*env_params['gym_args']['dof']+[0,0])
+        env_params['ss_max'] = np.array([0.8]*env_params['gym_args']['dof']+[1,1])
+        env_params['obs_min'] = env_params['ss_min']
+        env_params['obs_max'] = env_params['ss_max']
+        env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
+        env_params['bd_inds'] = [-2, -1]
     elif args.environment == 'redundant_arm_no_walls_no_collision':
+        env_params['gym_args']['dof'] = 20
         env_params['env_register_id'] = 'RedundantArmPosNoWallsNoCollision-v0'
-        env_params['a_min'] = np.array([-1]*20)
-        env_params['a_max'] = np.array([1]*20)
+        env_params['a_min'] = np.array([-1]*env_params['gym_args']['dof'])
+        env_params['a_max'] = np.array([1]*env_params['gym_args']['dof'])
         env_params['ss_min'] = -1
         env_params['ss_max'] = 1
+        env_params['ss_min'] = np.array([-0.5]*env_params['gym_args']['dof']+[0,0])
+        env_params['ss_max'] = np.array([0.8]*env_params['gym_args']['dof']+[1,1])
+        env_params['obs_min'] = env_params['ss_min']
+        env_params['obs_max'] = env_params['ss_max']
+        env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
+        env_params['bd_inds'] = [-2, -1]
     elif args.environment == 'redundant_arm_no_walls_limited_angles':
+        env_params['gym_args']['dof'] = 100
         env_params['env_register_id'] = 'RedundantArmPosNoWallsLimitedAngles-v0'
-        env_params['a_min'] = np.array([-1]*100)
-        env_params['a_max'] = np.array([1]*100)
+        env_params['a_min'] = np.array([-1]*env_params['gym_args']['dof'])
+        env_params['a_max'] = np.array([1]*env_params['gym_args']['dof'])
         env_params['ss_min'] = -1
         env_params['ss_max'] = 1
+        env_params['ss_min'] = np.array([-0.5]*env_params['gym_args']['dof']+[0,0])
+        env_params['ss_max'] = np.array([0.8]*env_params['gym_args']['dof']+[1,1])
+        env_params['obs_min'] = env_params['ss_min']
+        env_params['obs_max'] = env_params['ss_max']
+        env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
         env_params['gym_args']['dof'] = 100
+        env_params['bd_inds'] = [-2, -1]
     elif args.environment == 'fastsim_maze_laser':
         env_params['env_register_id'] = 'FastsimSimpleNavigation-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -666,8 +697,8 @@ def get_env_params(args):
         env_params['env_register_id'] = 'FastsimSimpleNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])
         env_params['a_max'] = np.array([1, 1])
-        env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
-        env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
         env_params['state_dim'] = 6
         env_params['dim_map'] = 2
         env_params['gym_args']['physical_traps'] = True
@@ -735,6 +766,9 @@ def get_env_params(args):
 
     return env_params
 
+################################################################################
+################################### MAIN #######################################
+################################################################################
 def main(args):
 
     px = \
@@ -934,7 +968,11 @@ def main(args):
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
     
-    
+    nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
+    px['nov_l'] = nov_l
+    print(f'INFO: nov_l param set to {nov_l} for environment {args.environment}')
+
+    ## Get the environment task horizon, observation and action space dimensions
     if not is_local_env:
         gym_env = gym.make(env_register_id, **gym_args)
 
