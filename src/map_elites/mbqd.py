@@ -550,7 +550,7 @@ class ModelBasedQD:
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         ## Also save model archive for more visualizations
         cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
-        return self.archive
+        return self.archive, n_evals
 
 
     ##################### Emitters ##############################
@@ -856,12 +856,12 @@ class ModelBasedQD:
     def add_sa_to_buffer(self, s_list, replay_buffer):
         for sol in s_list:
             s = sol.obs_traj[:-1]  
-            a = sol.act_traj[:-1]
+            a = sol.act_traj[:]
             ns = sol.obs_traj[1:]
 
             reward = 0
             done = 0
             info = {}
             for i in range(len(s)):
-                    replay_buffer.add_sample(s[i], a[i], reward, done, ns[i], info)
+                replay_buffer.add_sample(s[i], a[i], reward, done, ns[i], info)
         return 1

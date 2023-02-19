@@ -109,11 +109,13 @@ def get_dynamics_model(params):
     use_minmax_norm = False if params['pretrain'] != '' else True
     ## INIT MODEL ##
     if dynamics_model_type == "prob":
+        layer_size = dynamics_model_params['layer_size'][0]
         from src.trainers.mbrl.mbrl import MBRLTrainer
         variant = dict(
             mbrl_kwargs=dict(
                 ensemble_size=dynamics_model_params['ensemble_size'],
-                layer_size=dynamics_model_params['layer_size'],
+                # layer_size=dynamics_model_params['layer_size'],
+                layer_size=layer_size,
                 learning_rate=dynamics_model_params['learning_rate'],
                 batch_size=dynamics_model_params['batch_size'],
             )
@@ -377,7 +379,12 @@ class WrappedEnv():
             self._is_goal_env = True
             self._init_obs = self._init_obs['observation']
         if 'init_obs' in params:
-            self._init_obs = params['init_obs']
+            if params['init_obs'] is None:
+                params['init_obs'] = self._init_obs
+            else:
+                self._init_obs = params['init_obs']
+        else:
+            params['init_obs'] = self._init_obs
         self._state_dim = params['state_dim']
         self._obs_dim = params['obs_dim']
         self._act_dim = params['action_dim']
@@ -462,17 +469,7 @@ class WrappedEnv():
             
             action = np.clip(action, self._action_min, self._action_max)
             cum_act += action
-            # if 'fastsim' in self._env_name or 'maze' in self._env_name:
-            #     vr = action[0]
-            #     vl = action[1]
-            #     l = 10
-            #     delta_x = ( ( (vr+vl)/(vr-vl) ) * l/2 ) * np.sin((vr-vl)/l)
-            #     delta_y = ( ( (vr+vl)/(vr-vl) ) * l/2 ) * (np.cos((vr-vl)/l) +1)
-            #     cum_delta_pos += np.array([delta_x, delta_y])
-                
-            # action = np.random.uniform(low=-1, high=1, size=(self._act_dim,))
-            # action[action>self._action_max] = self._action_max
-            # action[action<self._action_min] = self._action_min
+
             obs_traj.append(obs)
             c_input_traj.append(c_input)
             act_traj.append(action)
@@ -486,7 +483,7 @@ class WrappedEnv():
         obs_traj.append(obs)
 
         desc = self.compute_bd(obs_traj)
-        if 'maze' in self._env_name:
+        if 'maze_laser' in self._env_name:
             try:
                 wp_idxs = [i for i in range(len(info_traj)//self.n_wps, len(info_traj),
                                             len(info_traj)//self.n_wps)][:self.n_wps-1]
@@ -580,7 +577,6 @@ class WrappedEnv():
 
             obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
         obs_traj.append(obs)
-        
         desc = self.compute_bd(obs_traj)
         fitness = self.compute_fitness(obs_traj, act_traj)
 
@@ -865,7 +861,7 @@ class WrappedEnv():
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
-                                                 render=False, use_particules=True):
+                                                 render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
         Output: Trajectory and actions taken
@@ -891,7 +887,7 @@ class WrappedEnv():
 
         ens_size = self.dynamics_model.ensemble_size
 
-        if use_particules:
+        if not mean:
             S = np.tile(obs, (ens_size*len(ctrls), 1))
             A = np.empty((ens_size*len(ctrls),
                           self.controller.output_dim))
@@ -902,7 +898,7 @@ class WrappedEnv():
         for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
             for i in range(len(ctrls)):
                 # A[i, :] = controller_list[i](S[i,:])
-                if use_particules:
+                if not mean:
                     if self.time_open_loop:
                         if self._norm_c_input:
                             norm_t = (t/self._env_max_h)*(1+1) - 1
@@ -936,7 +932,7 @@ class WrappedEnv():
                     A[i] = np.clip(A[i], self._action_min, self._action_max)
                             
             start = time.time()
-            if use_particules:
+            if not mean:
                 batch_pred_delta_ns, batch_disagreement = self.forward(A, S, mean=mean,
                                                                        disagr=disagr,
                                                                        multiple=True)
@@ -946,7 +942,7 @@ class WrappedEnv():
                                                                                 disagr=True)
             # print(f"Time for inference {time.time()-start}")
             for i in range(len(ctrls)):
-                if use_particules:
+                if not mean:
                     ## Don't use mean predictions and keep each particule trajectory
                     # Be careful, in that case there is no need to repeat each state in
                     # forward multiple function
@@ -977,7 +973,7 @@ class WrappedEnv():
                     if self.clip_state:
                         S[i,:] = np.clip(S[i,:], self._state_min, self._state_max)
                     traj_list[i].append(S[i,:].copy())
-                    disagreements_list[i].append(batch_disagreement[i])
+                    disagreements_list[i].append(ptu.get_numpy(batch_disagreement[i]))
                     actions_list[i].append(A[i,:])
 
         bd_list = []
@@ -992,7 +988,7 @@ class WrappedEnv():
             act_traj = act_trajs[i]
             disagr_traj = disagr_trajs[i]
 
-            desc = self.compute_bd(obs_traj, ensemble=True, mean=not use_particules)
+            desc = self.compute_bd(obs_traj, ensemble=True, mean=mean)
             fitness = self.compute_fitness(obs_traj, act_traj,
                                            disagr_traj=disagr_traj,
                                            ensemble=True)
@@ -1130,22 +1126,19 @@ class WrappedEnv():
         wp_idxs += [-1]
 
         obs_wps = np.take(obs_traj, wp_idxs, axis=0)
-        if ensemble:
-            if mean:
-                obs_wps = np.mean(obs_wps_obs, axis=0)
-            else:
-                ## Return bd for each model and flatten it all
-                if self._env_name == 'ball_in_cup':
-                    bd = obs_wps[:,:,:3].flatten()
-                if 'maze' in self._env_name:
-                    bd = obs_wps[:,:,:2].flatten()
-                if 'redundant_arm' in self._env_name:
-                    bd = obs_wps[:,:,-2:].flatten()
-                if self._env_name == 'half_cheetah':
-                    bd = obs_wps[:,:,:1].flatten()
-                if self._env_name == 'walker2d':
-                    bd = obs_wps[:,:,:1].flatten()
-                return bd
+        if ensemble and not mean:
+            ## Return bd for each model and flatten it all
+            if self._env_name == 'ball_in_cup':
+                bd = obs_wps[:,:,:3].flatten()
+            if 'maze' in self._env_name:
+                bd = obs_wps[:,:,:2].flatten()
+            if 'redundant_arm' in self._env_name:
+                bd = obs_wps[:,:,-2:].flatten()
+            if self._env_name == 'half_cheetah':
+                bd = obs_wps[:,:,:1].flatten()
+            if self._env_name == 'walker2d':
+                bd = obs_wps[:,:,:1].flatten()
+            return bd
 
         if self._env_name == 'ball_in_cup':
             bd = obs_wps[:,:3].flatten()

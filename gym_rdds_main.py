@@ -2003,6 +2003,16 @@ def main(args):
                         ax2 = axs2[row][col]
 
                     loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
+                    ## format to take care of trajs that end before max_step + 1
+                    # (+1 because we store max_step transitions)
+                    formatted_loc_bd_traj_data = []
+                    traj_dim = loc_bd_traj_data[0].shape[1] # get traj dim
+                    for loc_bd_traj in loc_bd_traj_data:
+                        formatted_loc_bd_traj = np.empty((max_step+1,traj_dim))
+                        formatted_loc_bd_traj[:] = np.nan
+                        formatted_loc_bd_traj[:len(loc_bd_traj)] = loc_bd_traj
+                        formatted_loc_bd_traj_data.append(formatted_loc_bd_traj)
+                    loc_bd_traj_data = formatted_loc_bd_traj_data
                     loc_bd_traj_data = np.array(loc_bd_traj_data)
                     
                     ## Plot BDs

@@ -179,7 +179,6 @@ class ProbabilisticEnsemble(ParallelizedEnsemble):
             logstd = all_logstd[:, i:i+1]
 
             preds = mean # to get a deterministic restuls for now hard coded 
-            # import pdb; pdb.set_trace()
             # Standard uniformly from the ensemble - randomly sample model from ensembles
             inds = torch.randint(0, preds.shape[0], input.shape[:1])
             
@@ -207,6 +206,7 @@ class ProbabilisticEnsemble(ParallelizedEnsemble):
             # CODE TO GET ACTUAL PREDCTIONS - STILL UNSURE WHAT SAMPLES DO ABOVE
             samples = self._flatten_from_ts(preds)
             # denormalize
+            ## Warning: if ensemble size = 1, view does not work for assignement
             for i in range(self.ensemble_size):
                 samples[i] = self.denormalize_output(samples[i])
 

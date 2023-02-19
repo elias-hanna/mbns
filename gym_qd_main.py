@@ -157,7 +157,6 @@ def main(args):
     obs_max = env_params['obs_max']
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
-
     nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
     px['nov_l'] = nov_l
     print(f'INFO: nov_l param set to {nov_l} for environment {args.environment}')
@@ -255,7 +254,8 @@ def main(args):
 
         'obs_min': obs_min,
         'obs_max': obs_max,
-
+        'init_obs': init_obs,
+        
         'clip_obs': False, # clip models predictions 
         'clip_state': False, # clip models predictions 
         ## env parameters
@@ -357,15 +357,11 @@ def main(args):
                     plt_num += 1
                 axs1.append(axs1_cols)
                 axs2.append(axs2_cols)
-            #fig1, axs1 = plt.subplots(rows, cols, projection='3d')
-            #fig2, axs2 = plt.subplots(rows, cols, projection='3d')
         else:
             fig1, axs1 = plt.subplots(rows, cols)
             fig2, axs2 = plt.subplots(rows, cols)
         m_cpt = 0
         
-        # ind_idxs = np.random.permutation(len(model_archive))[:100]
-
         for col in range(cols):
             for row in range(rows):
                 try:
@@ -378,33 +374,37 @@ def main(args):
                         ax2 = axs2[row][col]
 
                     loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
+
+                    ## format to take care of trajs that end before max_step + 1
+                    # (+1 because we store max_step transitions)
+                    formatted_loc_bd_traj_data = []
+                    traj_dim = loc_bd_traj_data[0].shape[1] # get traj dim
+                    for loc_bd_traj in loc_bd_traj_data:
+                        formatted_loc_bd_traj = np.empty((max_step+1,traj_dim))
+                        formatted_loc_bd_traj[:] = np.nan
+                        formatted_loc_bd_traj[:len(loc_bd_traj)] = loc_bd_traj
+                        formatted_loc_bd_traj_data.append(formatted_loc_bd_traj)
+                    loc_bd_traj_data = formatted_loc_bd_traj_data
                     loc_bd_traj_data = np.array(loc_bd_traj_data)
                     
                     ## Plot BDs
                     if dim_map == 3:
-                        if len(loc_bd_traj_data.shape) > 2: 
-                            ax1.scatter(xs=loc_bd_traj_data[:,-1,0],
-                                        ys=loc_bd_traj_data[:,-1,1],
-                                        zs=loc_bd_traj_data[:,-1,2], s=3, alpha=0.1)
-                        else:
-                            for loc_bd_traj in loc_bd_traj_data:
-                                 ax1.scatter(xs=loc_bd_traj[-1,0],
-                                             ys=loc_bd_traj[-1,1],
-                                             zs=loc_bd_traj[-1,2], s=3, alpha=0.1)
+                        for loc_bd_traj in loc_bd_traj_data:
+                            last_ind = (~np.isnan(loc_bd_traj)).cumsum(0).argmax(0)[0]
+                            ax1.scatter(xs=loc_bd_traj[last_ind,0],
+                                        ys=loc_bd_traj[last_ind,1],
+                                        zs=loc_bd_traj[last_ind,2], s=3, alpha=0.1)
                         ax1.scatter(xs=init_obs[bd_inds[0]],ys=init_obs[bd_inds[1]],zs=init_obs[bd_inds[2]], s=10, c='red')
                         ## Plot trajectories
-                        # for ind_idx in range(len(model_archive)):
                         for bd_traj in loc_bd_traj_data:
                             ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], bd_traj[:,bd_inds[2]], alpha=0.1, markersize=1)
                     else:
-                        if len(loc_bd_traj_data.shape) > 2: 
-                            ax1.scatter(x=loc_bd_traj_data[:,-1,bd_inds[0]],y=loc_bd_traj_data[:,-1,bd_inds[1]], s=3, alpha=0.1)
-                        else:
-                            for loc_bd_traj in loc_bd_traj_data:
-                                ax1.scatter(x=loc_bd_traj[-1,bd_inds[0]],y=loc_bd_traj[-1,bd_inds[1]], s=3, alpha=0.1)
+                        for loc_bd_traj in loc_bd_traj_data:
+                            last_ind = (~np.isnan(loc_bd_traj)).cumsum(0).argmax(0)[0]
+                            ax1.scatter(x=loc_bd_traj[last_ind,bd_inds[0]],
+                                        y=loc_bd_traj[last_ind,bd_inds[1]], s=3, alpha=0.1)
                         ax1.scatter(x=init_obs[bd_inds[0]],y=init_obs[bd_inds[1]], s=10, c='red')
                         ## Plot trajectories
-                        # for ind_idx in range(len(model_archive)):
                         for bd_traj in loc_bd_traj_data:
                             ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], alpha=0.1, markersize=1)
                     ax1.set_xlabel('x-axis')

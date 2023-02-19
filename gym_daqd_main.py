@@ -1,4 +1,6 @@
 #----------Algo imports--------#
+from src.map_elites import common as cm
+from src.map_elites import unstructured_container, cvt
 from src.map_elites.mbqd import ModelBasedQD
 
 from exps_utils import get_dynamics_model, get_surrogate_model, \
@@ -789,7 +791,7 @@ def main(args):
         "dump_mode": args.dump_mode,
 
         # do we use several cores?
-        "parallel": True,
+        "parallel": args.parallel,
         # min/max of genotype parameters - check mutation operators too
         # "min": 0.0,
         # "max": 1.0,
@@ -841,7 +843,11 @@ def main(args):
 
         "log_model_stats": False,
         "log_time_stats": False, 
-
+        "dump_ind_trajs": args.dump_ind_trajs,
+        
+        ## for dump
+        "ensemble_dump": False,
+        
         # 0 for random emiiter, 1 for optimizing emitter
         # 2 for random walk emitter, 3 for model disagreement emitter
         "emitter_selection": 0,
@@ -887,68 +893,6 @@ def main(args):
     else:
         raise Exception(f"Warning {args.init_method} isn't a valid initializer")
     
-    
-    # ### Environment initialization ###
-    # env_register_id = 'BallInCup3d-v0'
-    # gym_args = {}
-    # is_local_env = False
-    # if args.environment == 'ball_in_cup':
-    #     env_register_id = 'BallInCup3d-v0'
-    #     separtor = BallInCupSeparator
-    #     ss_min = -0.4
-    #     ss_max = 0.4
-    #     dim_map = 3
-    # elif args.environment == 'redundant_arm':
-    #     env_register_id = 'RedundantArmPos-v0'
-    #     separator = RedundantArmSeparator
-    #     ss_min = -1
-    #     ss_max = 1
-    #     dim_map = 2
-    # elif args.environment == 'redundant_arm_no_walls':
-    #     env_register_id = 'RedundantArmPosNoWalls-v0'
-    #     separator = RedundantArmSeparator
-    #     ss_min = -1
-    #     ss_max = 1
-    #     dim_map = 2
-    # elif args.environment == 'redundant_arm_no_walls_no_collision':
-    #     env_register_id = 'RedundantArmPosNoWallsNoCollision-v0'
-    #     separator = RedundantArmSeparator
-    #     ss_min = -1
-    #     ss_max = 1
-    #     dim_map = 2
-    # elif args.environment == 'redundant_arm_no_walls_limited_angles':
-    #     env_register_id = 'RedundantArmPosNoWallsLimitedAngles-v0'
-    #     separator = RedundantArmSeparator
-    #     ss_min = -1
-    #     ss_max = 1
-    #     dim_map = 2
-    #     gym_args['dof'] = 100
-    # elif args.environment == 'fastsim_maze':
-    #     env_register_id = 'FastsimSimpleNavigationPos-v0'
-    #     separator = FastsimSeparator
-    #     ss_min = -10
-    #     ss_max = 10
-    #     dim_map = 2
-    # elif args.environment == 'fastsim_maze_traps':
-    #     env_register_id = 'FastsimSimpleNavigationPos-v0'
-    #     separator = FastsimSeparator
-    #     ss_min = -10
-    #     ss_max = 10
-    #     dim_map = 2
-    #     gym_args['physical_traps'] = True
-    # elif args.environment == 'hexapod_omni':
-    #     is_local_env = True
-    #     max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
-    #     obs_dim = 48
-    #     act_dim = 18
-    #     dim_x = 36
-    #     separator = None
-    #     ss_min = -1
-    #     ss_max = 1
-    #     dim_map = 2
-    # else:
-    #     raise ValueError(f"{args.environment} is not a defined environment")
-
     env_params = get_env_params(args)
 
     is_local_env = env_params['is_local_env'] 
@@ -1024,7 +968,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
-        'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
+        'ensemble_size': args.ens_size,
     }
     ## Observation model parameters
     if args.use_obs_model:
@@ -1037,7 +981,7 @@ def main(args):
             'learning_rate': 1e-3,
             'train_unique_trans': False,
             'obs_model_type': args.obs_model_type,
-            'ensemble_size': 1 if not 'ens' in args.model_type else args.ens_size,
+            'ensemble_size': args.ens_size,
         }
     else:
         observation_model_params = {}
@@ -1075,6 +1019,7 @@ def main(args):
 
         'obs_min': obs_min,
         'obs_max': obs_max,
+        'init_obs': init_obs,
 
         'clip_obs': args.clip_obs, # clip models predictions 
         'clip_state': args.clip_state, # clip models predictions 
@@ -1100,7 +1045,7 @@ def main(args):
 
         ## Dump params/ memory gestion params
         "log_ind_trajs": args.log_ind_trajs,
-
+        "dump_ind_trajs": args.dump_ind_trajs,
         ## Model Init Study params
         'n_init_episodes': args.init_episodes,
         # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
@@ -1126,15 +1071,13 @@ def main(args):
     ####################### End of Preparation of run #######################
     #########################################################################
 
-
     if not is_local_env:
         env = WrappedEnv(params)
         dim_x = env.policy_representation_dim
-    obs_dim = obs_dim
-    action_dim = act_dim
-
-    surrogate_model_params['gen_dim'] = dim_x
+    init_obs = params['init_obs']
     px['dim_x'] = dim_x
+    
+    surrogate_model_params['gen_dim'] = dim_x
     
     ## Get the various models we need for the run
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
@@ -1184,12 +1127,12 @@ def main(args):
             f_model = env.evaluate_solution_model_det_ensemble_all
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
-            
+
     # initialize replay buffer
     replay_buffer = SimpleReplayBuffer(
         max_replay_buffer_size=1000000,
         observation_dim=obs_dim,
-        action_dim=action_dim,
+        action_dim=act_dim,
         env_info_sizes=dict(),
     )
     
@@ -1202,7 +1145,7 @@ def main(args):
                         params=px, log_dir=args.log_dir)
 
     #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
-    archive = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    archive, n_evals = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
     
     cm.save_archive(archive, f"{n_evals}_real_all", px, args.log_dir)
         
@@ -1238,15 +1181,11 @@ def main(args):
                     plt_num += 1
                 axs1.append(axs1_cols)
                 axs2.append(axs2_cols)
-            #fig1, axs1 = plt.subplots(rows, cols, projection='3d')
-            #fig2, axs2 = plt.subplots(rows, cols, projection='3d')
         else:
             fig1, axs1 = plt.subplots(rows, cols)
             fig2, axs2 = plt.subplots(rows, cols)
         m_cpt = 0
         
-        # ind_idxs = np.random.permutation(len(model_archive))[:100]
-
         for col in range(cols):
             for row in range(rows):
                 try:
@@ -1259,33 +1198,37 @@ def main(args):
                         ax2 = axs2[row][col]
 
                     loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
+
+                    ## format to take care of trajs that end before max_step + 1
+                    # (+1 because we store max_step transitions)
+                    formatted_loc_bd_traj_data = []
+                    traj_dim = loc_bd_traj_data[0].shape[1] # get traj dim
+                    for loc_bd_traj in loc_bd_traj_data:
+                        formatted_loc_bd_traj = np.empty((max_step+1,traj_dim))
+                        formatted_loc_bd_traj[:] = np.nan
+                        formatted_loc_bd_traj[:len(loc_bd_traj)] = loc_bd_traj
+                        formatted_loc_bd_traj_data.append(formatted_loc_bd_traj)
+                    loc_bd_traj_data = formatted_loc_bd_traj_data
                     loc_bd_traj_data = np.array(loc_bd_traj_data)
                     
                     ## Plot BDs
                     if dim_map == 3:
-                        if len(loc_bd_traj_data.shape) > 2: 
-                            ax1.scatter(xs=loc_bd_traj_data[:,-1,0],
-                                        ys=loc_bd_traj_data[:,-1,1],
-                                        zs=loc_bd_traj_data[:,-1,2], s=3, alpha=0.1)
-                        else:
-                            for loc_bd_traj in loc_bd_traj_data:
-                                 ax1.scatter(xs=loc_bd_traj[-1,0],
-                                             ys=loc_bd_traj[-1,1],
-                                             zs=loc_bd_traj[-1,2], s=3, alpha=0.1)
+                        for loc_bd_traj in loc_bd_traj_data:
+                            last_ind = (~np.isnan(loc_bd_traj)).cumsum(0).argmax(0)[0]
+                            ax1.scatter(xs=loc_bd_traj[last_ind,0],
+                                        ys=loc_bd_traj[last_ind,1],
+                                        zs=loc_bd_traj[last_ind,2], s=3, alpha=0.1)
                         ax1.scatter(xs=init_obs[bd_inds[0]],ys=init_obs[bd_inds[1]],zs=init_obs[bd_inds[2]], s=10, c='red')
                         ## Plot trajectories
-                        # for ind_idx in range(len(model_archive)):
                         for bd_traj in loc_bd_traj_data:
                             ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], bd_traj[:,bd_inds[2]], alpha=0.1, markersize=1)
                     else:
-                        if len(loc_bd_traj_data.shape) > 2: 
-                            ax1.scatter(x=loc_bd_traj_data[:,-1,bd_inds[0]],y=loc_bd_traj_data[:,-1,bd_inds[1]], s=3, alpha=0.1)
-                        else:
-                            for loc_bd_traj in loc_bd_traj_data:
-                                ax1.scatter(x=loc_bd_traj[-1,bd_inds[0]],y=loc_bd_traj[-1,bd_inds[1]], s=3, alpha=0.1)
+                        for loc_bd_traj in loc_bd_traj_data:
+                            last_ind = (~np.isnan(loc_bd_traj)).cumsum(0).argmax(0)[0]
+                            ax1.scatter(x=loc_bd_traj[last_ind,bd_inds[0]],
+                                        y=loc_bd_traj[last_ind,bd_inds[1]], s=3, alpha=0.1)
                         ax1.scatter(x=init_obs[bd_inds[0]],y=init_obs[bd_inds[1]], s=10, c='red')
                         ## Plot trajectories
-                        # for ind_idx in range(len(model_archive)):
                         for bd_traj in loc_bd_traj_data:
                             ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], alpha=0.1, markersize=1)
                     ax1.set_xlabel('x-axis')
@@ -1326,7 +1269,6 @@ def main(args):
                     fig1.delaxes(axs1[row][col])
                     fig2.delaxes(axs2[row][col])
 
-
         fig1.set_size_inches(total_plots*2,total_plots*2)
         fig1.suptitle('Archive coverage after DAB')
         file_path = os.path.join(args.log_dir, f"{args.environment}_real_cov")
@@ -1339,60 +1281,8 @@ def main(args):
         fig2.savefig(file_path,
                     dpi=300, bbox_inches='tight')
 
-
-    ## Plot archive coverage evolution at each generation
-    # we can do that by looking at coverage of individuals in archive taking
-    # into account the first lambda, then adding to these the next lambda inds
-    # etc...
-    def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
-        df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
-        
-        for i in range(dim_map-1, dim_map-3, -1):
-            df_min[f'bd{i}'] = ss_min[bd_inds[i%len(bd_inds)]]
-            df_max[f'bd{i}'] = ss_max[bd_inds[i%len(bd_inds)]]
-        ## Deprecated but oh well
-        data = data.append(df_min, ignore_index = True)
-        data = data.append(df_max, ignore_index = True)
-
-        for i in range(dim_map-1, dim_map-3, -1):
-            data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
-                                      bins = nb_div, 
-                                      labels = [p for p in range(nb_div)])
-
-        ## assign data to bins
-        data = data.assign(bins=pd.Categorical
-                           (data.filter(regex='_bin')
-                            .apply(tuple, 1)))
-
-        ## remove df min and df max
-        data.drop(data.tail(2).index,inplace=True)
-
-        return data
-
-    def compute_cov(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
-        ## add bins field to data
-        data = get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div)
-        ## count number of bins filled
-        counts = data['bins'].value_counts()
-        total_bins = nb_div**(dim_map//args.n_waypoints)
-        ## return coverage (number of bins filled)
-        return len(counts[counts>=1])/total_bins
-
-    archive_cov_by_gen = []
-    bd_cols = [f'bd{i}' for i in range(dim_map)]
-    bd_cols = bd_cols[-2:]
-    for gen in range(1,len(archive)//px['lambda']):
-        archive_at_gen = archive[:gen*px['lambda']]
-        bds_at_gen = np.array([ind.desc[-2:] for ind in archive_at_gen])
-        archive_at_gen_data = pd.DataFrame(bds_at_gen, columns=bd_cols)
-        cov_at_gen = compute_cov(archive_at_gen_data, ss_min, ss_max, px['dim_map'], bd_inds, nb_div)
-        archive_cov_by_gen.append(cov_at_gen)
-    archive_cov_by_gen = np.array(archive_cov_by_gen)
-    to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
-    np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
-
     print()
-    print(f'Finished performing {args.algo} search successfully.')
+    print(f'Finished performing mbqd search successfully.')
     
 if __name__ == "__main__":
     import warnings
