@@ -49,6 +49,7 @@ min_obs = None
 ################################################################################
 ################################ QD methods ####################################
 ################################################################################
+
 def addition_condition(s_list, archive, params):
     add_list = [] # list of solutions that were added
     discard_list = []
@@ -1419,3 +1420,91 @@ def get_env_params(args):
         raise ValueError(f"{args.environment} is not a defined environment")
 
     return env_params
+
+def process_args():
+    parser = argparse.ArgumentParser()
+    #-----------------Type of algo---------------------#
+    # options are 'qd', 'ns'
+    parser.add_argument("--algo", type=str, default="qd")
+    #-----------------Type of QD---------------------#
+    # options are 'cvt', 'grid', 'unstructured' and 'fixed'
+    parser.add_argument("--qd_type", type=str, default="unstructured")
+    
+    #---------------CPU usage-------------------#
+    parser.add_argument("--parallel", action="store_true")
+    parser.add_argument("--num_cores", type=int, default=8)
+    
+    #-----------Store results + analysis-----------#
+    parser.add_argument("--log_dir", type=str)
+    parser.add_argument('--log-ind-trajs', action="store_true") ## Store trajs during run
+    parser.add_argument('--dump-ind-trajs', action="store_true") ## Dump traj in archive
+    
+    #-----------QD params for cvt or GRID---------------#
+    # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
+    parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
+    parser.add_argument("--n_niches", default=3000, type=int)
+
+    #----------population params--------#
+    parser.add_argument("--random-init-batch", default=100, type=int) # Number of inds to initialize the archive
+    parser.add_argument("--b_size", default=200, type=int) # For paralellization - 
+    parser.add_argument("--dump_period", default=5000, type=int) 
+    parser.add_argument("--dump-mode", type=str, default="budget")
+    parser.add_argument("--max_evals", default=10000, type=int) # max number of evaluation
+    parser.add_argument("--selector", default="uniform", type=str)
+    # possible values: iso_dd, polynomial or sbx
+    parser.add_argument("--mutation", default="iso_dd", type=str)
+
+    #-------------Algo params-----------#
+    parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
+    parser.add_argument('--bootstrap-archive-path', type=str, default='')
+    parser.add_argument('--bootstrap-selection', type=str, default='final_pop') # final_pop, nov, random
+    parser.add_argument('--fitness-func', type=str, default='energy_minimization')
+    parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
+    ## Gen max_evals random policies and evaluate them
+    parser.add_argument('--random-policies', action="store_true") 
+    parser.add_argument('--environment', '-e', type=str, default='empty_maze')
+    parser.add_argument('--lambda-add', type=int, default=15)
+    parser.add_argument('--arch-sel', type=str, default='random')
+    parser.add_argument('--rep', type=int, default='1')
+
+    #-------------DAQD params-----------#
+    parser.add_argument('--transfer-selection', type=str, default='all')
+    parser.add_argument('--min-found-model', type=int, default=100)
+    parser.add_argument('--nb-transfer', type=int, default=1)
+    parser.add_argument('--train-freq-gen', type=int, default=5)
+    parser.add_argument('--train-freq-eval', type=int, default=500)
+    parser.add_argument('--no-training', action='store_true')
+
+    #-----------Controller params--------#
+    parser.add_argument('--c-type', type=str, default='ffnn') # Type of controller to use
+    parser.add_argument('--norm-controller-input', type=int, default=1) # minmax Normalize input space
+    parser.add_argument('--open-loop-control', type=int, default=0) # open loop (time) or closed loop (state) control
+    parser.add_argument('--c-n-layers', type=int, default=2) # Number of hidden layers
+    parser.add_argument('--c-n-neurons', type=int, default=10) # Number of neurons per hidden layer
+    ## RNN inputs: (batch,seq_len,input_dim)
+    parser.add_argument('--pred-mode', type=str, default='single') # RNN prediction mode (single; all; window)
+    
+    #-------------Model params-----------#
+    parser.add_argument('--obs-model-type', type=str, default='nn') # nn, srf
+    
+    parser.add_argument('--model-variant', type=str, default='dynamics') # dynamics, all_dynamics, surrogate
+    parser.add_argument('--model-type', type=str, default='det') # prob, det, det_ens
+    parser.add_argument('--ens-size', type=int, default='4') # when using ens
+    parser.add_argument('--model-horizon', type=int, default=-1) # model eval horizon
+    parser.add_argument('--perfect-model', action='store_true')
+    parser.add_argument('--norm-bd', type=int, default=1) # minmax Normalize BD space
+    parser.add_argument('--nov-ens', type=str, default='sum') # min, mean, sum
+    parser.add_argument('--use-obs-model', action='store_true')
+    ## '' does not pretrain, srf pretrains using data generated with
+    ## spatial random fields
+    parser.add_argument('--pretrain', type=str, default='')
+    parser.add_argument('--pretrain-budget', type=int, default=10000)
+    parser.add_argument('--clip-obs', action='store_true')
+    parser.add_argument('--clip-state', action='store_true')
+
+    #----------Model Init Study params--------#
+    parser.add_argument('--init-method', type=str, default='random-policies')
+    parser.add_argument('--init-episodes', type=int, default='20')
+    parser.add_argument('--init-data-path', type=str, default=None)
+
+    return parser.parse_args()

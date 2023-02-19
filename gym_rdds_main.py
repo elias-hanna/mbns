@@ -4,6 +4,9 @@ from src.map_elites import unstructured_container, cvt
 from src.map_elites.qd import QD
 from src.map_elites.ns import NS
 
+from exps_utils import get_dynamics_model, get_surrogate_model, \
+    get_observation_model, addition_condition, evaluate_, evaluate_all_
+
 #----------Model imports--------#
 from src.models.observation_models.deterministic_obs_model import DeterministicObsModel
 from src.models.observation_models.srf_deterministic_obs_model import SrfDeterministicObsModel

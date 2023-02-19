@@ -11,7 +11,7 @@ from exps_utils import RNNController
 
 #----------Environment imports--------#
 import gym
-from exps_utils import get_env_params
+from exps_utils import get_env_params, process_args
 from exps_utils import WrappedEnv
 
 #----------Data manipulation imports--------#
@@ -521,58 +521,6 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
     warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
-    parser = argparse.ArgumentParser()
-
-    #-----------------Type of algo---------------------#
-    # options are 'qd', 'ns'
-    parser.add_argument("--algo", type=str, default="qd")
-    #-----------------Type of QD---------------------#
-    # options are 'cvt', 'grid', 'unstructured', 'fixed'
-    parser.add_argument("--qd_type", type=str, default="unstructured")
+    args = process_args()
     
-    #---------------CPU usage-------------------#
-    parser.add_argument("--parallel", action="store_true")
-    parser.add_argument("--num_cores", type=int, default=6)
-    
-    #-----------Store results + analysis-----------#
-    parser.add_argument("--log_dir", type=str)
-    parser.add_argument('--log-ind-trajs', action="store_true") ## Store trajs during run
-    parser.add_argument('--dump-ind-trajs', action="store_true") ## Dump traj in archive
-    
-    #-----------QD params for cvt or GRID---------------#
-    # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
-    parser.add_argument("--grid_shape", default=[100,100], type=list) # num discretizat
-    parser.add_argument("--n_niches", default=3000, type=int) # qd number niches
-
-    #----------population params--------#
-    parser.add_argument("--random-init-batch", default=100, type=int) # Number of inds to initialize the archive
-    parser.add_argument("--b_size", default=200, type=int) # For paralellization - 
-    parser.add_argument("--dump_period", default=5000, type=int) 
-    parser.add_argument("--dump-mode", type=str, default="budget")
-    parser.add_argument("--max_evals", default=1e6, type=int) # max number of evaluation
-    parser.add_argument("--selector", default="uniform", type=str)
-    # possible values: iso_dd, polynomial or sbx
-    parser.add_argument("--mutation", default="iso_dd", type=str)
-
-    #-------------Algo params-----------#
-    parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
-    parser.add_argument('--fitness-func', type=str, default='energy_minimization')
-    parser.add_argument('--n-waypoints', default=1, type=int) # 1 takes BD on last obs
-    ## Gen max_evals random policies and evaluate them
-    parser.add_argument('--environment', '-e', type=str, default='ball_in_cup')
-    parser.add_argument('--lambda-add', type=int, default=15)
-    parser.add_argument('--arch-sel', type=str, default='random')
-    parser.add_argument('--rep', type=int, default='1')
-
-    #-----------Controller params--------#
-    parser.add_argument('--c-type', type=str, default='ffnn') # Type of controller to use
-    parser.add_argument('--norm-controller-input', type=int, default=1) # minmax Normalize input space
-    parser.add_argument('--open-loop-control', type=int, default=0) # open loop (time) or closed loop (state) control
-    parser.add_argument('--c-n-layers', type=int, default=2) # Number of hidden layers
-    parser.add_argument('--c-n-neurons', type=int, default=10) # Number of neurons per hidden layer
-    ## RNN inputs: (batch,seq_len,input_dim)
-    parser.add_argument('--pred-mode', type=str, default='single') # RNN prediction mode (single; all; window)
-      
-    args = parser.parse_args()
-
     main(args)
