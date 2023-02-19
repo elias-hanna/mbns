@@ -502,20 +502,6 @@ class WrappedEnv():
         if render:
             print("Desc from simulation", desc)
 
-
-        ## snippet to gather min and max obs
-        # global max_obs, min_obs
-        # obs_traj = np.array(obs_traj)
-        # if max_obs is None:
-        #     max_obs = np.max(obs_traj, axis=0)
-        # else:
-        #     max_obs = np.reshape(max_obs, (1,-1))
-        #     max_obs = np.max(np.concatenate((max_obs, obs_traj), axis=0), axis=0)
-        # if min_obs is None:
-        #     min_obs = np.min(obs_traj, axis=0)
-        # else:
-        #     min_obs = np.reshape(min_obs, (1,-1))
-        #     min_obs = np.min(np.concatenate((min_obs, obs_traj), axis=0), axis=0)
         if not self.log_ind_trajs:
             obs_traj = None
             act_traj = None
