@@ -674,9 +674,9 @@ class WrappedEnv():
                 S += mean_pred.copy()
                 if self.clip_state:
                     S = np.clip(S, self._state_min, self._state_max)
-                obs_traj.append(S.copy())
+                obs_traj.append(S[0].copy())
                 disagr_traj.append(ptu.get_numpy(batch_disagreement[0]))
-                act_traj.append(A)
+                act_traj.append(A[0])
 
         desc = self.compute_bd(obs_traj, ensemble=True, mean=mean)
         fitness = self.compute_fitness(obs_traj, act_traj,
@@ -1229,25 +1229,25 @@ class WrappedEnv():
             ## Return bd for each model and flatten it all
             if self._env_name == 'ball_in_cup':
                 bd = obs_wps[:,:,:3].flatten()
-            if 'maze' in self._env_name:
+            elif 'maze' in self._env_name:
                 bd = obs_wps[:,:,:2].flatten()
-            if 'redundant_arm' in self._env_name:
+            elif 'redundant_arm' in self._env_name:
                 bd = obs_wps[:,:,-2:].flatten()
-            if self._env_name == 'half_cheetah':
+            elif self._env_name == 'half_cheetah':
                 bd = obs_wps[:,:,:1].flatten()
-            if self._env_name == 'walker2d':
+            elif self._env_name == 'walker2d':
                 bd = obs_wps[:,:,:1].flatten()
             return bd
 
         if self._env_name == 'ball_in_cup':
             bd = obs_wps[:,:3].flatten()
-        if 'maze' in self._env_name:
+        elif 'maze' in self._env_name:
             bd = obs_wps[:,:2].flatten()
-        if 'redundant_arm' in self._env_name:
+        elif 'redundant_arm' in self._env_name:
             bd = obs_wps[:,-2:].flatten()
-        if self._env_name == 'half_cheetah':
+        elif self._env_name == 'half_cheetah':
             bd = obs_wps[:,:1].flatten()
-        if self._env_name == 'walker2d':
+        elif self._env_name == 'walker2d':
             bd = obs_wps[:,:1].flatten()
         return bd
         
@@ -1268,17 +1268,17 @@ class WrappedEnv():
             fit_func = self.disagr_minimization_fit
         if self._env_name == 'ball_in_cup':
             fit = fit_func(act_traj, disagr_traj)
-        if self._env_name == 'fastsim_maze':
+        elif self._env_name == 'fastsim_maze':
             fit = fit_func(act_traj, disagr_traj)
-        if self._env_name == 'empty_maze':
+        elif self._env_name == 'empty_maze':
             fit = fit_func(act_traj, disagr_traj)
-        if self._env_name == 'fastsim_maze_traps':
+        elif self._env_name == 'fastsim_maze_traps':
             fit = fit_func(act_traj, disagr_traj)
-        if 'redundant_arm' in self._env_name:
+        elif 'redundant_arm' in self._env_name:
             fit = fit_func(act_traj, disagr_traj)
-        if self._env_name == 'half_cheetah':
+        elif self._env_name == 'half_cheetah':
             fit = fit_func(act_traj, disagr_traj)
-        if self._env_name == 'walker2d':
+        elif self._env_name == 'walker2d':
             fit = fit_func(act_traj, disagr_traj)
         return fit
 
@@ -1319,7 +1319,7 @@ def get_env_params(args):
         env_params['obs_min'] = np.array([-0.4]*6)
         env_params['obs_max'] = np.array([0.4]*6)
         env_params['dim_map'] = 3
-        env_params['init_obs'] = np.array([300., 300., 0., 0., 0. , 0.])
+        env_params['init_obs'] = np.array([0., 0., 0.35, 0., 0. , 0.])
         env_params['state_dim'] = 6
         env_params['bd_inds'] = [0, 1, 2]
         

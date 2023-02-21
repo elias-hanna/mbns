@@ -268,12 +268,12 @@ class ModelBasedQD:
 
         # setup the parallel processing pool
         if num_cores_set == 0:
-            num_cores = multiprocessing.cpu_count() # use all cores
+            num_cores = multiprocessing.cpu_count() - 1 # use all cores
         else:
             num_cores = num_cores_set
             
-        pool = multiprocessing.Pool(num_cores)
-        #pool = get_context("spawn").Pool(num_cores)
+        # pool = multiprocessing.Pool(num_cores)
+        pool = get_context("spawn").Pool(num_cores)
         #pool = ThreadPool(num_cores)
         
         gen = 0 # generation
