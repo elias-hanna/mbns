@@ -417,7 +417,7 @@ def main(args):
     elif args.model_variant == "dynamics" :
         if args.model_type == "det":
             f_model = env.evaluate_solution_model 
-        elif args.model_type == "prob" and args.environment == 'hexapod_omni':
+        elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble
     elif args.model_variant == "all_dynamics":
         if args.model_type == "det":

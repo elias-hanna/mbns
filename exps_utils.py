@@ -578,6 +578,118 @@ class WrappedEnv():
 
         return fitness, desc, obs_traj, act_traj, disagr
 
+    def evaluate_solution_model_ensemble(self, ctrl, mean=True, disagr=True,
+                                         render=False):
+        """
+        Input: ctrl (array of floats) the genome of the individual
+        Output: Trajectory and actions taken
+        """
+        ## Create a copy of the controller
+        controller = self.controller.copy()
+        ## Verify that x and controller parameterization have same size
+        # assert len(x) == len(self.controller.get_parameters())
+        ## Set controller parameters
+        controller.set_parameters(ctrl)
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+        act_traj = []
+        obs_traj = []
+        c_input_traj = []
+        disagr_traj = []
+
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+
+        ens_size = self.dynamics_model.ensemble_size
+
+        if not mean:
+            S = np.tile(obs, (ens_size, 1))
+            A = np.empty((ens_size,
+                          self.controller.output_dim))
+        else:
+            S = np.tile(obs, (1, 1))
+            A = np.empty((1, self.controller.output_dim))
+
+        for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+            if not mean:
+                if self.time_open_loop:
+                    if self._norm_c_input:
+                        norm_t = (t/self._env_max_h)*(1+1) - 1
+                        A = controller([norm_t]*ens_size)
+                    else:
+                        A = controller([t]*ens_size)
+                else:
+                    if self._norm_c_input:
+                        norm_s = self.normalize_inputs_s_minmax(S)
+                        A = controller(norm_s)
+                    else:
+                        A = controller(S)
+            else:
+                if self.time_open_loop:
+                    if self._norm_c_input:
+                        norm_t = (t/self._env_max_h)*(1+1) - 1
+                        A = controller([norm_t])
+                    else:
+                        A = controller([t])
+                else:
+                    if self._norm_c_input:
+                        norm_s = self.normalize_inputs_s_minmax(S)
+                        A = controller(norm_s)
+                    else:
+                        A = controller(S)
+                A = np.clip(A, self._action_min, self._action_max)
+                            
+            start = time.time()
+            if not mean:
+                batch_pred_delta_ns, batch_disagreement = self.forward(A, S, mean=mean,
+                                                                       disagr=disagr,
+                                                                       multiple=True)
+            else:
+                batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S,
+                                                                                mean=True,
+                                                                                disagr=True)
+            if not mean:
+                ## Don't use mean predictions and keep each particule trajectory
+                # Be careful, in that case there is no need to repeat each state in
+                # forward multiple function
+                disagreement = self.compute_abs_disagreement(S, batch_pred_delta_ns[0])
+                # print("Disagreement: ", disagreement.shape)
+                # print("Disagreement: ", disagreement)
+                disagreement = ptu.get_numpy(disagreement)
+
+                disagreements_list[i].append(disagreement.copy())
+
+                S += batch_pred_delta_ns[0]
+                if self.clip_state:
+                    S = np.clip(S, self._state_min, self._state_max)
+                obs_traj.append(S.copy())
+                act_traj.append(A)
+                disagr_traj.append(batch_disagreement[0])
+
+            else:
+                ## Compute mean prediction from model samples
+                next_step_pred = batch_pred_delta_ns[0]
+                mean_pred = [np.mean(next_step_pred[:,0]) for i
+                             in range(len(next_step_pred[0]))]
+                S += mean_pred.copy()
+                if self.clip_state:
+                    S = np.clip(S, self._state_min, self._state_max)
+                obs_traj.append(S.copy())
+                disagr_traj.append(ptu.get_numpy(batch_disagreement[0]))
+                act_traj.append(A)
+
+        desc = self.compute_bd(obs_traj, ensemble=True, mean=mean)
+        fitness = self.compute_fitness(obs_traj, act_traj,
+                                       disagr_traj=disagr_traj,
+                                       ensemble=True)
+
+        if not self.log_ind_trajs:
+            obs_traj = [None]*len(ctrls)
+            act_traj = [None]*len(ctrls)
+            disagr_traj = [None]*len(ctrls)
+
+        return fitness, desc, obs_traj, act_traj, disagr_traj
+
     def evaluate_solution_model_all(self, ctrls, render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
