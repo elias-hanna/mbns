@@ -55,7 +55,6 @@ class ProbabilisticEnsemble(ParallelizedEnsemble):
         self.min_logstd = nn.Parameter(
             -ptu.ones(obs_dim), requires_grad=False)
 
-         
     def forward(self, input, deterministic=False, return_dist=False):
         output = super().forward(input)
         mean, logstd = torch.chunk(output, 2, dim=-1)
@@ -84,7 +83,6 @@ class ProbabilisticEnsemble(ParallelizedEnsemble):
 
     def get_loss(self, x, y, split_by_model=False, return_l2_error=False):
         # Note: we assume y here already accounts for the delta of the next state
-
         # normalize the output/label as well
         y = self.normalize_outputs(y)
         

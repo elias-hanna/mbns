@@ -167,6 +167,7 @@ class ParallelizedLayer(nn.Module):
 
     def forward(self, x):
         # assumes x is 3D: (ensemble_size, batch_size, dimension)
+        x = x.to('cuda')
         return x @ self.W + self.b
 
 

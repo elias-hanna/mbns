@@ -124,7 +124,7 @@ class MBRLTrainer(TorchTrainer):
             
             num_epochs += 1
 
-        self.ensemble.elites = np.argsort(holdout_losses)
+        self.ensemble.elites = np.argsort([ptu.get_numpy(h) for h in holdout_losses])
 
         if self._need_to_update_eval_statistics:
             self._need_to_update_eval_statistics = False
