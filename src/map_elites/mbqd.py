@@ -455,9 +455,6 @@ class ModelBasedQD:
             b_evals += len(to_evaluate) # number of evals since last dump
             n_model_evals += len(to_model_evaluate) # total number of model evals
             
-            #print("n_evals: ", n_evals)
-            print("b_evals: ", b_evals)
-
             # write archive during dump period
             if b_evals >= params['dump_period'] and params['dump_period'] != -1 \
                and params['dump_mode'] == 'budget':
@@ -543,7 +540,8 @@ class ModelBasedQD:
                                                                    len(to_evaluate),
                                                                    len(to_model_evaluate),))
                 self.time_log_file.flush()
-            
+
+            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
         print("End of QD algorithm - saving final archive")        
