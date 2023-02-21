@@ -1652,7 +1652,7 @@ def process_args():
     parser.add_argument('--transfer-selection', type=str, default='all')
     parser.add_argument('--min-found-model', type=int, default=100)
     parser.add_argument('--nb-transfer', type=int, default=1)
-    parser.add_argument('--train-freq-gen', type=int, default=5)
+    parser.add_argument('--train-freq-gen', type=int, default=500)
     parser.add_argument('--train-freq-eval', type=int, default=500)
     parser.add_argument('--no-training', action='store_true')
 
