@@ -266,7 +266,7 @@ def main(args):
         'train_unique_trans': False,
         'model_type': args.model_type,
         'model_horizon': args.model_horizon if args.model_horizon!=-1 else max_step,
-        'ensemble_size': args.ens_size,
+        'ensemble_size': 1 if args.model_type == 'det' else args.ens_size,
     }
     ## Observation model parameters
     if args.use_obs_model:
@@ -279,7 +279,7 @@ def main(args):
             'learning_rate': 1e-3,
             'train_unique_trans': False,
             'obs_model_type': args.obs_model_type,
-            'ensemble_size': args.ens_size,
+            'ensemble_size': 1 if args.model_type == 'det' else args.ens_size,
         }
     else:
         observation_model_params = {}
