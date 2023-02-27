@@ -36,7 +36,12 @@ import itertools
 import os, sys
 import argparse
 import matplotlib.pyplot as plt
+font = {'family' : 'normal',
+        'weight' : 'bold',
+        'size'   : 5}
 
+plt.rc('font', **font)
+    
 import multiprocessing
 from multiprocessing import cpu_count
 import random
@@ -485,11 +490,8 @@ class WrappedEnv():
 
         desc = self.compute_bd(obs_traj)
         if 'maze_laser' in self._env_name:
-            try:
-                wp_idxs = [i for i in range(len(info_traj)//self.n_wps, len(info_traj),
-                                            len(info_traj)//self.n_wps)][:self.n_wps-1]
-            except:
-                import pdb; pdb.set_trace()
+            wp_idxs = [i for i in range(len(info_traj)//self.n_wps, len(info_traj),
+                                        len(info_traj)//self.n_wps)][:self.n_wps-1]
             wp_idxs += [-1]
 
             info_wps = np.take(info_traj, wp_idxs, axis=0)
@@ -783,6 +785,7 @@ class WrappedEnv():
 
             fit_list.append(fitness)
             bd_list.append(desc)
+
         if not self.log_ind_trajs:
             obs_trajs = [None]*len(ctrls)
             act_trajs = [None]*len(ctrls)
@@ -1217,11 +1220,8 @@ class WrappedEnv():
     def compute_bd(self, obs_traj, ensemble=False, mean=True):
         bd = [0]*self._dim_map
 
-        try:
-            wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
-                                        len(obs_traj)//self.n_wps)][:self.n_wps-1]
-        except:
-            import pdb; pdb.set_trace()
+        wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
+                                    len(obs_traj)//self.n_wps)][:self.n_wps-1]
         wp_idxs += [-1]
 
         obs_wps = np.take(obs_traj, wp_idxs, axis=0)
@@ -1541,12 +1541,12 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
         axs2 = []
         plt_num = 0
         #for plt_num in range(total_plots):
-        for col in range(cols):
+        for row in range(rows):
             axs1_cols = []
             axs2_cols = []
-            for row in range(rows):
-                axs1_cols.append(fig1.add_subplot(cols, rows, plt_num+1, projection='3d'))
-                axs2_cols.append(fig2.add_subplot(cols, rows, plt_num+1, projection='3d'))
+            for col in range(cols):
+                axs1_cols.append(fig1.add_subplot(rows, cols, plt_num+1, projection='3d'))
+                axs2_cols.append(fig2.add_subplot(rows, cols, plt_num+1, projection='3d'))
                 plt_num += 1
             axs1.append(axs1_cols)
             axs2.append(axs2_cols)
@@ -1589,9 +1589,9 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
             if dim_map == 3:
                 for loc_bd_traj in loc_bd_traj_data:
                     last_ind = (~np.isnan(loc_bd_traj)).cumsum(0).argmax(0)[0]
-                    ax1.scatter(xs=loc_bd_traj[last_ind,0],
-                                ys=loc_bd_traj[last_ind,1],
-                                zs=loc_bd_traj[last_ind,2], s=3, alpha=0.1)
+                    ax1.scatter(xs=loc_bd_traj[last_ind,bd_inds[0]],
+                                ys=loc_bd_traj[last_ind,bd_inds[1]],
+                                zs=loc_bd_traj[last_ind,bd_inds[2]], s=3, alpha=0.1)
                 ax1.scatter(xs=init_obs[bd_inds[0]],ys=init_obs[bd_inds[1]],zs=init_obs[bd_inds[2]], s=10, c='red')
                 ## Plot trajectories
                 for bd_traj in loc_bd_traj_data:
@@ -1614,11 +1614,8 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
                 if dim_map == 3:
                     ax1.set_ylabel('z-axis')
                     ax1.set_zlim(ss_min[bd_inds[2]], ss_max[bd_inds[2]])
-            else:
-                loc_bd_mins = np.min(loc_bd_traj_data[:,-1,:], axis=0) 
-                loc_bd_maxs = np.max(loc_bd_traj_data[:,-1,:], axis=0) 
-                ax1.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
-                ax1.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
+                    if params['env_name'] == 'ball_in_cup':
+                        ax1.invert_zaxis()
             if dim_map != 3:
                 ax1.set_aspect('equal', adjustable='box')
 
@@ -1631,27 +1628,26 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
                 if dim_map == 3:
                     ax2.set_ylabel('z-axis')
                     ax2.set_zlim(ss_min[bd_inds[2]], ss_max[bd_inds[2]])
-            else:
-                loc_bd_mins = np.min(loc_bd_traj_data, axis=(0,1)) 
-                loc_bd_maxs = np.max(loc_bd_traj_data, axis=(0,1))
-                ax2.set_xlim(loc_bd_mins[0], loc_bd_maxs[0])
-                ax2.set_ylim(loc_bd_mins[1], loc_bd_maxs[1])
+                    if params['env_name'] == 'ball_in_cup':
+                        ax2.invert_zaxis()
             if dim_map != 3:
                 ax2.set_aspect('equal', adjustable='box')
             m_cpt += 1
 
 
     fig1.set_size_inches(total_plots*2,total_plots*2)
+    fig1.tight_layout(pad=6.9)
     fig1.suptitle('Archive coverage after DAB')
     file_path = os.path.join(args.log_dir, f"{args.environment}_real_cov")
     fig1.savefig(file_path,
-                dpi=300, bbox_inches='tight')
+                 dpi=300, bbox_inches='tight')
 
     fig2.set_size_inches(total_plots*2,total_plots*2)
+    fig2.tight_layout(pad=6.9)
     fig2.suptitle('Individuals trajectories after DAB')
     file_path = os.path.join(args.log_dir, f"{args.environment}_ind_trajs")
     fig2.savefig(file_path,
-                dpi=300, bbox_inches='tight')
+                 dpi=300, bbox_inches='tight')
 
 def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
     df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
@@ -1748,6 +1744,15 @@ def process_args():
     # possible values: iso_dd, polynomial or sbx
     parser.add_argument("--mutation", default="iso_dd", type=str)
 
+    #-------------QD specific params-----------#
+    ## TODO
+    #-------------NS specific params-----------#
+    ## TODO
+    #-------------DAQD specific params-----------#
+    ## TODO
+    #-------------0DAB specific params-----------#
+    ## Evals on random model(s) is max_evals*multi_eval
+    parser.add_argument('--multi-eval', type=int, default=1)
     #-------------Algo params-----------#
     parser.add_argument('--pop-size', default=100, type=int) # 1 takes BD on last obs
     parser.add_argument('--bootstrap-archive-path', type=str, default='')
