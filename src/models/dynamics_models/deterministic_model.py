@@ -20,7 +20,7 @@ class DeterministicDynModel(nn.Module):
             sa_min=None,          # State-Action space min values
             sa_max=None,          # State-Action space max values
             use_minmax_norm=False,
-            hidden_activation=torch.relu,
+            hidden_activation=torch.tanh,
     ):
         super(DeterministicDynModel, self).__init__()
 

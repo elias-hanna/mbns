@@ -1553,25 +1553,28 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     else:
         fig1, axs1 = plt.subplots(rows, cols)
         fig2, axs2 = plt.subplots(rows, cols)
+        if len(axs1.shape) < 2:
+            axs1 = np.reshape(axs1, (rows, cols))
+        if len(axs2.shape) < 2:
+            axs2 = np.reshape(axs2, (rows, cols))
     m_cpt = 0
 
     for col in range(cols):
         for row in range(rows):
             try:
-                if not hasattr(axs1, '__len__'):
-                # if not 'ens' in args.model_type or args.perfect_model:
-                    ax1 = axs1
-                    ax2 = axs2
-                else:
-                    ax1 = axs1[row][col]
-                    ax2 = axs2[row][col]
-
+                loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
             except:
                 fig1.delaxes(axs1[row][col])
                 fig2.delaxes(axs2[row][col])
                 continue
 
-            loc_bd_traj_data, loc_system_name = all_bd_traj_data[m_cpt]
+            if not hasattr(axs1, '__len__'):
+                # if not 'ens' in args.model_type or args.perfect_model:
+                ax1 = axs1
+                ax2 = axs2
+            else:
+                ax1 = axs1[row][col]
+                ax2 = axs2[row][col]
 
             ## format to take care of trajs that end before max_step + 1
             # (+1 because we store max_step transitions)
@@ -1633,7 +1636,6 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
             if dim_map != 3:
                 ax2.set_aspect('equal', adjustable='box')
             m_cpt += 1
-
 
     fig1.set_size_inches(total_plots*2,total_plots*2)
     fig1.tight_layout(pad=6.9)

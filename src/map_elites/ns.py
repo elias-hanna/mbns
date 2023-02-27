@@ -327,22 +327,6 @@ class NS:
             
         pool = multiprocessing.Pool(num_cores)
 
-        # if params['bootstrap_archive'] != '':
-        #     arch_data = pd.read_csv(params['bootstrap_archive'])
-        #     arch_data = arch_data.iloc[:,:-1]
-        #     s_list = []
-        #     gen_cols = [col for col in arch_data.columns if 'x' in col]
-        #     bd_cols = [col for col in arch_data.columns if 'bd' in col]
-        #     for index, row in arch_data.iterrows():
-        #         genotype = row[gen_cols]
-        #         bd = row[bd_cols]
-        #         s = cm.Species(genotype, bd, row['fit'])
-        #         s_list.append(s)
-        #     population = s_list
-        #     archive = s_list
-        # else:
-        #     population = []
-
         population = []
         
         gen = 0 # generation
