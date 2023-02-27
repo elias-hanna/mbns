@@ -127,7 +127,7 @@ def get_dynamics_model(params):
             action_dim=action_dim,
             hidden_sizes=[M, M]
         )
-        dynamics_model.cuda()
+        #dynamics_model.cuda()
         dynamics_model_trainer = MBRLTrainer(
             ensemble=dynamics_model,
             **variant['mbrl_kwargs'],

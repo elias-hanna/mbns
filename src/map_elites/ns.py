@@ -374,7 +374,7 @@ class NS:
                     if params['include_target']==True:
                         include_target = True
                 if 'model_variant' in params:
-                    if params['model_variant']:
+                    if 'all' in params['model_variant']:
                         eval_all = True
                 if include_target:
                     s_list = training_and_target_evaluate_all_(to_evaluate, params)  
@@ -402,7 +402,7 @@ class NS:
                     if params['include_target']==True:
                         include_target = True
                 if 'model_variant' in params:
-                    if params['model_variant']:
+                    if 'all' in params['model_variant']:
                         eval_all = True
                 if include_target:
                     s_list = training_and_target_evaluate_all_(to_evaluate, params)  
@@ -418,7 +418,7 @@ class NS:
                 # if params['model_type'] == 'det_ens':
                 ensembling = False
                 if 'model_type' in params:
-                    if perfect_model_on in params:
+                    if 'perfect_model_on' in params:
                         ensembling = False if params['perfect_model_on'] else True
                     else:
                         ensembling = True
