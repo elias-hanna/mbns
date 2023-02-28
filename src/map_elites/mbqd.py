@@ -284,6 +284,10 @@ class ModelBasedQD:
         evals_since_last_train = 0 
         print("################# Starting QD algorithm #################")
 
+        all_errors_medians = []; all_errors_1q = []; all_errors_3q = []
+        add_errors_medians = []; add_errors_1q = []; add_errors_3q = []
+        discard_errors_medians = []; discard_errors_1q = []; discard_errors_3q = []
+        
         # main loop
         while (n_evals < max_evals):
             # lists of individuals we want to evaluate (list of tuples) for this gen
@@ -392,6 +396,39 @@ class ModelBasedQD:
                         to_evaluate += [(z.x, self.f_real)]
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
                     self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
+                    ## Create Species pairs for model eval and real eval
+                    # nb: useful only if order is not preserved by parallel eval
+                    s_pairs = []
+                    for s in s_list: # s_list contains real evaluations
+                        for s_m in add_list_model: # s_m contains model evals
+                            if (s.x == s_m.x).all():
+                                s_pairs.append((s, s_m))
+                    ## Compute descriptor estimation errors
+                    all_errors = []
+                    add_errors = []
+                    discard_errors = []
+                    for s_pair in s_pairs:
+                        s = s_pair[0]
+                        s_m = s_pair[1]
+                        error = np.linalg.norm(s.desc-s_m.desc)
+                        all_errors.append(error)
+                        if s in add_list: ## Handle Species that were added
+                            add_errors.append(error)
+                        elif s in discard_list: ## Handle discarded Species
+                            discard_errors.append(error)
+                        else:
+                            print('WARNING: Specy neither in added or discarded list')
+
+                    all_errors_medians.append(np.median(all_errors))
+                    all_errors_1q.append(np.quantile(all_errors, 1/4))
+                    all_errors_3q.append(np.quantile(all_errors, 3/4))
+                    add_errors_medians.append(np.median(add_errors))
+                    add_errors_1q.append(np.quantile(add_errors, 1/4))
+                    add_errors_3q.append(np.quantile(add_errors, 3/4))
+                    discard_errors_medians.append(np.median(discard_errors))
+                    discard_errors_1q.append(np.quantile(discard_errors, 1/4))
+                    discard_errors_3q.append(np.quantile(discard_errors, 3/4))
+                    
                     true_pos = len(add_list)
                     false_pos = len(discard_list)
                     self.eval_time = time.time()-start
@@ -427,7 +464,7 @@ class ModelBasedQD:
                 start = time.time()
                 if params["model_variant"]=="dynamics" or params["model_variant"]=="all_dynamics":
                     # FOR DYNAMICS MODEL
-                    torch.set_num_threads(24)
+                    # torch.set_num_threads(24)
                     self.dynamics_model_trainer.train_from_buffer(self.replay_buffer, 
                                                                   holdout_pct=0.1,
                                                                   max_grad_steps=100000)
@@ -474,6 +511,14 @@ class ModelBasedQD:
                 ptu.save_model(self.dynamics_model, self.save_model_path)
                 print("Done saving torch model")
 
+                print("Saving median,1q,3q of descriptor estimation errors")
+                dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
+                np.savez(dump_path,
+                         all_errors_medians, all_errors_1q, all_errors_3q,
+                         add_errors_medians, add_errors_1q, add_errors_3q,
+                         discard_errors_medians, discard_errors_1q, discard_errors_3q)
+                print("Done saving descriptor estimation errors")
+                
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
             elif params['dump_mode'] == 'gen':
@@ -545,11 +590,32 @@ class ModelBasedQD:
                 
         print("==========================================")
         print("End of QD algorithm - saving final archive")        
+        print("Saving final real archive")
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
-        ## Also save model archive for more visualizations
-        cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
+        print("Done saving final real archive")
+        # Save models
+        print("Saving torch model")
+        ptu.save_model(self.dynamics_model, self.save_model_path)
+        print("Done saving torch model")
+        print("Saving median,1q,3q of descriptor estimation errors")
+
+        dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
+        np.savez(dump_path,
+                 all_errors_medians=all_errors_medians,
+                 all_errors_1q=all_errors_1q,
+                 all_errors_3q=all_errors_3q,
+                 add_errors_medians=add_errors_medians,
+                 add_errors_1q=add_errors_1q,
+                 add_errors_3q=add_errors_3q,
+                 discard_errors_medians=discard_errors_medians,
+                 discard_errors_1q=discard_errors_1q,
+                 discard_errors_3q=discard_errors_3q)
+        print("Done saving descriptor estimation errors")
+
+
         return self.archive, n_evals
 
+    
 
     ##################### Emitters ##############################
     def random_model_emitter(self, to_model_evaluate, pool, params):

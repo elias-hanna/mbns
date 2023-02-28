@@ -463,6 +463,62 @@ def main(args):
     ## will consider a gen = lambda indiv added to archive
     save_archive_cov_by_gen(archive, args, px, params)
 
+    ## Get descriptor estimation errors from save at end of run
+    desc_error_data = np.load(os.path.join(args.log_dir,
+                                           'desc_estimation_errors.npz'))
+    all_errors_medians=desc_error_data['all_errors_medians']
+    all_errors_1q=desc_error_data['all_errors_1q']
+    all_errors_3q=desc_error_data['all_errors_3q']
+    add_errors_medians=desc_error_data['add_errors_medians']
+    add_errors_1q=desc_error_data['add_errors_1q']
+    add_errors_3q=desc_error_data['add_errors_3q']
+    discard_errors_medians=desc_error_data['discard_errors_medians']
+    discard_errors_1q=desc_error_data['discard_errors_1q']
+    discard_errors_3q=desc_error_data['discard_errors_3q']
+    ## Plot descriptor estimation error at each generation
+    ## Plotting all inds error, added inds error and discarded inds error
+    ## Plotting median 1st and 3rd quartile for each
+
+    fig, ax = plt.subplots()
+
+    gens = [gen+1 for gen in range(len(all_errors_medians))]
+    ## plot all
+    ax.plot(gens, all_errors_medians,
+            label='Median descriptor estimation error (all)',
+            color='yellow')
+    ax.fill_between(gens,
+                    all_errors_1q,
+                    all_errors_3q,
+                    alpha=0.2,
+                    color='yellow')
+    ## plot added
+    ax.plot(gens, add_errors_medians,
+            label='Median descriptor estimation error (add)',
+            color='green')
+    ax.fill_between(gens,
+                    add_errors_1q,
+                    add_errors_3q,
+                    alpha=0.2,
+                    color='green')
+    ## plot discard
+    ax.plot(gens, discard_errors_medians,
+            label='Median descriptor estimation error (discard)',
+            color='red')
+    ax.fill_between(gens,
+                    discard_errors_1q,
+                    discard_errors_3q,
+                    alpha=0.2,
+                    color='red')
+    # fig1.set_size_inches(4,4)
+    # fig1.tight_layout(pad=6.9)
+    ax.set_title('Descriptor estimation error evolution at each generation')
+    ax.set_xlabel('Generation')
+    ax.set_ylabel('Distance between estimated and real descriptor (L2 norm)')
+    ax.legend()
+    file_path = os.path.join(args.log_dir, f"{args.environment}_desc_error_by_gen")
+    fig.savefig(file_path,
+                dpi=300, bbox_inches='tight')
+
     print()
     print(f'Finished performing mbqd search successfully.')
     

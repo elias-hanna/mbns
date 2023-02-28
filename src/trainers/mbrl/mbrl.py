@@ -118,9 +118,9 @@ class MBRLTrainer(TorchTrainer):
             else:
                 num_epochs_since_last_update += 1
 
-            #print("Num epochs: ", num_epochs, "    Training Loss: ", train_loss/num_batches)
-            #print("Num epochs: ", num_epochs, "    Holdout Loss: ", holdout_loss)
-            #print("Num epochs: ", num_epochs, "    Errors: ", holdout_errors)
+            print("Num epochs: ", num_epochs, "    Training Loss: ", train_loss/num_batches)
+            print("Num epochs: ", num_epochs, "    Holdout Loss: ", holdout_loss)
+            print("Num epochs: ", num_epochs, "    Errors: ", holdout_errors)
             
             num_epochs += 1
 

@@ -737,7 +737,6 @@ def main(args):
 
     gens = [gen+1 for gen in range((args.asize-100)//200)]
 
-    # import pdb; pdb.set_trace()
     for meth_idx in range(len(all_ab_methods_covs_by_gen_median)):
         ax.plot(gens, all_ab_methods_covs_by_gen_median[meth_idx],
                 label=all_ab_methods_labels[meth_idx])
