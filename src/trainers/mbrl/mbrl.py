@@ -51,7 +51,7 @@ class MBRLTrainer(TorchTrainer):
 
         return optimizer
 
-    def train_from_buffer(self, replay_buffer, holdout_pct=0.2, max_grad_steps=1000, epochs_since_last_update=5):
+    def train_from_buffer(self, replay_buffer, holdout_pct=0.2, max_grad_steps=1000, epochs_since_last_update=5, verbose=False):
         self._n_train_steps_total += 1
         if self._n_train_steps_total % self.train_call_freq > 0 and self._n_train_steps_total > 1:
             return
@@ -86,6 +86,11 @@ class MBRLTrainer(TorchTrainer):
         best_holdout_loss = float('inf')
         num_batches = int(np.ceil(n_train / self.batch_size))
 
+        if verbose:
+            print('###########################################################')
+            print('################# Model training stats ####################')
+            print('###########################################################')
+
         while num_epochs_since_last_update < epochs_since_last_update and num_steps < max_grad_steps:
             # generate idx for each model to bootstrap
             self.ensemble.train()
@@ -117,10 +122,11 @@ class MBRLTrainer(TorchTrainer):
                 num_epochs_since_last_update = 0
             else:
                 num_epochs_since_last_update += 1
-
-            print("Num epochs: ", num_epochs, "    Training Loss: ", train_loss/num_batches)
-            print("Num epochs: ", num_epochs, "    Holdout Loss: ", holdout_loss)
-            print("Num epochs: ", num_epochs, "    Errors: ", holdout_errors)
+            if verbose:
+                print(f"Epoch #{num_epochs}")
+                print("Training Loss: ", train_loss.item()/num_batches)
+                print("Holdout Loss: ", holdout_loss.item())
+                print("Errors: ", [holdout_error.item() for holdout_error in holdout_errors])
             
             num_epochs += 1
 
@@ -143,6 +149,16 @@ class MBRLTrainer(TorchTrainer):
                 self.eval_statistics[name + ' L2 Error'] = \
                     np.mean(ptu.get_numpy(holdout_errors[i]))
 
+            if verbose:
+                print('###########################################################')
+                print('################# Final training stats ####################')
+                print('###########################################################')
+                for key in self.eval_statistics.keys():
+                    print(f'{key}: {self.eval_statistics[key]}')
+                print('###########################################################')
+                print('###########################################################')
+                print('###########################################################')
+            
     def train_from_torch(self, batch, idx=None):
         raise NotImplementedError
 

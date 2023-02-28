@@ -467,7 +467,8 @@ class ModelBasedQD:
                     # torch.set_num_threads(24)
                     self.dynamics_model_trainer.train_from_buffer(self.replay_buffer, 
                                                                   holdout_pct=0.1,
-                                                                  max_grad_steps=100000)
+                                                                  max_grad_steps=100000,
+                                                                  verbose=True)
                     
                 elif params["model_variant"]=="direct":
                     # FOR DIRECT QD SURROGATE MODEL 
