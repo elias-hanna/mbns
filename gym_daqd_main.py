@@ -71,7 +71,7 @@ def main(args):
         "cvt_samples": 25000,
         "cvt_use_cache": True,
         # we evaluate in batches to parallelize
-        "batch_size": args.b_size,
+        "batch_size": args.pop_size*2,
         # proportion of total number of niches to be filled before starting
         "random_init": 0.005,  
         # batch for random initialization

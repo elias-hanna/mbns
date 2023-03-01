@@ -1521,6 +1521,7 @@ def get_env_params(args):
 
 def plot_cov_and_trajs(all_bd_traj_data, args, params):
     dim_map = params['dim_map']
+    dim_map = dim_map//args.n_waypoints
     max_step = params['env_max_h']
     init_obs = params['init_obs']
     bd_inds = params['bd_inds']
@@ -1553,10 +1554,11 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     else:
         fig1, axs1 = plt.subplots(rows, cols)
         fig2, axs2 = plt.subplots(rows, cols)
-        if len(axs1.shape) < 2:
-            axs1 = np.reshape(axs1, (rows, cols))
-        if len(axs2.shape) < 2:
-            axs2 = np.reshape(axs2, (rows, cols))
+        if hasattr(axs1, '__len__'):
+            if len(axs1.shape) < 2:
+                axs1 = np.reshape(axs1, (rows, cols))
+            if len(axs2.shape) < 2:
+                axs2 = np.reshape(axs2, (rows, cols))
     m_cpt = 0
 
     for col in range(cols):
