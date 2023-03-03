@@ -27,7 +27,8 @@ class HexapodEnv:
     def __init__(self, dynamics_model,
                  render=False,
                  record_state_action=False,
-                 ctrl_freq=100,):
+                 ctrl_freq=100,
+                 n_waypoints=1):
 
         self.render = render
         self.record_state_action = record_state_action
@@ -35,6 +36,8 @@ class HexapodEnv:
         self.ctrl_freq = ctrl_freq # in Hz
         self.sim_dt = 0.001
 
+        self.n_wps = n_waypoints
+        
         self.dynamics_model = dynamics_model
 
     def update_dynamics_model(dynamics_model):
@@ -189,17 +192,36 @@ class HexapodEnv:
                 dist = dist - 2*np.pi
                 
         return dist 
-            
+
+    def compute_bd(self, obs_traj, ensemble=False, mean=True):
+        bd = [0]*2*self.n_wps
+
+        wp_idxs = [i for i in range(len(obs_traj)//self.n_wps, len(obs_traj),
+                                    len(obs_traj)//self.n_wps)][:self.n_wps-1]
+        wp_idxs += [-1]
+
+        obs_wps = np.take(obs_traj, wp_idxs, axis=0)
+        obs_inds = [3, 4]
+        if ensemble and not mean:
+            bd = obs_wps[:,:,obs_inds].flatten()
+        else:
+            bd = obs_wps[:,obs_inds].flatten()
+
+        offset = 1.5 # in this case the offset is the saem for both x and y descriptors
+        fullmap_size = 3 # 8m for full map size 
+        bd = (bd + offset)/fullmap_size
+        
+        return bd
+    
     def evaluate_solution(self, ctrl, render=False):
 
         robot = self.init_robot()
         sim_time = 3.0
         final_pos, s_record, a_record = self.simulate(ctrl, sim_time, robot, render)
-        
+
         #--------Compute BD (final x-y pos)-----------#
         x_pos = final_pos[3]
         y_pos = final_pos[4]
-        
         # normalize BD
         offset = 1.5 # in this case the offset is the saem for both x and y descriptors
         fullmap_size = 3 # 8m for full map size 
@@ -208,6 +230,10 @@ class HexapodEnv:
     
         desc = [[x_desc,y_desc]]
         
+        last_s = np.empty((1, s_record.shape[1]))
+        last_s[0,:len(final_pos)] = final_pos
+        full_traj = np.vstack((s_record, last_s))
+        desc = self.compute_bd(full_traj)
         #------------Compute Fitness-------------------#
         beta = self.desired_angle(x_pos, y_pos)
         final_rot_z = final_pos[2] # final yaw angle of the robot 
@@ -224,7 +250,7 @@ class HexapodEnv:
         else:
             obs_traj = None
             act_traj = None
-    
+
         return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     # for NN timestep model
@@ -281,7 +307,11 @@ class HexapodEnv:
         y_desc = (y_pos + offset)/fullmap_size
     
         desc = [[x_desc,y_desc]]
-        
+
+        last_s = np.empty((1, s_record.shape[1]))
+        last_s[0,:len(final_pos)] = final_pos
+        full_traj = np.vstack((s_record, last_s))
+        desc = self.compute_bd(full_traj)
         #------------Compute Fitness-------------------#
         beta = self.desired_angle(x_pos, y_pos)
         final_rot_z = final_pos[2] # final yaw angle of the robot 
@@ -401,7 +431,11 @@ class HexapodEnv:
         y_desc = (y_pos + offset)/fullmap_size
     
         desc = [[x_desc,y_desc]]
-        
+
+        last_s = np.empty((1, s_record.shape[1]))
+        last_s[0,:len(final_pos)] = final_pos
+        full_traj = np.vstack((s_record, last_s))
+        desc = self.compute_bd(full_traj)
         #------------Compute Fitness-------------------#
         beta = self.desired_angle(x_pos, y_pos)
         final_rot_z = final_pos[2] # final yaw angle of the robot 

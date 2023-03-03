@@ -62,7 +62,8 @@ def evaluate_(t):
     # t is the tuple from the to_evaluate list
     z, f = t
     fit, desc, obs_traj, act_traj, disagr = f(z) 
-    
+    if hasattr(desc[0], '__len__'):
+        desc = desc[0]    
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     # disagr = 0 # no disagreement for real evalaution - but need to put to save archive
@@ -75,7 +76,8 @@ def model_evaluate_(t):
     # needs two types because no such thing as disagreemnt for real eval
     z, f = t
     fit, desc, obs_traj, act_traj, disagr = f(z) 
-    
+    if hasattr(desc[0], '__len__'):
+        desc = desc[0]
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
     

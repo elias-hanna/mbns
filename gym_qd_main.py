@@ -307,7 +307,8 @@ def main(args):
         env = HexapodEnv(dynamics_model=None, ## don't use dyn model here
                          render=False,
                          record_state_action=True,
-                         ctrl_freq=100)
+                         ctrl_freq=100,
+                         n_waypoints=n_waypoints)
         
     ## Define f_real and f_model
     f_real = env.evaluate_solution # maybe move f_real and f_model inside

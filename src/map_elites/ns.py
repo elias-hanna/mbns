@@ -64,6 +64,8 @@ def evaluate_(t):
     # t is the tuple from the to_evaluate list
     z, f = t
     fit, desc, obs_traj, act_traj, disagr = f(z) 
+    if hasattr(desc[0], '__len__'):
+        desc = desc[0]
     ## warning: commented the lines below, as in my case I don't see the use..
     # becasue it somehow returns a list in a list (have to keep checking sometimes)
     # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
