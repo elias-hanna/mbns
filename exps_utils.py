@@ -1698,11 +1698,19 @@ def save_archive_cov_by_gen(archive, args, px, params):
     ss_max = params['state_max']
     bd_inds = params['bd_inds']
     nb_div = 50
+    b_size = px['batch_size']
     
     archive_cov_by_gen = []
     bd_cols = [f'bd{i}' for i in range(dim_map)]
     bd_cols = bd_cols[-2:]
-    for gen in range(1,len(archive)//lbd):
+    gen_size = 0
+    ## theorical ns gens
+    gens = range(1, 1+int(np.ceil(args.max_evals/b_size)))
+    gen_size = int(np.ceil(len(archive)/(args.max_evals/b_size)))
+    ## actual ns gens, works only for above (qd messes it)
+    #gens = range(1, len(archive)//lbd)
+    #gen_size = lbd
+    for gen in gens:
         archive_at_gen = archive[:gen*lbd]
         bds_at_gen = np.array([ind.desc[-2:] for ind in archive_at_gen])
         if len(bds_at_gen.shape) > 2: ## ex: for hexapod need to transpose the bd
