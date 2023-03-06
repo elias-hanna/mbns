@@ -1308,6 +1308,7 @@ def get_env_params(args):
     env_params['ss_min'] = None
     env_params['ss_max'] = None
     env_params['dim_map'] = None
+    env_params['bins'] = None
     
     if args.environment == 'ball_in_cup':
         import mb_ge ## Contains ball in cup
@@ -1322,7 +1323,7 @@ def get_env_params(args):
         env_params['init_obs'] = np.array([0., 0., 0.35, 0., 0. , 0.])
         env_params['state_dim'] = 6
         env_params['bd_inds'] = [0, 1, 2]
-        
+        env_params['bins'] = [50, 50, 50]
     elif args.environment == 'redundant_arm':
         import redundant_arm ## contains classic redundant arm
         env_params['gym_args']['dof'] = 20
@@ -1351,6 +1352,7 @@ def get_env_params(args):
         env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [-2, -1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'redundant_arm_no_walls':
         env_params['gym_args']['dof'] = 20
         env_params['env_register_id'] = 'RedundantArmPosNoWalls-v0'
@@ -1365,6 +1367,7 @@ def get_env_params(args):
         env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [-2, -1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'redundant_arm_no_walls_no_collision':
         env_params['gym_args']['dof'] = 20
         env_params['env_register_id'] = 'RedundantArmPosNoWallsNoCollision-v0'
@@ -1379,6 +1382,7 @@ def get_env_params(args):
         env_params['state_dim'] = env_params['gym_args']['dof'] + 2
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [-2, -1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'redundant_arm_no_walls_limited_angles':
         env_params['gym_args']['dof'] = 100
         env_params['env_register_id'] = 'RedundantArmPosNoWallsLimitedAngles-v0'
@@ -1394,6 +1398,7 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         env_params['gym_args']['dof'] = 100
         env_params['bd_inds'] = [-2, -1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'fastsim_maze_laser':
         env_params['env_register_id'] = 'FastsimSimpleNavigation-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -1407,6 +1412,7 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
         args.use_obs_model = True
+        env_params['bins'] = [50, 50]
     elif args.environment == 'empty_maze_laser':
         env_params['env_register_id'] = 'FastsimEmptyMapNavigation-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -1420,6 +1426,7 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
         args.use_obs_model = True
+        env_params['bins'] = [50, 50]
     elif args.environment == 'fastsim_maze':
         env_params['env_register_id'] = 'FastsimSimpleNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -1430,6 +1437,7 @@ def get_env_params(args):
         #env_params['init_obs'] = np.array([60., 450., 0., 0., 0. , 0.])
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'empty_maze':
         env_params['env_register_id'] = 'FastsimEmptyMapNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -1440,6 +1448,7 @@ def get_env_params(args):
         #env_params['init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'fastsim_maze_traps':
         env_params['env_register_id'] = 'FastsimSimpleNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -1450,6 +1459,7 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         env_params['gym_args']['physical_traps'] = True
         env_params['bd_inds'] = [0, 1]
+        env_params['bins'] = [50, 50]
     elif args.environment == 'half_cheetah':
         env_params['env_register_id'] = 'HalfCheetah-v3'
         env_params['a_min'] = np.array([-1, -1, -1, -1, -1, -1])
@@ -1470,6 +1480,7 @@ def get_env_params(args):
         env_params['dim_map'] = 1
         env_params['gym_args']['exclude_current_positions_from_observation'] = False
         env_params['gym_args']['reset_noise_scale'] = 0
+        env_params['bins'] = [1000]
     elif args.environment == 'walker2d':
         env_params['env_register_id'] = 'Walker2d-v3'
         env_params['a_min'] = np.array([-1, -1, -1, -1, -1, -1])
@@ -1497,6 +1508,7 @@ def get_env_params(args):
         env_params['dim_map'] = 1
         env_params['gym_args']['exclude_current_positions_from_observation'] = False
         env_params['gym_args']['reset_noise_scale'] = 0
+        env_params['bins'] = [1000]
     elif args.environment == 'hexapod_omni':
         from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
         env_params['is_local_env'] = True
@@ -1514,6 +1526,7 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         ## Need to check the dims for hexapod
         env_params['bd_inds'] = [3, 4]
+        env_params['bins'] = [50, 50]
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
 

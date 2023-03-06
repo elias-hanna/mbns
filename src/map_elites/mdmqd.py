@@ -59,8 +59,7 @@ class MultiDynamicsModelQD:
     def __init__(self,
                  dim_map, dim_x,
                  f_real, f_model,
-                 model, model_trainer,
-                 dynamics_model, dynamics_model_trainer,
+                 dynamics_models, dynamics_model_trainer,
                  replay_buffer,
                  n_niches=1000,
                  params=cm.default_params,
@@ -116,6 +115,8 @@ class MultiDynamicsModelQD:
                 c = cm.cvt(self.n_niches,
                            self.dim_map,params['cvt_samples'],
                            params['cvt_use_cache'])
+                assert len(dynamics_models) == self.n_niches
+                
             else:
                 if self.bins is None:
                     self.bins = [50]*params['dim_map']
@@ -129,6 +130,7 @@ class MultiDynamicsModelQD:
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
                 
                 c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
+                assert len(dynamics_models) == len(c)
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
             cm._write_centroids(c)
