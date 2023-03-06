@@ -132,6 +132,9 @@ class QD:
                            self.dim_map,params['cvt_samples'], \
                            params['cvt_use_cache'])
             else:
+                self.bins = [5,5]
+                bd_limits = [[0,600],[0,600]]
+                # c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
                 c = cm.grid_centroids(self.bins)
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')

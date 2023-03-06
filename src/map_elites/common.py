@@ -233,11 +233,15 @@ def cvt(k, dim, samples, cvt_use_cache=True):
 
     return k_means.cluster_centers_
 
-def grid_centroids(n_bins):
+def grid_centroids(n_bins, bd_limits=None):
+    if bd_limits is not None:
+        assert len(n_bins) == len(bd_limits)
+    else:
+        bd_limits = [[0, 1] for i in range(len(n_bins))]
     centers = []
-    for x in n_bins:
-        diff = 0.5/x
-        centers.append([ ((1/x)*i) - diff for i in range(1, x + 1) ])
+    for x, ls in zip(n_bins, bd_limits):
+        diff = ((ls[1] - ls[0])/2)/x # take center of BS
+        centers.append([ ((1/x)*i*(ls[1]-ls[0])) - diff for i in range(1, x + 1) ])
     output = [ [x] for x in centers[0]]
     for x in centers[1:]:
         new_list = []
