@@ -145,7 +145,7 @@ def main(args):
     env_params = get_env_params(args)
     nb_div = 50
     
-    is_local_env = env_params['is_local_env'] 
+    is_local_env = env_params['is_local_env']
     gym_args = env_params['gym_args']  
     env_register_id = env_params['env_register_id']
     a_min = env_params['a_min'] 
@@ -329,7 +329,9 @@ def main(args):
     archive, n_evals = algo.compute(num_cores_set=args.num_cores,
                                     max_evals=args.max_evals)
     cm.save_archive(archive, f"{n_evals}_real_all", px, args.log_dir)
-        
+
+    if args.qd_type == 'grid' or args.qd_type == 'cvt':
+        archive = list(archive.values())
     ## Plot archive trajectories on real system
     if args.log_ind_trajs:
         ## Extract real sys BD data from s_list

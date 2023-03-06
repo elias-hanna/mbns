@@ -132,15 +132,23 @@ class QD:
                            self.dim_map,params['cvt_samples'], \
                            params['cvt_use_cache'])
             else:
-                self.bins = [5,5]
-                bd_limits = [[0,600],[0,600]]
-                # c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
-                c = cm.grid_centroids(self.bins)
+                if self.bins is None:
+                    
+                    self.bins = [50]*params['dim_map']
+                    print(f"WARNING: Using {self.bins} as bins (default)")
+                bd_limits = None
+                if 'dab_params' in params:
+                    o_params = params['dab_params']
+                    bd_inds = o_params['bd_inds']
+                    bd_max = o_params['state_max'][bd_inds]
+                    bd_min = o_params['state_min'][bd_inds]
+                    bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
+                
+                c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
             cm._write_centroids(c)
 
-            
         if (self.qd_type == "cvt") or (self.qd_type=="grid"):
             self.archive = {} # init archive as dic (empty)
             self.model_archive = {}
@@ -287,17 +295,17 @@ class QD:
             # write log -  write log every generation 
             if (self.qd_type=="cvt") or (self.qd_type=="grid"):
                 fit_list = np.array([x.fitness for x in self.archive.values()])
-                self.log_file.write("{} {} {} {} {} {} {} {} {} {}\n".format(gen,
-                                         n_evals,
-                                         # n_model_evals, 
-                                         len(self.archive.keys()),
-                                         fit_list.max(),
-                                         np.sum(fit_list),
-                                         np.mean(fit_list),
-                                         np.median(fit_list),
-                                         np.percentile(fit_list, 5),
-                                         np.percentile(fit_list, 95)))
-
+                self.log_file.write("{} {} {} {} {} {} {} {} {}\n".format(
+                    gen,
+                    n_evals,
+                    len(self.archive.keys()),
+                    fit_list.max(),
+                    np.sum(fit_list),
+                    np.mean(fit_list),
+                    np.median(fit_list),
+                    np.percentile(fit_list, 5),
+                    np.percentile(fit_list, 95)))
+                
             elif (self.qd_type=="unstructured" or self.qd_type=="fixed"):
                 fit_list = np.array([x.fitness for x in self.archive])
                 self.log_file.write("{} {} {} {} {} {} {} {} {}\n".format(
