@@ -172,7 +172,19 @@ class ModelBasedQD:
                            self.dim_map,params['cvt_samples'],
                            params['cvt_use_cache'])
             else:
-                c = cm.grid_centroids(self.bins)
+                if self.bins is None:
+                    
+                    self.bins = [50]*params['dim_map']
+                    print(f"WARNING: Using {self.bins} as bins (default)")
+                bd_limits = None
+                if 'dab_params' in params:
+                    o_params = params['dab_params']
+                    bd_inds = o_params['bd_inds']
+                    bd_max = o_params['state_max'][bd_inds]
+                    bd_min = o_params['state_min'][bd_inds]
+                    bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
+                
+                c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
             cm.__write_centroids(c)
