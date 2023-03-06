@@ -62,14 +62,10 @@ def evaluate_(t):
     # t is the tuple from the to_evaluate list
     z, f = t
     fit, desc, obs_traj, act_traj, disagr = f(z) 
+    ## Check if list of list (happens only with hexapod)
     if hasattr(desc[0], '__len__'):
         desc = desc[0]
-    ## warning: commented the lines below, as in my case I don't see the use..
-    # becasue it somehow returns a list in a list (have to keep checking sometimes)
-    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
-    # desc_ground = desc
     # return a species object (containing genotype, descriptor and fitness)
-    # return cm.Species(z, desc, fit, obs_traj=None, act_traj=None)
     return cm.Species(z, desc, fit, obs_traj=obs_traj, act_traj=act_traj)
 
 def evaluate_all_(T):
@@ -78,11 +74,7 @@ def evaluate_all_(T):
     # needs two types because no such thing as disagreemnt for real eval
     Z = [T[i][0] for i in range(len(T))]
     f = T[0][1]
-    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z) 
-    
-    # becasue it somehow returns a list in a list (have to keep checking sometimes)
-    # desc = desc[0] # important - if not it fails the KDtree for cvt and grid map elites
-    
+    fit_list, desc_list, obs_traj_list, act_traj_list, disagr_list = f(Z)     
     # return a species object (containing genotype, descriptor and fitness)
     inds = []
     for i in range(len(T)):
@@ -133,7 +125,6 @@ class QD:
                            params['cvt_use_cache'])
             else:
                 if self.bins is None:
-                    
                     self.bins = [50]*params['dim_map']
                     print(f"WARNING: Using {self.bins} as bins (default)")
                 bd_limits = None
