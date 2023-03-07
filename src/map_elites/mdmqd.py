@@ -59,12 +59,13 @@ class MultiDynamicsModelQD:
     def __init__(self,
                  dim_map, dim_x,
                  f_real, f_model,
-                 dynamics_models, dynamics_model_trainer,
-                 replay_buffer,
+                 dynamics_models, dynamics_model_trainers,
+                 replay_buffers,
                  n_niches=1000,
                  params=cm.default_params,
                  bins=None,
-                 log_dir='./',):
+                 log_dir='./',
+                 env=None):
 
         self.qd_type = params["type"]    # QD type - grid, cvt, unstructured
         self.dim_map = dim_map           # number of BD dimensions  
@@ -86,10 +87,10 @@ class MultiDynamicsModelQD:
             
         # Model and Model trainer init -
         # initialize the classes outside this class and pass in
-        self.dynamics_model = dynamics_model
-        self.dynamics_model_trainer = dynamics_model_trainer
+        self.dynamics_models = dynamics_models
+        self.dynamics_model_trainers = dynamics_model_trainers
 
-        self.replay_buffer = replay_buffer
+        self.replay_buffers = replay_buffers
         self.all_real_evals = []
         
         # Init logging directory and log file
@@ -125,6 +126,7 @@ class MultiDynamicsModelQD:
                 if 'dab_params' in params:
                     o_params = params['dab_params']
                     bd_inds = o_params['bd_inds']
+                    self.bd_inds = bd_inds
                     bd_max = o_params['state_max'][bd_inds]
                     bd_min = o_params['state_min'][bd_inds]
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
@@ -133,6 +135,14 @@ class MultiDynamicsModelQD:
                 assert len(dynamics_models) == len(c)
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
+            if env is not None:
+                env.set_kdt(self.kdt)
+                self.hashed_dynamics_models = {}
+                self.hashed_replay_buffers = {}
+                for centroid, dynamics_model, replay_buffer in zip(c, dynamics_models, replay_buffers):
+                    self.hashed_dynamics_models[c] = dynamics_model
+                    self.hashed_replay_buffers[c] = replay_buffer
+                env.set_multi_dynamics_model(self.hashed_dynamics_models)
             cm._write_centroids(c)
             
         if (self.qd_type == "cvt") or (self.qd_type=="grid"):
@@ -366,7 +376,7 @@ class MultiDynamicsModelQD:
                     
             ####### UPDATE MODELS - MODELS LEARNING ############
             evals_since_last_train += len(to_evaluate)
-            self.add_sa_to_buffer(s_list, self.replay_buffer)
+            self.add_sa_to_buffers(s_list, self.hashed_replay_buffers)
             
             if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]: 
                 # s_list are solutions that have been evaluated in the real setting
@@ -374,11 +384,12 @@ class MultiDynamicsModelQD:
                 start = time.time()
                 if params["model_variant"]=="dynamics" or params["model_variant"]=="all_dynamics":
                     # FOR DYNAMICS MODEL
-                    # torch.set_num_threads(24)
-                    self.dynamics_model_trainer.train_from_buffer(self.replay_buffer, 
-                                                                  holdout_pct=0.1,
-                                                                  max_grad_steps=100000,
-                                                                  verbose=True)
+                    # torch.set_num_threads(24)$
+                    for (dynamics_model_trainer, replay_buffer) in zip(self.dynamics_model_trainers, self.replay_buffers):
+                        dynamics_model_trainer.train_from_buffer(replay_buffer, 
+                                                                 holdout_pct=0.1,
+                                                                 max_grad_steps=100000,
+                                                                 verbose=True)
                     
                 self.model_train_time = time.time() - start
                 print("Model train time: ", self.model_train_time)
@@ -571,8 +582,8 @@ class MultiDynamicsModelQD:
         print(f"Random model emitter ended in {self.model_eval_time} after {gen} gen")
         return add_list_model_final, all_model_eval
 
-    ################## Custom functions for Model Based QD ####################
-    def add_sa_to_buffer(self, s_list, replay_buffer):
+    ################## Custom functions for Multi Dynamics Model QD ####################
+    def add_sa_to_buffers(self, s_list, hashed_replay_buffers):
         for sol in s_list:
             s = sol.obs_traj[:-1]  
             a = sol.act_traj[:]
@@ -582,5 +593,9 @@ class MultiDynamicsModelQD:
             done = 0
             info = {}
             for i in range(len(s)):
+                niche_index = self.kdt.query([s[i][bd_inds]], k=1)[1][0][0]
+                niche = self.kdt.data[niche_index]
+                n = cm.make_hashable(niche)
+                replay_buffer = hashed_replay_buffers[n]
                 replay_buffer.add_sample(s[i], a[i], reward, done, ns[i], info)
         return 1

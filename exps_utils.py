@@ -416,6 +416,7 @@ class WrappedEnv():
         self.log_ind_trajs = params["log_ind_trajs"]
         self.clip_obs = params['clip_obs']
         self.clip_state = params['clip_state']
+        self.kdt = None # set through set_kdt function (used for local models)
         print('###############################################################')
         print('################ Environment parameters: ######################')
         print(f'###### - env name:        {self._env_name}                    ')
@@ -427,8 +428,14 @@ class WrappedEnv():
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
 
+    def set_multi_dynamics_model(self, hashed_dynamics_models):
+        self.dynamics_models = hashed_dynamics_models
+
     def set_observation_model(self, observation_model):
         self.observation_model = observation_model
+
+    def set_kdt(self, kdt):
+        self.kdt = kdt
         
     ## Evaluate the individual on the REAL ENVIRONMENT
     def evaluate_solution(self, ctrl, render=False):
@@ -561,6 +568,80 @@ class WrappedEnv():
             s = s.view(1,-1)
             a = a.view(1,-1)
 
+            # Deterministic dynamics model
+            pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
+
+            obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
+        obs_traj.append(obs)
+        desc = self.compute_bd(obs_traj)
+        fitness = self.compute_fitness(obs_traj, act_traj)
+
+        if render:
+            print("Desc from model", desc)
+            
+        disagr = 0
+
+        if not self.log_ind_trajs:
+            obs_traj = None
+            act_traj = None
+
+        return fitness, desc, obs_traj, act_traj, disagr
+
+    ## Evaluate the individual on the DYNAMICS MODEL
+    def evaluate_solution_multi_model(self, ctrl, render=False):
+        """
+        Input: ctrl (array of floats) the genome of the individual
+        Output: Trajectory and actions taken
+        """
+        ## Create a copy of the controller
+        controller = self.controller.copy()
+        ## Verify that x and controller parameterization have same size
+        # assert len(x) == len(self.controller.get_parameters())
+        ## Set controller parameters
+        controller.set_parameters(ctrl)
+        env = copy.copy(self._env) ## need to verify this works
+        obs = self._init_obs
+        act_traj = []
+        obs_traj = []
+        c_input_traj = []
+        ## WARNING: need to get previous obs
+        # for t in range(self._env_max_h):
+        for t in range(self._model_max_h):
+            c_input = None
+            if self.time_open_loop:
+                if self._norm_c_input:
+                    c_input = [(t/self._env_max_h)*(1+1) - 1]
+                else:
+                    c_input = [t]
+            else:
+                if self._norm_c_input:
+                    c_input = self.normalize_inputs_s_minmax(obs)
+                else:
+                    c_input = obs
+                if self.use_obs_model:
+                    c_input = self.observation_model.output_pred(ptu.from_numpy(c_input))
+            if self.pred_mode == 'single':
+                action = controller(c_input)
+            elif self.pred_mode == 'all':
+                action = controller(c_input_traj)
+            elif self.pred_mode == 'window':
+                action = controller(c_input_traj[-10:])
+
+            action = np.clip(action, self._action_min, self._action_max)
+            obs_traj.append(obs)
+            c_input_traj.append(c_input)
+            act_traj.append(action)
+
+            s = ptu.from_numpy(np.array(obs))
+            a = ptu.from_numpy(np.array(action))
+            s = s.view(1,-1)
+            a = a.view(1,-1)
+
+            # Multi model query, first check current state then query cell model
+            niche_index = kdt.query([obs[bd_inds]], k=1)[1][0][0]
+            niche = kdt.data[niche_index]
+            n = cm.make_hashable(niche)
+            dynamics_model = self.dynamics_models[n] # get cell dynamics model
             # Deterministic dynamics model
             pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
 

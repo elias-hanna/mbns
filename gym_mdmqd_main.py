@@ -335,9 +335,25 @@ def main(args):
     px['dim_x'] = dim_x
     
     surrogate_model_params['gen_dim'] = dim_x
-    
-    ## Get the various models we need for the run
-    dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
+
+    total_bins = np.prod(bins)
+    dynamics_models = []
+    dynamics_model_trainers = []
+    replay_buffers = []
+    for n in total_bins:    
+        ## Get the various models we need for the run
+        dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
+        dynamics_models.append(dynamics_model)
+        dynamics_model_trainers.append(dynamics_model_trainer)
+        # initialize replay buffer
+        replay_buffer = SimpleReplayBuffer(
+            max_replay_buffer_size=1000000,
+            observation_dim=obs_dim,
+            action_dim=act_dim,
+            env_info_sizes=dict(),
+        )
+        replay_buffers.append(replay_buffer)
+        
     if observation_model_params:
         observation_model = get_observation_model(params)
     surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
@@ -371,21 +387,13 @@ def main(args):
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
 
-    # initialize replay buffer
-    replay_buffer = SimpleReplayBuffer(
-        max_replay_buffer_size=1000000,
-        observation_dim=obs_dim,
-        action_dim=act_dim,
-        env_info_sizes=dict(),
-    )
     
     mbqd = MultiDynamicsModelQD(dim_map, dim_x,
-                        f_real, f_model,
-                        surrogate_model, surrogate_model_trainer,
-                        dynamics_model, dynamics_model_trainer,
-                        replay_buffer, 
-                        n_niches=args.n_niches,
-                        params=px, log_dir=args.log_dir)
+                                f_real, f_model,
+                                dynamics_models, dynamics_model_trainers,
+                                replay_buffers, 
+                                n_niches=args.n_niches,
+                                params=px, log_dir=args.log_dir, env=env)
 
     #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
     archive, n_evals = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
