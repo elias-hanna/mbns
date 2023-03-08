@@ -296,7 +296,7 @@ class HexapodEnv:
 
         sim_time = 3.0
         final_pos, states_rec, actions_rec = self.simulate_model(ctrl, sim_time, mean, det)
-
+        s_record = states_rec
         #--------Compute BD (final x-y pos)-----------#
         x_pos = final_pos[3]
         y_pos = final_pos[4]
@@ -419,7 +419,7 @@ class HexapodEnv:
         torch.set_num_threads(1)
         sim_time = 3.0
         final_pos, states_rec, actions_rec, disagr = self.simulate_model_ensemble(ctrl, sim_time, mean, disagreement)
-
+        s_record = states_rec
         #--------Compute BD (final x-y pos)-----------#
         x_pos = final_pos[3]
         y_pos = final_pos[4]
