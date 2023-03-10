@@ -417,6 +417,7 @@ class WrappedEnv():
         self.clip_obs = params['clip_obs']
         self.clip_state = params['clip_state']
         self.kdt = None # set through set_kdt function (used for local models)
+        self.bd_inds = params['bd_inds']
         print('###############################################################')
         print('################ Environment parameters: ######################')
         print(f'###### - env name:        {self._env_name}                    ')
@@ -515,7 +516,6 @@ class WrappedEnv():
         if not self.log_ind_trajs:
             obs_traj = None
             act_traj = None
-
         return fitness, desc, obs_traj, act_traj, 0 # 0 is disagr
 
     ## Evaluate the individual on the DYNAMICS MODEL
@@ -572,6 +572,10 @@ class WrappedEnv():
             pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
 
             obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
+
+            if self.clip_state:
+                obs = np.clip(obs, self._state_min, self._state_max)
+                
         obs_traj.append(obs)
         desc = self.compute_bd(obs_traj)
         fitness = self.compute_fitness(obs_traj, act_traj)
@@ -638,14 +642,19 @@ class WrappedEnv():
             a = a.view(1,-1)
 
             # Multi model query, first check current state then query cell model
-            niche_index = kdt.query([obs[bd_inds]], k=1)[1][0][0]
-            niche = kdt.data[niche_index]
+            np_obs = np.array(obs)
+            niche_index = self.kdt.query([np_obs[self.bd_inds]], k=1)[1][0][0]
+            niche = self.kdt.data[niche_index]
             n = cm.make_hashable(niche)
             dynamics_model = self.dynamics_models[n] # get cell dynamics model
             # Deterministic dynamics model
             pred_delta_ns = self.dynamics_model.output_pred(torch.cat((s, a), dim=-1))
 
             obs = pred_delta_ns[0] + obs # the [0] just seelect the row [1,state_dim]
+
+            if self.clip_state:
+                obs = np.clip(obs, self._state_min, self._state_max)
+                
         obs_traj.append(obs)
         desc = self.compute_bd(obs_traj)
         fitness = self.compute_fitness(obs_traj, act_traj)
@@ -1518,7 +1527,8 @@ def get_env_params(args):
         #env_params['init_obs'] = np.array([60., 450., 0., 0., 0. , 0.])
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
-        env_params['bins'] = [50, 50]
+        # env_params['bins'] = [50, 50]
+        env_params['bins'] = [10, 10]
     elif args.environment == 'empty_maze':
         env_params['env_register_id'] = 'FastsimEmptyMapNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])
@@ -1621,6 +1631,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     bd_inds = params['bd_inds']
     ss_min = params['state_min']
     ss_max = params['state_max']
+    n_inds = len(all_bd_traj_data[0][0])
     ## Plot real archive and model(s) archive on plot
     total_plots = len(all_bd_traj_data)
     ## make it as square as possible
@@ -1735,15 +1746,17 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
 
     fig1.set_size_inches(total_plots*2,total_plots*2)
     fig1.tight_layout(pad=6.9)
-    fig1.suptitle('Archive coverage after DAB')
-    file_path = os.path.join(args.log_dir, f"{args.environment}_real_cov")
+    # fig1.suptitle('Archive coverage after DAB')
+    fig1.suptitle('Archive coverage')
+    file_path = os.path.join(args.log_dir, f"{args.environment}_real_cov_{n_inds}")
     fig1.savefig(file_path,
                  dpi=300, bbox_inches='tight')
 
     fig2.set_size_inches(total_plots*2,total_plots*2)
     fig2.tight_layout(pad=6.9)
-    fig2.suptitle('Individuals trajectories after DAB')
-    file_path = os.path.join(args.log_dir, f"{args.environment}_ind_trajs")
+    # fig2.suptitle('Individuals trajectories after DAB')
+    fig2.suptitle('Individuals trajectories')
+    file_path = os.path.join(args.log_dir, f"{args.environment}_ind_trajs_{n_inds}")
     fig2.savefig(file_path,
                  dpi=300, bbox_inches='tight')
 

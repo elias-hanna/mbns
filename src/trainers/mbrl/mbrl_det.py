@@ -38,6 +38,10 @@ class MBRLTrainer(TorchTrainer):
             return
 
         data = replay_buffer.get_transitions()
+
+        if len(data) < 1:
+            return
+
         #x = data[:,:self.obs_dim + self.action_dim]  # inputs  s, a
         #y = data[:,self.obs_dim + self.action_dim:]  # predict r, d, ns
 
@@ -67,10 +71,10 @@ class MBRLTrainer(TorchTrainer):
         best_holdout_loss = float('inf')
         num_batches = int(np.ceil(n_train / self.batch_size))
 
-        if verbose:
-            print('###########################################################')
-            print('################# Model training stats ####################')
-            print('###########################################################')
+        # if verbose:
+        #     print('###########################################################')
+        #     print('################# Model training stats ####################')
+        #     print('###########################################################')
 
         while num_epochs_since_last_update < epochs_since_last_update and num_steps < max_grad_steps:
             train_loss = 0 
@@ -105,15 +109,22 @@ class MBRLTrainer(TorchTrainer):
                 num_epochs_since_last_update = 0
             else:
                 num_epochs_since_last_update += 1
-            if verbose:
-                print("Num epochs: ", num_epochs, "    Avg Train Loss: ",
-                      train_loss.item()/num_batches)
-                print("Num epochs: ", num_epochs, "    Holdout Loss: ",
-                      holdout_loss.item())
-                print()
+            # if verbose:
+            #     print("Num epochs: ", num_epochs, "    Avg Train Loss: ",
+            #           train_loss.item()/num_batches)
+            #     print("Num epochs: ", num_epochs, "    Holdout Loss: ",
+            #           holdout_loss.item())
+            #     print()
             
             num_epochs += 1
 
+        self.end_epoch(num_epochs)
+        # if verbose:
+        #     print("Num epochs: ", num_epochs, "    Avg Train Loss: ",
+        #           train_loss.item()/num_batches)
+        #     print("Num epochs: ", num_epochs, "    Holdout Loss: ",
+        #           holdout_loss.item())
+        #     print()
             
         if self._need_to_update_eval_statistics:
             self._need_to_update_eval_statistics = False
@@ -134,6 +145,7 @@ class MBRLTrainer(TorchTrainer):
                 print('###########################################################')
                 print('###########################################################')
                 print('###########################################################')
+                print()
             
     def train_from_torch(self, batch, idx=None):
         raise NotImplementedError

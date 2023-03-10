@@ -137,6 +137,9 @@ def main(args):
         "transfer_selection": args.transfer_selection,
         "nb_transfer": args.nb_transfer,
         'env_name': args.environment,
+        'init_method': 'vanilla',
+        'plot_functor': plot_cov_and_trajs,
+        'args': args,
     }
 
     
@@ -218,7 +221,7 @@ def main(args):
     {
         'obs_dim': state_dim,
         'action_dim': act_dim,
-        'layer_size': [500, 400],
+        'layer_size': [50, 40],
         # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
@@ -303,17 +306,6 @@ def main(args):
         ## Dump params/ memory gestion params
         "log_ind_trajs": args.log_ind_trajs,
         "dump_ind_trajs": args.dump_ind_trajs,
-        ## Model Init Study params
-        'n_init_episodes': args.init_episodes,
-        # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
-        'n_test_episodes': 2,
-        'action_init': 0,
-        ## Random walks parameters
-        'step_size': 0.1,
-        'noise_beta': noise_beta,
-        ## RA parameters
-        'action_lasting_steps': 5,
-
     }
     px['dab_params'] = params
     px['min'] = params['policy_param_init_min']
@@ -340,7 +332,8 @@ def main(args):
     dynamics_models = []
     dynamics_model_trainers = []
     replay_buffers = []
-    for n in total_bins:    
+    # for n in range(total_bins): 
+    for n in tqdm.tqdm(range(total_bins), total=total_bins):
         ## Get the various models we need for the run
         dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
         dynamics_models.append(dynamics_model)
@@ -376,16 +369,18 @@ def main(args):
     ## Else if we evaluate on the generated random models we use one of below
     elif args.model_variant == "dynamics" :
         if args.model_type == "det":
-            f_model = env.evaluate_solution_model 
-        elif args.model_type == "prob":
-            f_model = env.evaluate_solution_model_ensemble
-    elif args.model_variant == "all_dynamics":
-        if args.model_type == "det":
-            f_model = env.evaluate_solution_model_all
-        elif args.model_type == "det_ens" or args.model_type == "srf_ens":
-            f_model = env.evaluate_solution_model_det_ensemble_all
-        elif args.model_type == "prob":
-            f_model = env.evaluate_solution_model_ensemble_all
+            f_model = env.evaluate_solution_multi_model
+    else:
+        f_model = None
+    #     elif args.model_type == "prob":
+    #         f_model = env.evaluate_solution_model_ensemble
+    # elif args.model_variant == "all_dynamics":
+    #     if args.model_type == "det":
+    #         f_model = env.evaluate_solution_model_all
+    #     elif args.model_type == "det_ens" or args.model_type == "srf_ens":
+    #         f_model = env.evaluate_solution_model_det_ensemble_all
+    #     elif args.model_type == "prob":
+    #         f_model = env.evaluate_solution_model_ensemble_all
 
     
     mbqd = MultiDynamicsModelQD(dim_map, dim_x,
@@ -393,7 +388,8 @@ def main(args):
                                 dynamics_models, dynamics_model_trainers,
                                 replay_buffers, 
                                 n_niches=args.n_niches,
-                                params=px, log_dir=args.log_dir, env=env)
+                                params=px, bins=bins,
+                                log_dir=args.log_dir, env=env)
 
     #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
     archive, n_evals = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
@@ -477,6 +473,7 @@ def main(args):
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
+    warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
     args = process_args()
 

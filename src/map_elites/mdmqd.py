@@ -125,6 +125,7 @@ class MultiDynamicsModelQD:
                 bd_limits = None
                 if 'dab_params' in params:
                     o_params = params['dab_params']
+                    self.o_params = params['dab_params']
                     bd_inds = o_params['bd_inds']
                     self.bd_inds = bd_inds
                     bd_max = o_params['state_max'][bd_inds]
@@ -140,8 +141,10 @@ class MultiDynamicsModelQD:
                 self.hashed_dynamics_models = {}
                 self.hashed_replay_buffers = {}
                 for centroid, dynamics_model, replay_buffer in zip(c, dynamics_models, replay_buffers):
-                    self.hashed_dynamics_models[c] = dynamics_model
-                    self.hashed_replay_buffers[c] = replay_buffer
+                    hashed_centroid = cm.make_hashable(centroid)
+                    
+                    self.hashed_dynamics_models[hashed_centroid] = dynamics_model
+                    self.hashed_replay_buffers[hashed_centroid] = replay_buffer
                 env.set_multi_dynamics_model(self.hashed_dynamics_models)
             cm._write_centroids(c)
             
@@ -204,6 +207,7 @@ class MultiDynamicsModelQD:
             if self.qd_type == "unstructured":
                 success = unstructured_container.add_to_archive(s, archive, params)
             else:
+                print(s.desc)
                 success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
             if success:
                 add_list.append(s)
@@ -322,7 +326,9 @@ class MultiDynamicsModelQD:
                     for z in add_list_model: 
                         to_evaluate += [(z.x, self.f_real)]
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
+                    import pdb; pdb.set_trace()
                     self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
+                    import pdb; pdb.set_trace()
                     ## Create Species pairs for model eval and real eval
                     # nb: useful only if order is not preserved by parallel eval
                     s_pairs = []
@@ -440,12 +446,23 @@ class MultiDynamicsModelQD:
                 ## Also save model archive for more visualizations
                 cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
                 b_evals = 0
-                
+                # plot cov
+                ## Extract real sys BD data from s_list
+                if isinstance(self.archive, dict):
+                    real_bd_traj_data = [s.obs_traj for s in self.archive.values()]
+                else:
+                    real_bd_traj_data = [s.obs_traj for s in self.archive]
+                ## Format the bd data to plot with labels
+                all_bd_traj_data = []
+                # import pdb; pdb.set_trace()
+                all_bd_traj_data.append((real_bd_traj_data, 'real system'))
+
+                params['plot_functor'](all_bd_traj_data, params['args'], self.o_params)
                 # Save models
                 #ptu.save_model(self.model, self.save_model_path)
-                print("Saving torch model")
-                ptu.save_model(self.dynamics_model, self.save_model_path)
-                print("Done saving torch model")
+                # print("Saving torch model")
+                # ptu.save_model(self.dynamics_model, self.save_model_path)
+                # print("Done saving torch model")
 
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
@@ -593,7 +610,7 @@ class MultiDynamicsModelQD:
             done = 0
             info = {}
             for i in range(len(s)):
-                niche_index = self.kdt.query([s[i][bd_inds]], k=1)[1][0][0]
+                niche_index = self.kdt.query([s[i][self.bd_inds]], k=1)[1][0][0]
                 niche = self.kdt.data[niche_index]
                 n = cm.make_hashable(niche)
                 replay_buffer = hashed_replay_buffers[n]
