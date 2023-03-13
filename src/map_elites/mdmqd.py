@@ -209,7 +209,7 @@ class MultiDynamicsModelQD:
             if self.qd_type == "unstructured":
                 success = unstructured_container.add_to_archive(s, archive, params)
             else:
-                success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt, model=model)
+                success = cvt.add_to_archive(s, s.desc, archive, self.kdt, model=model)
             if success:
                 add_list.append(s)
             else:
@@ -281,19 +281,8 @@ class MultiDynamicsModelQD:
                 print("Evaluation on model")
                 # variation/selection loop - select ind from archive to evolve
                 
-                # self.model_archive = self.archive.copy()
-                # tmp_archive = self.archive.copy() # tmp archive for stats of negatives
-                # self.model_archive = copy.deepcopy(self.archive)
-                # tmp_archive = copy.deepcopy(self.archive)
-                self.model_archive = {}
-                tmp_archive = {}
-                for (key, value) in zip(self.archive.keys(), self.archive.values()):
-                    self.model_archive[key] = cm.Species(copy.deepcopy(value.x),
-                                                         copy.deepcopy(value.desc),
-                                                         copy.deepcopy(value.fitness))
-                    tmp_archive[key] = cm.Species(copy.deepcopy(value.x),
-                                                  copy.deepcopy(value.desc),
-                                                  copy.deepcopy(value.fitness))
+                self.model_archive = self.archive.copy()
+                tmp_archive = self.archive.copy() # tmp archive for stats of negatives
                 add_list_model, to_model_evaluate = self.random_model_emitter(to_model_evaluate, pool, params)
                 ### REAL EVALUATIONS ###
                 if params['transfer_selection'] == 'disagr':
