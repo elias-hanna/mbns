@@ -17,6 +17,8 @@ import cma
 
 from multiprocessing import get_context
 
+import copy
+
 def evaluate_(t):
     # evaluate a single vector (x) with a function f and return a species
     # evaluate z with function f - z is the genotype and f is the evalution function
@@ -200,15 +202,14 @@ class MultiDynamicsModelQD:
 
         return to_evaluate
     
-    def addition_condition(self, s_list, archive, params):
+    def addition_condition(self, s_list, archive, params, model=False):
         add_list = [] # list of solutions that were added
         discard_list = []
         for s in s_list:
             if self.qd_type == "unstructured":
                 success = unstructured_container.add_to_archive(s, archive, params)
             else:
-                print(s.desc)
-                success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
+                success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt, model=model)
             if success:
                 add_list.append(s)
             else:
@@ -276,14 +277,24 @@ class MultiDynamicsModelQD:
                 #s_list = cm.parallel_eval(model_evaluate_, to_evaluate, pool, params) #init model
                 self.eval_time = time.time() - start 
                 self.archive, add_list, _ = self.addition_condition(s_list, self.archive, params)
-
             else:
                 print("Evaluation on model")
-                # variation/selection loop - select ind from archive to evolve                
-                self.model_archive = self.archive.copy()
-                tmp_archive = self.archive.copy() # tmp archive for stats of negatives
+                # variation/selection loop - select ind from archive to evolve
+                
+                # self.model_archive = self.archive.copy()
+                # tmp_archive = self.archive.copy() # tmp archive for stats of negatives
+                # self.model_archive = copy.deepcopy(self.archive)
+                # tmp_archive = copy.deepcopy(self.archive)
+                self.model_archive = {}
+                tmp_archive = {}
+                for (key, value) in zip(self.archive.keys(), self.archive.values()):
+                    self.model_archive[key] = cm.Species(copy.deepcopy(value.x),
+                                                         copy.deepcopy(value.desc),
+                                                         copy.deepcopy(value.fitness))
+                    tmp_archive[key] = cm.Species(copy.deepcopy(value.x),
+                                                  copy.deepcopy(value.desc),
+                                                  copy.deepcopy(value.fitness))
                 add_list_model, to_model_evaluate = self.random_model_emitter(to_model_evaluate, pool, params)
-                    
                 ### REAL EVALUATIONS ###
                 if params['transfer_selection'] == 'disagr':
                     ## Sort by mean disagr on all states
@@ -326,9 +337,7 @@ class MultiDynamicsModelQD:
                     for z in add_list_model: 
                         to_evaluate += [(z.x, self.f_real)]
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
-                    import pdb; pdb.set_trace()
                     self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
-                    import pdb; pdb.set_trace()
                     ## Create Species pairs for model eval and real eval
                     # nb: useful only if order is not preserved by parallel eval
                     s_pairs = []
@@ -383,7 +392,7 @@ class MultiDynamicsModelQD:
             ####### UPDATE MODELS - MODELS LEARNING ############
             evals_since_last_train += len(to_evaluate)
             self.add_sa_to_buffers(s_list, self.hashed_replay_buffers)
-            
+
             if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]: 
                 # s_list are solutions that have been evaluated in the real setting
                 print("Training model")
@@ -454,9 +463,7 @@ class MultiDynamicsModelQD:
                     real_bd_traj_data = [s.obs_traj for s in self.archive]
                 ## Format the bd data to plot with labels
                 all_bd_traj_data = []
-                # import pdb; pdb.set_trace()
                 all_bd_traj_data.append((real_bd_traj_data, 'real system'))
-
                 params['plot_functor'](all_bd_traj_data, params['args'], self.o_params)
                 # Save models
                 #ptu.save_model(self.model, self.save_model_path)
@@ -520,9 +527,9 @@ class MultiDynamicsModelQD:
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         print("Done saving final real archive")
         # Save models
-        print("Saving torch model")
-        ptu.save_model(self.dynamics_model, self.save_model_path)
-        print("Done saving torch model")
+        # print("Saving torch model")
+        # ptu.save_model(self.dynamics_model, self.save_model_path)
+        # print("Done saving torch model")
         print("Saving median,1q,3q of descriptor estimation errors")
 
         dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
@@ -580,7 +587,7 @@ class MultiDynamicsModelQD:
                 print("Finished parallel evaluation of individuals")
             elif params["model_variant"]=="all_dynamics":
                 s_list_model = model_evaluate_all_(to_model_evaluate)
-            self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
+            self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params, model=True)
 
             add_list_model_final += add_list_model
             all_model_eval += to_model_evaluate # count all inds evaluated by model

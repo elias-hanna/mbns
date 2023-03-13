@@ -430,17 +430,19 @@ class ModelBasedQD:
                             discard_errors.append(error)
                         else:
                             print('WARNING: Specy neither in added or discarded list')
-
-                    all_errors_medians.append(np.median(all_errors))
-                    all_errors_1q.append(np.quantile(all_errors, 1/4))
-                    all_errors_3q.append(np.quantile(all_errors, 3/4))
-                    add_errors_medians.append(np.median(add_errors))
-                    add_errors_1q.append(np.quantile(add_errors, 1/4))
-                    add_errors_3q.append(np.quantile(add_errors, 3/4))
-                    discard_errors_medians.append(np.median(discard_errors))
-                    discard_errors_1q.append(np.quantile(discard_errors, 1/4))
-                    discard_errors_3q.append(np.quantile(discard_errors, 3/4))
-                    
+                    try:
+                        all_errors_medians.append(np.median(all_errors))
+                        all_errors_1q.append(np.quantile(all_errors, 1/4))
+                        all_errors_3q.append(np.quantile(all_errors, 3/4))
+                        add_errors_medians.append(np.median(add_errors))
+                        add_errors_1q.append(np.quantile(add_errors, 1/4))
+                        add_errors_3q.append(np.quantile(add_errors, 3/4))
+                        discard_errors_medians.append(np.median(discard_errors))
+                        discard_errors_1q.append(np.quantile(discard_errors, 1/4))
+                        discard_errors_3q.append(np.quantile(discard_errors, 3/4))
+                    except:
+                        import pdb; pdb.set_trace()
+                        
                     true_pos = len(add_list)
                     false_pos = len(discard_list)
                     self.eval_time = time.time()-start

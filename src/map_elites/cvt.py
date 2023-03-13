@@ -47,12 +47,10 @@ from sklearn.neighbors import KDTree
 from src.map_elites import common as cm
 
 
-def add_to_archive(s, centroid, archive, kdt):
+def add_to_archive(s, centroid, archive, kdt, model=False):
     niche_index = kdt.query([centroid], k=1)[1][0][0]
     niche = kdt.data[niche_index]
     n = cm.make_hashable(niche)
-    if n[0] > 300:
-        import pdb; pdb.set_trace()
     s.centroid = n
     if n in archive:
         if s.fitness > archive[n].fitness:
