@@ -430,6 +430,7 @@ class ModelBasedQD:
                             discard_errors.append(error)
                         else:
                             print('WARNING: Specy neither in added or discarded list')
+
                     try:
                         all_errors_medians.append(np.median(all_errors))
                         all_errors_1q.append(np.quantile(all_errors, 1/4))
@@ -441,7 +442,7 @@ class ModelBasedQD:
                         discard_errors_1q.append(np.quantile(discard_errors, 1/4))
                         discard_errors_3q.append(np.quantile(discard_errors, 3/4))
                     except:
-                        import pdb; pdb.set_trace()
+                        print("WARNING: error when computing descriptor estimation error at gen {gen}")
                         
                     true_pos = len(add_list)
                     false_pos = len(discard_list)
