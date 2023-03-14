@@ -248,7 +248,7 @@ class ModelBasedQD:
             if self.qd_type == "unstructured":
                 success = unstructured_container.add_to_archive(s, archive, params)
             else:
-                success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
+                success = cvt.add_to_archive(s, s.desc, archive, self.kdt)
             if success:
                 add_list.append(s)
             else:
@@ -443,7 +443,6 @@ class ModelBasedQD:
                         discard_errors_3q.append(np.quantile(discard_errors, 3/4))
                     except:
                         print("WARNING: error when computing descriptor estimation error at gen {gen}")
-                        
                     true_pos = len(add_list)
                     false_pos = len(discard_list)
                     self.eval_time = time.time()-start
@@ -458,7 +457,6 @@ class ModelBasedQD:
                             to_evaluate_stats += [(z.x, self.f_real)]
                         s_list_stats = cm.parallel_eval(evaluate_, to_evaluate_stats, pool,params)
                         tmp_archive, add_list_stats, discard_list_stats = self.addition_condition(s_list_stats, tmp_archive, params)
-                    
                         false_neg = len(add_list_stats)
                         true_neg = len(discard_list_stats)
                         #print("False negative: ", false_neg)
