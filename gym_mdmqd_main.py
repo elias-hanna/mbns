@@ -399,7 +399,7 @@ def main(args):
     ## Plot archive trajectories on real system
     if args.log_ind_trajs:
         ## Extract real sys BD data from s_list
-        real_bd_traj_data = [s.obs_traj for s in archive]
+        real_bd_traj_data = [s.obs_traj for s in archive.values()]
         ## Format the bd data to plot with labels
         all_bd_traj_data = []
 
@@ -409,7 +409,7 @@ def main(args):
 
     ## Plot archive coverage at each generation (does not work for QD instances)
     ## will consider a gen = lambda indiv added to archive
-    save_archive_cov_by_gen(archive, args, px, params)
+    save_archive_cov_by_gen(list(archive.values()), args, px, params)
 
     ## Get descriptor estimation errors from save at end of run
     desc_error_data = np.load(os.path.join(args.log_dir,
@@ -426,7 +426,6 @@ def main(args):
     ## Plot descriptor estimation error at each generation
     ## Plotting all inds error, added inds error and discarded inds error
     ## Plotting median 1st and 3rd quartile for each
-
     fig, ax = plt.subplots()
 
     gens = [gen+1 for gen in range(len(all_errors_medians))]

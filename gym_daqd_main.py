@@ -205,7 +205,8 @@ def main(args):
     bd_inds = env_params['bd_inds']
     bins = env_params['bins'] ## for grid based qd
 
-    nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
+    if args.environment != 'hexapod_omni':
+        nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
     px['nov_l'] = nov_l
     print(f'INFO: nov_l param set to {nov_l} for environment {args.environment}')
 
