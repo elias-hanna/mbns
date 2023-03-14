@@ -178,7 +178,9 @@ class ModelBasedQD:
                 bd_limits = None
                 if 'dab_params' in params:
                     o_params = params['dab_params']
+                    self.o_params = params['dab_params']
                     bd_inds = o_params['bd_inds']
+                    self.bd_inds = bd_inds
                     bd_max = o_params['state_max'][bd_inds]
                     bd_min = o_params['state_min'][bd_inds]
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
@@ -525,13 +527,13 @@ class ModelBasedQD:
                 ptu.save_model(self.dynamics_model, self.save_model_path)
                 print("Done saving torch model")
 
-                print("Saving median,1q,3q of descriptor estimation errors")
-                dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
-                np.savez(dump_path,
-                         all_errors_medians, all_errors_1q, all_errors_3q,
-                         add_errors_medians, add_errors_1q, add_errors_3q,
-                         discard_errors_medians, discard_errors_1q, discard_errors_3q)
-                print("Done saving descriptor estimation errors")
+                # print("Saving median,1q,3q of descriptor estimation errors")
+                # dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
+                # np.savez(dump_path,
+                #          all_errors_medians, all_errors_1q, all_errors_3q,
+                #          add_errors_medians, add_errors_1q, add_errors_3q,
+                #          discard_errors_medians, discard_errors_1q, discard_errors_3q)
+                # print("Done saving descriptor estimation errors")
                 
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
@@ -545,7 +547,17 @@ class ModelBasedQD:
                 ## Also save model archive for more visualizations
                 cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
                 b_evals = 0
-                
+                # plot cov
+                ## Extract real sys BD data from s_list
+                if isinstance(self.archive, dict):
+                    real_bd_traj_data = [s.obs_traj for s in self.archive.values()]
+                else:
+                    real_bd_traj_data = [s.obs_traj for s in self.archive]
+                ## Format the bd data to plot with labels
+                all_bd_traj_data = []
+                all_bd_traj_data.append((real_bd_traj_data, 'real system'))
+                params['plot_functor'](all_bd_traj_data, params['args'], self.o_params)
+
                 # Save models
                 #ptu.save_model(self.model, self.save_model_path)
                 print("Saving torch model")

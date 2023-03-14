@@ -426,13 +426,13 @@ class MultiDynamicsModelQD:
                 ptu.save_model(self.dynamics_model, self.save_model_path)
                 print("Done saving torch model")
 
-                print("Saving median,1q,3q of descriptor estimation errors")
-                dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
-                np.savez(dump_path,
-                         all_errors_medians, all_errors_1q, all_errors_3q,
-                         add_errors_medians, add_errors_1q, add_errors_3q,
-                         discard_errors_medians, discard_errors_1q, discard_errors_3q)
-                print("Done saving descriptor estimation errors")
+                # print("Saving median,1q,3q of descriptor estimation errors")
+                # dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
+                # np.savez(dump_path,
+                #          all_errors_medians, all_errors_1q, all_errors_3q,
+                #          add_errors_medians, add_errors_1q, add_errors_3q,
+                #          discard_errors_medians, discard_errors_1q, discard_errors_3q)
+                # print("Done saving descriptor estimation errors")
                 
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)

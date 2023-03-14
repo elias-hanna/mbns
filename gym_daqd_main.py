@@ -150,6 +150,8 @@ def main(args):
         "nb_transfer": args.nb_transfer,
         'env_name': args.environment,
         'init_method': args.init_method,
+        'plot_functor': plot_cov_and_trajs,
+        'args': args,
     }
 
     
