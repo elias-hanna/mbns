@@ -1631,6 +1631,9 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     bd_inds = params['bd_inds']
     ss_min = params['state_min']
     ss_max = params['state_max']
+    bins = None
+    if 'bins' in params:
+        bins = params['bins']
     n_inds = len(all_bd_traj_data[0][0])
     ## Plot real archive and model(s) archive on plot
     total_plots = len(all_bd_traj_data)
@@ -1683,6 +1686,19 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
                 ax1 = axs1[row][col]
                 ax2 = axs2[row][col]
 
+            if bins is not None:
+                ax1.grid(True, alpha=0.8, linewidth=0.1)
+                # set the number of grid lines
+                ax1.set_xticks(range(ss_min[bd_inds[0]], ss_max[bd_inds[0]],
+                                     (ss_max[bd_inds[0]]-ss_min[bd_inds[0]])//bins[0]))
+                ax1.set_yticks(range(ss_min[bd_inds[1]], ss_max[bd_inds[1]],
+                                     (ss_max[bd_inds[1]]-ss_min[bd_inds[1]])//bins[1]))
+                if dim_map == 3:
+                    ax1.set_zticks(range(ss_min[bd_inds[2]], ss_max[bd_inds[2]],
+                                         (ss_max[bd_inds[2]]-ss_min[bd_inds[2]])//bins[2]))
+                # We change the fontsize of minor ticks label 
+                ax1.tick_params(axis='both', which='major', labelsize=3)
+                ax1.tick_params(axis='both', which='minor', labelsize=1)
             ## format to take care of trajs that end before max_step + 1
             # (+1 because we store max_step transitions)
             formatted_loc_bd_traj_data = []
@@ -1744,7 +1760,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
                 ax2.set_aspect('equal', adjustable='box')
             m_cpt += 1
 
-    fig1.set_size_inches(total_plots*2,total_plots*2)
+    fig1.set_size_inches(total_plots*3,total_plots*3)
     fig1.tight_layout(pad=6.9)
     # fig1.suptitle('Archive coverage after DAB')
     fig1.suptitle('Archive coverage')

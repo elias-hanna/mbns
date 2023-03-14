@@ -128,6 +128,7 @@ class MultiDynamicsModelQD:
                 if 'dab_params' in params:
                     o_params = params['dab_params']
                     self.o_params = params['dab_params']
+                    self.o_params['bins'] = self.bins
                     bd_inds = o_params['bd_inds']
                     self.bd_inds = bd_inds
                     bd_max = o_params['state_max'][bd_inds]
@@ -392,6 +393,7 @@ class MultiDynamicsModelQD:
                     # FOR DYNAMICS MODEL
                     # torch.set_num_threads(24)$
                     for (dynamics_model_trainer, replay_buffer) in zip(self.dynamics_model_trainers, self.replay_buffers):
+                        continue
                         dynamics_model_trainer.train_from_buffer(replay_buffer, 
                                                                  holdout_pct=0.1,
                                                                  max_grad_steps=100000,
@@ -448,13 +450,22 @@ class MultiDynamicsModelQD:
                 b_evals = 0
                 # plot cov
                 ## Extract real sys BD data from s_list
+                has_model_data = False
                 if isinstance(self.archive, dict):
                     real_bd_traj_data = [s.obs_traj for s in self.archive.values()]
+                    if len(self.model_archive.values()) > 0:
+                        model_bd_traj_data = [s.obs_traj for s in self.model_archive.values()]
+                        has_model_data = True
                 else:
                     real_bd_traj_data = [s.obs_traj for s in self.archive]
+                    if len(self.model_archive) > 0:
+                        model_bd_traj_data = [s.obs_traj for s in self.model_archive]
+                        has_model_data = True
                 ## Format the bd data to plot with labels
                 all_bd_traj_data = []
                 all_bd_traj_data.append((real_bd_traj_data, 'real system'))
+                if has_model_data:
+                    all_bd_traj_data.append((model_bd_traj_data, 'model'))
                 params['plot_functor'](all_bd_traj_data, params['args'], self.o_params)
                 # Save models
                 #ptu.save_model(self.model, self.save_model_path)
