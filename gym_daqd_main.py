@@ -203,7 +203,8 @@ def main(args):
     obs_max = env_params['obs_max']
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
-    
+    bins = env_params['bins'] ## for grid based qd
+
     nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
     px['nov_l'] = nov_l
     print(f'INFO: nov_l param set to {nov_l} for environment {args.environment}')
@@ -443,7 +444,8 @@ def main(args):
                         dynamics_model, dynamics_model_trainer,
                         replay_buffer, 
                         n_niches=args.n_niches,
-                        params=px, log_dir=args.log_dir)
+                        params=px, bins=bins,
+                        log_dir=args.log_dir)
 
     #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
     archive, n_evals = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
