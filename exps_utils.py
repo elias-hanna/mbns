@@ -1528,7 +1528,7 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
         env_params['bins'] = [50, 50]
-        env_params['bins'] = [10, 10]
+        # env_params['bins'] = [10, 10]
     elif args.environment == 'empty_maze':
         env_params['env_register_id'] = 'FastsimEmptyMapNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])

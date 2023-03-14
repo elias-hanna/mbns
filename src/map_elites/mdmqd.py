@@ -234,8 +234,9 @@ class MultiDynamicsModelQD:
             num_cores = num_cores_set
             
         # pool = multiprocessing.Pool(num_cores)
-        pool = get_context("spawn").Pool(num_cores)
+        # pool = get_context("spawn").Pool(num_cores)
         #pool = ThreadPool(num_cores)
+        pool = None
         
         gen = 0 # generation
         n_evals = 0 # number of evaluations since the beginning
@@ -393,7 +394,6 @@ class MultiDynamicsModelQD:
                     # FOR DYNAMICS MODEL
                     # torch.set_num_threads(24)$
                     for (dynamics_model_trainer, replay_buffer) in zip(self.dynamics_model_trainers, self.replay_buffers):
-                        continue
                         dynamics_model_trainer.train_from_buffer(replay_buffer, 
                                                                  holdout_pct=0.1,
                                                                  max_grad_steps=100000,

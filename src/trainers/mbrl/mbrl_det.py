@@ -71,6 +71,8 @@ class MBRLTrainer(TorchTrainer):
         best_holdout_loss = float('inf')
         num_batches = int(np.ceil(n_train / self.batch_size))
 
+        if num_batches < 1: ## not enough data to for training
+            return
         # if verbose:
         #     print('###########################################################')
         #     print('################# Model training stats ####################')
@@ -128,11 +130,10 @@ class MBRLTrainer(TorchTrainer):
             
         if self._need_to_update_eval_statistics:
             self._need_to_update_eval_statistics = False
-
             self.eval_statistics['Model Final Train Loss (MSE)'] = \
-                np.mean(ptu.get_numpy(train_loss)/num_batches)
+                    np.mean(ptu.get_numpy(train_loss)/num_batches)
             self.eval_statistics['Model Holdout Loss (MSE)'] = \
-                np.mean(ptu.get_numpy(holdout_loss))
+                    np.mean(ptu.get_numpy(holdout_loss))
             self.eval_statistics['Model Training Epochs'] = num_epochs
             self.eval_statistics['Model Training Steps'] = num_steps
 
