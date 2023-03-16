@@ -138,7 +138,8 @@ class QD:
                     bd_min = o_params['state_min'][bd_inds]
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
                 
-                c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
+                c = cm.grid_centroids(self.bins, bd_limits=bd_limits,
+                                      n_waypoints=o_params['n_waypoints'])
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
             cm._write_centroids(c)
