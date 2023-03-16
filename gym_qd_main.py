@@ -159,7 +159,6 @@ def main(args):
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
     bins = env_params['bins'] ## for grid based qd
-    params['bins'] = bins
 
     if args.environment != 'hexapod_omni':
         nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
@@ -281,6 +280,7 @@ def main(args):
         'num_cores': args.num_cores,
         'dim_map': dim_map,
         'bd_inds': bd_inds,
+        'bins': bins,
         ## pretraining parameters
         'pretrain': False,
         ## srf parameters
@@ -321,7 +321,7 @@ def main(args):
         algo = QD(dim_map, dim_x,
                 f_real,
                 n_niches=1000,
-                params=px, bins=bins
+                params=px, bins=bins,
                 log_dir=args.log_dir)
 
     elif args.algo == 'ns':
