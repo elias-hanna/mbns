@@ -130,7 +130,10 @@ class QD:
                 bd_limits = None
                 if 'dab_params' in params:
                     o_params = params['dab_params']
+                    self.o_params = params['dab_params']
+                    self.o_params['bins'] = self.bins
                     bd_inds = o_params['bd_inds']
+                    self.bd_inds = bd_inds
                     bd_max = o_params['state_max'][bd_inds]
                     bd_min = o_params['state_min'][bd_inds]
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
@@ -199,7 +202,7 @@ class QD:
                 if self.qd_type == "unstructured":
                     success = unstructured_container.add_to_archive(s, archive, params)
                 else:
-                    success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
+                    success = cvt.add_to_archive(s, s.desc, archive, self.kdt)
                 if success:
                     add_list.append(s)
                 else:
