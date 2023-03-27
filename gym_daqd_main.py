@@ -456,7 +456,7 @@ def main(args):
         
     ## Plot archive trajectories on real system
     if args.log_ind_trajs:
-        if isinstance(self.archive, dict):
+        if isinstance(archive, dict):
             ## Extract real sys BD data from s_list
             real_bd_traj_data = [s.obs_traj for s in archive.values()]
         else:
