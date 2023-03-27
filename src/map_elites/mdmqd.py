@@ -110,7 +110,11 @@ class MultiDynamicsModelQD:
             self.model_eval_time = 0
             self.eval_time = 0
             self.model_train_time = 0 
-        
+
+        if 'dab_params' in params:
+            o_params = params['dab_params']
+            self.o_params = params['dab_params']
+                        
         # Init cvt and grid - only if cvt and grid map elites used
         if (self.qd_type=="cvt") or (self.qd_type=="grid"):
             c = []
@@ -126,13 +130,10 @@ class MultiDynamicsModelQD:
                     print(f"WARNING: Using {self.bins} as bins (default)")
                 bd_limits = None
                 if 'dab_params' in params:
-                    o_params = params['dab_params']
-                    self.o_params = params['dab_params']
                     self.o_params['bins'] = self.bins
-                    bd_inds = o_params['bd_inds']
-                    self.bd_inds = bd_inds
-                    bd_max = o_params['state_max'][bd_inds]
-                    bd_min = o_params['state_min'][bd_inds]
+                    self.bd_inds = self.o_params['bd_inds']
+                    bd_max = self.o_params['state_max'][self.bd_inds]
+                    bd_min = self.o_params['state_min'][self.bd_inds]
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
                 
                 c = cm.grid_centroids(self.bins, bd_limits=bd_limits)

@@ -160,6 +160,10 @@ class NS:
             self.model_eval_time = 0
             self.eval_time = 0
             self.model_train_time = 0 
+
+        if 'dab_params' in params:
+            o_params = params['dab_params']
+            self.o_params = params['dab_params']
         
         self.archive = [] # init archive as list
         self.model_archive = []        
