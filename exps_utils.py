@@ -1356,20 +1356,21 @@ class WrappedEnv():
             fit_func = self.energy_minimization_fit
         elif self.fitness_func == 'disagr_minimization':
             fit_func = self.disagr_minimization_fit
-        if self._env_name == 'ball_in_cup':
-            fit = fit_func(act_traj, disagr_traj)
-        elif self._env_name == 'fastsim_maze':
-            fit = fit_func(act_traj, disagr_traj)
-        elif self._env_name == 'empty_maze':
-            fit = fit_func(act_traj, disagr_traj)
-        elif self._env_name == 'fastsim_maze_traps':
-            fit = fit_func(act_traj, disagr_traj)
-        elif 'redundant_arm' in self._env_name:
-            fit = fit_func(act_traj, disagr_traj)
-        elif self._env_name == 'half_cheetah':
-            fit = fit_func(act_traj, disagr_traj)
-        elif self._env_name == 'walker2d':
-            fit = fit_func(act_traj, disagr_traj)
+        # if self._env_name == 'ball_in_cup':
+        #     fit = fit_func(act_traj, disagr_traj)
+        # elif self._env_name == 'fastsim_maze':
+        #     fit = fit_func(act_traj, disagr_traj)
+        # elif self._env_name == 'empty_maze':
+        #     fit = fit_func(act_traj, disagr_traj)
+        # elif self._env_name == 'fastsim_maze_traps':
+        #     fit = fit_func(act_traj, disagr_traj)
+        # elif 'redundant_arm' in self._env_name:
+        #     fit = fit_func(act_traj, disagr_traj)
+        # elif self._env_name == 'half_cheetah':
+        #     fit = fit_func(act_traj, disagr_traj)
+        # elif self._env_name == 'walker2d':
+        #     fit = fit_func(act_traj, disagr_traj)
+        fit = fit_func(act_traj, disagr_traj)
         return fit
 
     def normalize_inputs_s_minmax(self, data):
@@ -1535,6 +1536,17 @@ def get_env_params(args):
         env_params['a_max'] = np.array([1, 1])
         env_params['obs_min'] = env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
         env_params['obs_max'] = env_params['ss_max'] = np.array([600, 600, 1, 1, 1, 1])
+        env_params['state_dim'] = 6
+        #env_params['init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 1]
+        env_params['bins'] = [50, 50]
+    elif args.environment == 'huge_empty_maze':
+        env_params['env_register_id'] = 'FastsimHugeEmptyMapNavigationPos-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([1200, 1200, 1, 1, 1, 1])
         env_params['state_dim'] = 6
         #env_params['init_obs = np.array([300., 300., 0., 0., 0. , 0.])
         env_params['dim_map'] = 2
