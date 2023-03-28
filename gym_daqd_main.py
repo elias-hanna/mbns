@@ -207,7 +207,7 @@ def main(args):
     
     if args.environment != 'hexapod_omni':
         nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
-
+        
     if args.qd_type == 'unstructured':
         print(f'INFO: nov_l param set to {px["nov_l"]} for environment {args.environment}')
 

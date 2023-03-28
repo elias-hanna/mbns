@@ -1552,6 +1552,18 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 1]
         env_params['bins'] = [50, 50]
+    elif args.environment == 'very_huge_empty_maze':
+        env_params['env_register_id'] = 'FastsimVeryHugeEmptyMapNavigationPos-v0'
+        env_params['a_min'] = np.array([-1, -1])
+        env_params['a_max'] = np.array([1, 1])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([0, 0, -1, -1, -1, -1])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([2400, 2400, 1, 1, 1, 1])
+        env_params['state_dim'] = 6
+        #env_params['init_obs = np.array([300., 300., 0., 0., 0. , 0.])
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 1]
+        env_params['bins'] = [50, 50]
+        env_params['bins'] = [20, 20]
     elif args.environment == 'fastsim_maze_traps':
         env_params['env_register_id'] = 'FastsimSimpleNavigationPos-v0'
         env_params['a_min'] = np.array([-1, -1])
