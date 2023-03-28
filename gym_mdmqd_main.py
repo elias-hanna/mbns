@@ -299,6 +299,8 @@ def main(args):
         'num_cores': args.num_cores,
         'dim_map': dim_map,
         'bd_inds': bd_inds,
+        'bins': bins,
+
         ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
@@ -470,6 +472,7 @@ def main(args):
 
     print()
     print(f'Finished performing mbqd search successfully.')
+
     
 if __name__ == "__main__":
     import warnings

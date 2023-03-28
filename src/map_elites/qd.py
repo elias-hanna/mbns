@@ -139,7 +139,8 @@ class QD:
                     bd_min = self.o_params['state_min'][self.bd_inds]
                     bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
                 
-                c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
+                c = cm.grid_centroids(self.bins, bd_limits=bd_limits,
+                                      n_waypoints=o_params['n_waypoints'])
 
             self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
             cm._write_centroids(c)
@@ -203,7 +204,7 @@ class QD:
                 if self.qd_type == "unstructured":
                     success = unstructured_container.add_to_archive(s, archive, params)
                 else:
-                    success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
+                    success = cvt.add_to_archive(s, s.desc, archive, self.kdt)
                 if success:
                     add_list.append(s)
                 else:

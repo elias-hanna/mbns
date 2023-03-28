@@ -233,26 +233,70 @@ def cvt(k, dim, samples, cvt_use_cache=True):
 
     return k_means.cluster_centers_
 
-def grid_centroids(n_bins, bd_limits=None):
+def grid_centroids(n_bins, bd_limits=None, n_waypoints=1):
     if bd_limits is not None:
         assert len(n_bins) == len(bd_limits)
     else:
         bd_limits = [[0, 1] for i in range(len(n_bins))]
-    centers = []
-    for x, ls in zip(n_bins, bd_limits):
-        diff = ((ls[1] - ls[0])/2)/x # take center of BS
-        centers.append([ ((1/x)*i*(ls[1]-ls[0])) - diff for i in range(1, x + 1) ])
-    output = [ [x] for x in centers[0]]
-    for x in centers[1:]:
-        new_list = []
-        for y in output:
-            for i in x:
-                curr = y.copy()
-                curr.append(i)
-                new_list.append(curr)
-            output=new_list.copy()
-    return np.array(output)
+    # centers = []
+    # for x, ls in zip(n_bins, bd_limits):
+    #     diff = ((ls[1] - ls[0])/2)/x # take center of BS
+    #     centers.append([ ((1/x)*i*(ls[1]-ls[0])) - diff for i in range(1, x + 1) ])
+    # output = [ [x] for x in centers[0]]
+    # for x in centers[1:]:
+    #     new_list = []
+    #     for y in output:
+    #         for i in x:
+    #             curr = y.copy()
+    #             curr.append(i)
+    #             new_list.append(curr)
+    #         output=new_list.copy()
+    # return np.array(output)
+    ## new way, better than above obfuscation lol
+    xs = []
+    for n, limits in zip(n_bins, bd_limits):
+        low = limits[0]
+        high = limits[1]
+        offset = (high-low)/(2*n) ## to start at center of cell not edge
+        xs.append(np.arange(low+offset, high+offset, (high-low)/n))
+    
+    cs = np.meshgrid(*xs, indexing='ij')
+    cs = [c.ravel() for c in cs]
+    centers = np.vstack(cs).T
 
+    if n_waypoints > 1:
+        ## Create all arrangements between centers for each waypoints dim
+        all_centers = []
+        for j in range(len(centers)):
+            all_centers.append([centers[j]])
+            
+        for i in range(1, n_waypoints):
+            for j in range(len(all_centers)):
+                for k in range(len(centers)):
+                    all_centers.append([all_centers[j]])
+                for k in range(len(centers)):
+                    all_centers[j].append(centers[k])    
+        all_cs = [centers]
+
+        for n in range(1, n_waypoints):
+            all_cs.append(centers.copy())
+
+        A, B = np.meshgrid(centers, centers, indexing='ij')
+        import pdb; pdb.set_trace()
+        result = np.stack((A.flatten(), B.flatten()), axis=-1)
+
+        result = result.reshape((centers.size * centers.size, centers.shape[1] + centers.shape[1]))
+        import pdb; pdb.set_trace()
+        # generate all possible arrangements
+        # A, B = np.meshgrid(centers[:, :, np.newaxis], centers[:, :, np.newaxis])
+
+        
+        # combine the arrays into a single array
+        arrangements = np.concatenate((A, B), axis=2)
+
+
+    else:
+        return centers
 
 # hashable makes it usable as a dictionary key
 def make_hashable(array):
