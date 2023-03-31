@@ -37,8 +37,8 @@ import os, sys
 import argparse
 import matplotlib.pyplot as plt
 font = {'family' : 'normal',
-        'weight' : 'bold',
-        'size'   : 5}
+        'weight' : 'normal',
+        'size'   : 20}
 
 plt.rc('font', **font)
     
@@ -1625,15 +1625,17 @@ def get_env_params(args):
         env_params['gym_args']['reset_noise_scale'] = 0
         env_params['bins'] = [1000]
     elif args.environment == 'hexapod_omni':
-        from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
+        # from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
         env_params['is_local_env'] = True
         max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
         env_params['state_dim'] = env_params['obs_dim'] = 48
         env_params['act_dim'] = 18
         env_params['a_min'] = np.array([-1]*env_params['act_dim'])
         env_params['a_max'] = np.array([1]*env_params['act_dim'])
-        env_params['obs_min'] = env_params['ss_min'] = np.array([-1]*env_params['obs_dim'])
-        env_params['obs_max'] = env_params['ss_max'] = np.array([1]*env_params['obs_dim'])
+        # env_params['obs_min'] = env_params['ss_min'] = np.array([-1]*env_params['obs_dim'])
+        # env_params['obs_max'] = env_params['ss_max'] = np.array([1]*env_params['obs_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([(-1+1.5)/3]*env_params['obs_dim'])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([(1+1.5)/3]*env_params['obs_dim'])
         init_obs = np.zeros(48)
         init_obs[5] = -0.014 # robot com height when feet on ground is 0.136m 
         env_params['init_obs'] = init_obs
@@ -1656,7 +1658,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     ss_min = params['state_min']
     ss_max = params['state_max']
     bins = None
-    if 'bins' in params:
+    if 'bins' in params and args.qd_type == 'grid':
         bins = params['bins']
     n_inds = len(all_bd_traj_data[0][0])
     ## Plot real archive and model(s) archive on plot
@@ -1870,8 +1872,7 @@ def save_archive_cov_by_gen(archive, args, px, params):
     to_save = os.path.join(args.log_dir, 'archive_cov_by_gen')
     np.savez(to_save, archive_cov_by_gen=archive_cov_by_gen)
 
-def process_args():
-    parser = argparse.ArgumentParser()
+def process_args(parser):
     #-----------------Type of algo---------------------#
     # options are 'qd', 'ns'
     parser.add_argument("--algo", type=str, default="qd")

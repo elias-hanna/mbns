@@ -692,6 +692,7 @@ if __name__ == "__main__":
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
     warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
-    args = process_args()
+    parser = argparse.ArgumentParser()
+    args = process_args(parser)
 
     main(args)

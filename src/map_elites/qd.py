@@ -236,6 +236,7 @@ class QD:
 
         print("################# Starting QD algorithm #################")
 
+        bds_per_gen = []
         # main loop
         while (n_evals < max_evals):
             # lists of individuals we want to evaluate (list of tuples) for this gen
@@ -279,6 +280,11 @@ class QD:
             gen += 1 # generations
             n_evals += len(to_evaluate) # total number of  real evals
             b_evals += len(to_evaluate) # number of evals since last dump
+
+            bds_at_gen = []
+            for ind in self.archive:
+                bds_at_gen.append(ind.desc)
+            bds_per_gen.append(bds_at_gen)
             
             # write archive during dump period
             
@@ -326,6 +332,12 @@ class QD:
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         pool.close()
         self.log_file.close()
+
+        print("Saving behavior descriptors per generation")
+        dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
+        np.savez(dump_path,
+                 bds_per_gen=bds_per_gen)
+        print("Done saving behavior descriptors per generation")
         
         return self.archive, n_evals
 

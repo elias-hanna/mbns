@@ -303,7 +303,8 @@ class ModelBasedQD:
         all_errors_medians = []; all_errors_1q = []; all_errors_3q = []
         add_errors_medians = []; add_errors_1q = []; add_errors_3q = []
         discard_errors_medians = []; discard_errors_1q = []; discard_errors_3q = []
-        
+
+        bds_per_gen = []
         # main loop
         while (n_evals < max_evals):
             # lists of individuals we want to evaluate (list of tuples) for this gen
@@ -435,18 +436,27 @@ class ModelBasedQD:
                         else:
                             print('WARNING: Specy neither in added or discarded list')
 
-                    try:
-                        all_errors_medians.append(np.median(all_errors))
+                    all_errors_medians.append(np.median(all_errors))
+                    if np.isnan(np.median(all_errors)):
+                        all_errors_1q.append(np.nan)
+                        all_errors_3q.append(np.nan)
+                    else:
                         all_errors_1q.append(np.quantile(all_errors, 1/4))
                         all_errors_3q.append(np.quantile(all_errors, 3/4))
-                        add_errors_medians.append(np.median(add_errors))
+                    add_errors_medians.append(np.median(add_errors))
+                    if np.isnan(np.median(add_errors)):
+                        add_errors_1q.append(np.nan)
+                        add_errors_3q.append(np.nan)
+                    else:
                         add_errors_1q.append(np.quantile(add_errors, 1/4))
                         add_errors_3q.append(np.quantile(add_errors, 3/4))
-                        discard_errors_medians.append(np.median(discard_errors))
+                    discard_errors_medians.append(np.median(discard_errors))
+                    if np.isnan(np.median(discard_errors)):
+                        discard_errors_1q.append(np.nan)
+                        discard_errors_3q.append(np.nan)
+                    else:
                         discard_errors_1q.append(np.quantile(discard_errors, 1/4))
                         discard_errors_3q.append(np.quantile(discard_errors, 3/4))
-                    except:
-                        print("WARNING: error when computing descriptor estimation error at gen {gen}")
                     true_pos = len(add_list)
                     false_pos = len(discard_list)
                     self.eval_time = time.time()-start
@@ -509,6 +519,11 @@ class ModelBasedQD:
             n_evals += len(to_evaluate) # total number of  real evals
             b_evals += len(to_evaluate) # number of evals since last dump
             n_model_evals += len(to_model_evaluate) # total number of model evals
+
+            bds_at_gen = []
+            for ind in self.archive:
+                bds_at_gen.append(ind.desc)
+            bds_per_gen.append(bds_at_gen)
             
             # write archive during dump period
             if b_evals >= params['dump_period'] and params['dump_period'] != -1 \
@@ -650,7 +665,12 @@ class ModelBasedQD:
                  discard_errors_3q=discard_errors_3q)
         print("Done saving descriptor estimation errors")
 
-
+        print("Saving behavior descriptors per generation")
+        dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
+        np.savez(dump_path,
+                 bds_per_gen=bds_per_gen)
+        print("Done saving behavior descriptors per generation")
+        
         return self.archive, n_evals
 
     

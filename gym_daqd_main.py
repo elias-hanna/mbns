@@ -472,7 +472,8 @@ def main(args):
 
     ## Plot archive coverage at each generation (does not work for QD instances)
     ## will consider a gen = lambda indiv added to archive
-    save_archive_cov_by_gen(archive, args, px, params)
+    # depecrated
+    # save_archive_cov_by_gen(archive, args, px, params)
 
     ## Get descriptor estimation errors from save at end of run
     desc_error_data = np.load(os.path.join(args.log_dir,
@@ -537,6 +538,7 @@ if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
-    args = process_args()
+    parser = argparse.ArgumentParser()
+    args = process_args(parser)
 
     main(args)

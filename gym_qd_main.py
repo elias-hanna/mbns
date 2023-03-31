@@ -348,9 +348,10 @@ def main(args):
 
         plot_cov_and_trajs(all_bd_traj_data, args, params)
 
-   ## Plot archive coverage at each generation (does not work for QD instances)
-   ## will consider a gen = lambda indiv added to archive
-    save_archive_cov_by_gen(archive, args, px, params)
+    ## Plot archive coverage at each generation (does not work for QD instances)
+    ## will consider a gen = lambda indiv added to archive
+    # deprecated
+    # save_archive_cov_by_gen(archive, args, px, params)
 
     print()
     print(f'Finished performing {args.algo} search successfully.')
@@ -362,7 +363,8 @@ if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
     warnings.filterwarnings("ignore", category=RuntimeWarning) 
-
-    args = process_args()
+ 
+    parser = argparse.ArgumentParser()
+    args = process_args(parser)
     
     main(args)
