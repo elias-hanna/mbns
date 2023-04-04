@@ -670,8 +670,7 @@ class ModelBasedQD:
 
         print("Saving behavior descriptors per generation")
         dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
-        np.savez(dump_path,
-                 **bds_per_gen)
+        np.savez(dump_path, **bds_per_gen)
         print("Done saving behavior descriptors per generation")
         
         return self.archive, n_evals
