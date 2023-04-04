@@ -712,12 +712,12 @@ class ModelBasedQD:
                                                            self.f_model, params)
             if params["model_variant"]=="dynamics" or params["perfect_model_on"]:
                 #s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
-                print("Starting parallel evaluation of individuals")
+                print("Starting evaluation of individuals using dynamics model")
                 s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
-                print("Finished parallel evaluation of individuals")
             elif params["model_variant"]=="direct":
                 s_list_model = self.serial_eval(evaluate_, to_model_evaluate, params)
             elif params["model_variant"]=="all_dynamics":
+                print("Starting evaluation of batched individuals using dynamics model")
                 s_list_model = model_evaluate_all_(to_model_evaluate)
             #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
             self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
