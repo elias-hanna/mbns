@@ -233,7 +233,7 @@ class NS:
 
         return archive, add_list, discard_list
 
-    def update_novelty_scores(self, pop, archive, k=15, slow=False):
+    def update_novelty_scores(self, pop, archive, k=15):
         # Convert the dataset to a numpy array
         all_bds = []
         all_bds += [ind.desc for ind in pop] # pop is usually pop + offspring
@@ -244,21 +244,10 @@ class NS:
         neighbors = NearestNeighbors(n_neighbors=k)
         neighbors.fit(all_bds)
 
-        ## Slow way lol
-        if slow:
-            for ind in pop:
-                k_nearest_neighbors = neighbors.kneighbors([ind.desc],
-                                                           return_distance=False,
-                                                           n_neighbors=k+1)[0]
-
-                # # Compute the average distance between the data point and its k-NN
-                ind.nov = np.mean(np.linalg.norm(all_bds[k_nearest_neighbors] - ind.desc,
-                                                 axis=1))
-        else:
-            ## New way
-            neigh_dists, neigh_inds = neighbors.kneighbors()
-            for ind, dists in zip(pop, neigh_dists):
-                ind.nov = np.mean(dists)
+        ## New way
+        neigh_dists, neigh_inds = neighbors.kneighbors()
+        for ind, dists in zip(pop, neigh_dists):
+            ind.nov = np.mean(dists)
 
     # nov: min takes minimum of novelty from all models, mean takes the mean
     def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='sum', norm=False):
@@ -350,8 +339,8 @@ class NS:
 
             ## intialize for time related stats ##
             gen_start_time = time.time()
-            self.model_train_time = 0
-            # initialization of archive - start up
+
+            # random initialization of archive - start up
             if len(self.archive) == 0:
                 if params['bootstrap_archive'] is not None:
                     for ind in params['bootstrap_archive']:
@@ -406,7 +395,6 @@ class NS:
                 offspring = s_list
 
                 ## Update population nov (pop + offsprings)
-                # if params['model_type'] == 'det_ens':
                 ensembling = False
                 if 'model_type' in params:
                     if 'perfect_model_on' in params:
@@ -432,7 +420,7 @@ class NS:
                 sorted_pop = sorted(population + offspring,
                                     key=lambda x:x.nov, reverse=True)
                 filtered_s_pop = [ind for ind in sorted_pop if ind not in self.archive]
-                population = sorted_pop[:params['pop_size']]
+                population = filtered_s_pop[:params['pop_size']]
                 self.population = population
 
             # count evals
