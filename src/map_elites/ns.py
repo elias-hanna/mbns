@@ -305,7 +305,26 @@ class NS:
                 pop[i].nov = np.mean(ind_novs[:,i])
             elif nov == 'sum':
                 pop[i].nov = sum(ind_novs[:,i])
-                
+
+    def update_population_novelty(self, population, offpsring, archive, params):
+        ## Update population nov (pop + offsprings)
+        ensembling = False
+        if 'model_type' in params:
+            if 'perfect_model_on' in params:
+                if params['perfect_model_on']:
+                    ensembling = False
+            elif params['model_type'] == 'det':
+                ensembling = False
+            else:
+                ensembling = True
+        if ensembling:
+            self.update_novelty_scores_ensemble(population + offspring,
+                                                archive,
+                                                nov=params['nov_ens'],
+                                                norm=params['norm_bd'])
+        else:
+            self.update_novelty_scores(population + offspring, archive)
+        
     def compute(self,
                 num_cores_set,
                 max_evals=1e6,
@@ -395,22 +414,27 @@ class NS:
                 offspring = s_list
 
                 ## Update population nov (pop + offsprings)
-                ensembling = False
-                if 'model_type' in params:
-                    if 'perfect_model_on' in params:
-                        if params['perfect_model_on']:
-                            ensembling = False
-                    elif params['model_type'] == 'det':
-                        ensembling = False
-                    else:
-                        ensembling = True
-                if ensembling:
-                    self.update_novelty_scores_ensemble(population + offspring,
-                                                        self.archive,
-                                                        nov=params['nov_ens'],
-                                                        norm=params['norm_bd'])
-                else:
-                    self.update_novelty_scores(population + offspring, self.archive)
+                self.update_population_novelty(population,
+                                               offpsring,
+                                               self.archive,
+                                               params)
+                # ensembling = False
+                # if 'model_type' in params:
+                #     if 'perfect_model_on' in params:
+                #         if params['perfect_model_on']:
+                #             ensembling = False
+                #     elif params['model_type'] == 'det':
+                #         ensembling = False
+                #     else:
+                #         ensembling = True
+                # if ensembling:
+                #     self.update_novelty_scores_ensemble(population + offspring,
+                #                                         self.archive,
+                #                                         nov=params['nov_ens'],
+                #                                         norm=params['norm_bd'])
+                # else:
+                #     self.update_novelty_scores(population + offspring, self.archive)
+                
                 ## Add offsprings to archive
                 self.archive, add_list, _ = self.addition_condition(offspring,
                                                                     self.archive,

@@ -261,7 +261,21 @@ class ModelBasedNS(NS):
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
                     params['parallel'] =  False
 
-                    self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
+                    offspring = s_list
+                    self.update_population_novelty(population,
+                                                   offpsring,
+                                                   self.archive,
+                                                   params)
+                    
+                    self.archive, add_list, discard_list = self.addition_condition(offspring, self.archive, params)
+
+                    ## Update population
+                    sorted_pop = sorted(population + offspring,
+                                        key=lambda x:x.nov, reverse=True)
+                    filtered_s_pop = [ind for ind in sorted_pop if ind not in self.archive]
+                    population = filtered_s_pop[:params['pop_size']]
+                    self.population = population
+                
                     ## Create Species pairs for model eval and real eval
                     # nb: useful only if order is not preserved by parallel eval
                     s_pairs = []
@@ -325,9 +339,6 @@ class ModelBasedNS(NS):
                         #print("False negative: ", false_neg)
                         #print("True negative: ", true_neg)
                     
-                #print("Real archive size end: ",len(self.archive))
-                #print("Model archive size end: ",len(self.model_archive))
-                
             # print("Gen: ", gen)
             ####### UPDATE MODEL - MODEL LEARNING ############
             evals_since_last_train += len(to_evaluate)
@@ -377,21 +388,12 @@ class ModelBasedNS(NS):
                 ptu.save_model(self.dynamics_model, self.save_model_path)
                 print("Done saving torch model")
 
-                # print("Saving median,1q,3q of descriptor estimation errors")
-                # dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
-                # np.savez(dump_path,
-                #          all_errors_medians, all_errors_1q, all_errors_3q,
-                #          add_errors_medians, add_errors_1q, add_errors_3q,
-                #          discard_errors_medians, discard_errors_1q, discard_errors_3q)
-                # print("Done saving descriptor estimation errors")
-                
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
             elif params['dump_mode'] == 'gen':
                 save_start = time.time()
-            
+                
                 # write archive
-                #print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
                 print("[{}/{}]".format(n_evals, int(max_evals)))
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
                 ## Also save model archive for more visualizations
@@ -532,25 +534,11 @@ class ModelBasedNS(NS):
             model_offspring = s_list_model
 
             ## Update population nov (pop + offsprings)
-            ensembling = False
-            if 'model_type' in params:
-                if 'perfect_model_on' in params:
-                    if params['perfect_model_on']:
-                        ensembling = False
-                elif params['model_type'] == 'det':
-                    ensembling = False
-                else:
-                    ensembling = True
-            if ensembling:
-                self.update_novelty_scores_ensemble(model_population +
-                                                    model_offspring,
-                                                    self.model_archive,
-                                                    nov=params['nov_ens'],
-                                                    norm=params['norm_bd'])
-            else:
-                self.update_novelty_scores(model_population + model_offspring,
-                                           self.model_archive)
-                    
+            self.update_population_novelty(model_population,
+                                           model_offpsring,
+                                           self.model_archive,
+                                           params)
+            
             self.model_archive, add_list_model, discard_list_model = self.addition_condition(model_offspring, self.model_archive, params)
 
             ## Update population
