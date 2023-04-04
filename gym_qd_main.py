@@ -143,7 +143,6 @@ def main(args):
     
     ##TODO##
     env_params = get_env_params(args)
-    nb_div = 50
     
     is_local_env = env_params['is_local_env']
     gym_args = env_params['gym_args']  
@@ -161,10 +160,12 @@ def main(args):
     bins = env_params['bins'] ## for grid based qd
 
     if args.environment != 'hexapod_omni':
-        nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
-        px['nov_l'] = nov_l
+        nov_l = (1.5/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
+        if args.adaptive_novl:
+            px['nov_l'] = nov_l
 
-    print(f'INFO: nov_l param set to {px["nov_l"]} for environment {args.environment}')
+    if args.qd_type == 'unstructured':
+        print(f'INFO: nov_l param set to {px["nov_l"]} for environment {args.environment}')
 
     ## Get the environment task horizon, observation and action space dimensions
     if not is_local_env:

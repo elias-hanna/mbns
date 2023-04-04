@@ -1879,7 +1879,7 @@ def process_args(parser):
     #-----------------Type of QD---------------------#
     # options are 'cvt', 'grid', 'unstructured' and 'fixed'
     parser.add_argument("--qd_type", type=str, default="unstructured")
-    
+    parser.add_argument("--adaptive-novl", action="store_true")
     #---------------CPU usage-------------------#
     parser.add_argument("--parallel", action="store_true")
     parser.add_argument("--num_cores", type=int, default=8)
