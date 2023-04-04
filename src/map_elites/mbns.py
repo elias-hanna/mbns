@@ -48,6 +48,7 @@ from sklearn.neighbors import KDTree
 from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
 from src.map_elites import model_condition_utils
+from src.map_elites.ns import NS
 
 import torch
 import src.torch.pytorch_util as ptu
@@ -102,24 +103,17 @@ def model_evaluate_all_(T):
                                      act_traj=act_traj_list[i], model_dis=disagr_list[i]))
     return model_inds
 
-class ModelBasedQD:
+class ModelBasedNS(NS):
     def __init__(self,
                  dim_map, dim_x,
                  f_real, f_model,
-                 model, model_trainer,
                  dynamics_model, dynamics_model_trainer,
                  replay_buffer,
-                 n_niches=1000,
                  params=cm.default_params,
-                 bins=None,
                  log_dir='./',):
 
-        torch.set_num_threads(24)
-        
-        self.qd_type = params["type"]    # QD type - grid, cvt, unstructured
         self.dim_map = dim_map           # number of BD dimensions  
         self.dim_x = dim_x               # gemotype size (number of genotype dim)
-        self.n_niches = n_niches         # estimated total population in archive
         self.bins = bins                 # grid shape - only for grid map elites
         self.params = params
 
@@ -133,15 +127,10 @@ class ModelBasedQD:
         if params["model_variant"]=="all_dynamics":
             self.f_model = f_model
             print("All Dynamics Model Variant")
-        elif params["model_variant"]=="direct":
-            self.f_model = self.evaluate_solution_surrogate_model 
-            print("Direct Model Variant")
             
         # Model and Model trainer init -
         # initialize the classes outside this class and pass in
-        self.model = model # refers to the direct qd surrogate model
-        self.model_trainer = model_trainer # direct qd surrogate trainer
-
+        
         self.dynamics_model = dynamics_model
         self.dynamics_model_trainer = dynamics_model_trainer
 
@@ -168,44 +157,8 @@ class ModelBasedQD:
             o_params = params['dab_params']
             self.o_params = params['dab_params']
                 
-        # Init cvt and grid - only if cvt and grid map elites used
-        if (self.qd_type=="cvt") or (self.qd_type=="grid"):
-            c = []
-            if (self.qd_type=="cvt"):
-                c = cm.cvt(self.n_niches,
-                           self.dim_map,params['cvt_samples'],
-                           params['cvt_use_cache'])
-            else:
-                if self.bins is None:
-                    self.bins = [50]*params['dim_map']
-                    print(f"WARNING: Using {self.bins} as bins (default)")
-                bd_limits = None
-                if 'dab_params' in params:
-                    self.o_params['bins'] = self.bins
-                    self.bd_inds = self.o_params['bd_inds']
-                    bd_max = self.o_params['state_max'][self.bd_inds]
-                    bd_min = self.o_params['state_min'][self.bd_inds]
-                    bd_limits = [[a, b] for (a,b) in zip(bd_min, bd_max)]
-                
-                c = cm.grid_centroids(self.bins, bd_limits=bd_limits)
-
-            self.kdt = KDTree(c, leaf_size=30, metric='euclidean')
-            cm._write_centroids(c)
-            
-        if (self.qd_type == "cvt") or (self.qd_type=="grid"):
-            self.archive = {} # init archive as dic (empty)
-            self.model_archive = {}
-        elif self.qd_type == "unstructured":
-            self.archive = [] # init archive as list
-            self.model_archive = []        
-
-
-    def random_archive_init(self, to_evaluate):
-        for i in range(0, self.params['random_init_batch']):
-            x = np.random.uniform(low=self.params['min'], high=self.params['max'],size=self.dim_x)
-            to_evaluate += [(x, self.f_real)]
-        
-        return to_evaluate
+        self.archive = [] # init archive as list
+        self.model_archive = []        
 
     def random_archive_init_model(self, to_evaluate):
         for i in range(0, self.params['random_init_batch']):
@@ -214,64 +167,8 @@ class ModelBasedQD:
         
         return to_evaluate
 
-
-    def select_and_mutate(self, to_evaluate, archive, f, params, variation_operator=cm.variation, batch=False):
-
-        if (self.qd_type=="cvt") or (self.qd_type=="grid"):
-            keys = list(archive.keys())
-        elif (self.qd_type=="unstructured"):
-            keys = archive
-                    
-        # we select all the parents at the same time because randint is slow
-        rand1 = np.random.randint(len(keys), size=self.params['batch_size'])
-        rand2 = np.random.randint(len(keys), size=self.params['batch_size'])
-            
-        for n in range(0, params['batch_size']):
-            # parent selection - mutation operators like iso_dd/sbx require 2 gen parents
-            if (self.qd_type == "cvt") or (self.qd_type=="grid"):
-                x = archive[keys[rand1[n]]]
-                y = archive[keys[rand2[n]]]
-            elif (self.qd_type == "unstructured"):                    
-                x = archive[rand1[n]]
-                y = archive[rand2[n]]
-                
-            # copy & add variation
-            z = variation_operator(x.x, y.x, params)
-
-            if batch:
-                to_evaluate += [z]
-            else: 
-                to_evaluate += [(z, f)]
-
-        return to_evaluate
-    
-    def addition_condition(self, s_list, archive, params):
-        add_list = [] # list of solutions that were added
-        discard_list = []
-        for s in s_list:
-            if self.qd_type == "unstructured":
-                success = unstructured_container.add_to_archive(s, archive, params)
-            else:
-                success = cvt.add_to_archive(s, s.desc, archive, self.kdt)
-            if success:
-                add_list.append(s)
-            else:
-                discard_list.append(s) #not important for alogrithm but to collect stats
-                
-        return archive, add_list, discard_list
-
     def model_condition(self, s_list, archive, params):
-        add_list = [] # list of solutions that are worth evaluating in real life
-        discard_list = []
-        for s in s_list:
-            success = model_condition_utils.add_to_archive(s, archive, params)    
-            if success:
-                add_list.append(s)
-            else:
-                discard_list.append(s) # not important for algorithm but to collect stats
-                
-        return archive, add_list, discard_list
-
+        return self.addition_condition(s_list, archive, params)
     
     # model based map-elites algorithm
     def compute(self,
@@ -305,7 +202,6 @@ class ModelBasedQD:
         discard_errors_medians = []; discard_errors_1q = []; discard_errors_3q = []
 
         bds_per_gen = []
-        bds_per_gen = {}
         # main loop
         while (n_evals < max_evals):
             # lists of individuals we want to evaluate (list of tuples) for this gen
@@ -503,19 +399,6 @@ class ModelBasedQD:
                                                                   holdout_pct=0.1,
                                                                   max_grad_steps=100000,
                                                                   verbose=True)
-                    
-                elif params["model_variant"]=="direct":
-                    # FOR DIRECT QD SURROGATE MODEL 
-                    # track all real evals - keep only always 50k of latest data
-                    # RAM problems if too many is kept
-                    #self.all_real_evals = s_list + self.all_real_evals 
-                    #if len(self.all_real_evals) > 50000:
-                    #    self.all_real_evals = self.all_real_evals[:50000]
-                    #dataset = self.get_gen_bd_fit_dataset(self.all_real_evals)
-                    dataset = self.get_gen_bd_fit_dataset(self.archive)
-                    self.model_trainer.train_from_dataset(dataset,
-                                                          holdout_pct=0.2,
-                                                          max_grad_steps=10000)
 
                 self.model_train_time = time.time() - start
                 print("Model train time: ", self.model_train_time)
@@ -529,10 +412,9 @@ class ModelBasedQD:
 
             bds_at_gen = []
             for ind in self.archive:
-                # bds_at_gen.append(ind.desc)
                 bds_at_gen.append(ind.desc)
-            # bds_per_gen.append(bds_at_gen)
-            bds_per_gen[f'bd_{gen}'] = bds_at_gen
+            bds_per_gen.append(bds_at_gen)
+            
             # write archive during dump period
             if b_evals >= params['dump_period'] and params['dump_period'] != -1 \
                and params['dump_mode'] == 'budget':
@@ -675,10 +557,8 @@ class ModelBasedQD:
 
         print("Saving behavior descriptors per generation")
         dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
-        # np.savez(dump_path,
-        #          bds_per_gen=bds_per_gen)
         np.savez(dump_path,
-                 **bds_per_gen)
+                 bds_per_gen=bds_per_gen)
         print("Done saving behavior descriptors per generation")
         
         return self.archive, n_evals
@@ -722,8 +602,7 @@ class ModelBasedQD:
                 print("Starting parallel evaluation of individuals")
                 s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
                 print("Finished parallel evaluation of individuals")
-            elif params["model_variant"]=="direct":
-                s_list_model = self.serial_eval(evaluate_, to_model_evaluate, params)
+            
             elif params["model_variant"]=="all_dynamics":
                 s_list_model = model_evaluate_all_(to_model_evaluate)
             #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
@@ -746,245 +625,6 @@ class ModelBasedQD:
         print(f"Random model emitter ended in {self.model_eval_time} after {gen} gen")
         return add_list_model_final, all_model_eval
 
-    def optimizing_emitter(self, to_model_evaluate, pool, params, gen):
-        '''
-        uses CMA - no mutations
-        '''
-        start = time.time()
-        add_list_model_final = []
-        all_model_eval = []
-
-        rand1 = np.random.randint(len(self.model_archive))
-        mean_init = (self.model_archive[rand1]).x
-        sigma_init = 0.01
-        popsize = 50
-        max_iterations = 100
-        es = cma.CMAEvolutionStrategy(mean_init,
-                                      sigma_init,
-                                      {'popsize': popsize,
-                                       'bounds': [0,1]})
-        gen = 0
-        for i in range(max_iterations):
-        #while not es.stop():    
-            to_model_evaluate = []
-            solutions = es.ask()
-            for sol in solutions:
-                to_model_evaluate += [(sol, self.f_model)]
-            s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
-
-            self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
-            add_list_model_final += add_list_model
-            all_model_eval += to_model_evaluate # count all inds evaluated by model
-            #print("model list length: ",len(add_list_model_final)) 
-            #print("all model evals length: ", len(all_model_eval))
-
-            # convert maximize to minimize
-            # for optimizing emitter fitness of CMAES is fitness of the ind
-            reward_list = []
-            for s in s_list_model:
-                reward_list.append(s.fitness)
-
-            cost_arr = -np.array(reward_list)
-            es.tell(solutions, list(cost_arr))
-            #es.disp()
-            
-            #if i%10==0:
-            #    cm.save_archive(self.model_archive, str(gen)+"_"+str(i), params, self.log_dir)
-            #i +=1
-            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
-            gen += 1
-                        
-        self.model_eval_time = time.time() - start
-        print(f"Optimizing model emitter ended in {self.model_eval_time} after {gen} gen")        
-        return add_list_model_final, all_model_eval
-
-    def random_walk_emitter(self, to_model_evaluate, pool, params, gen):
-        start = time.time()
-        add_list_model_final = []
-        all_model_eval = []
-
-        # sample an inidivudal from the archive to init cmaes
-        rand1 = np.random.randint(len(self.model_archive))
-        ind_init = self.model_archive[rand1]
-        mean_init = ind_init.x
-        sigma_init = 0.01
-        popsize = 50
-        max_iterations = 100
-        es = cma.CMAEvolutionStrategy(mean_init,
-                                      sigma_init,
-                                      {'popsize': popsize,
-                                       'bounds': [0,1]})
-
-        # sample random vector/direction in the BD space to compute CMAES fitness on
-        # BD space is 2 dim
-        desc_init = ind_init.desc
-        target_dir = np.random.uniform(-1,1,size=2)
-
-        gen = 0
-        for i in range(max_iterations):
-        #i = 0 
-        #while not es.stop():
-            to_model_evaluate = []
-            solutions = es.ask()
-            for sol in solutions:
-                to_model_evaluate += [(sol, self.f_model)]
-            print("Starting parallel evaluation of individuals")
-            s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
-            print("Finished parallel evaluation of individuals")
-            #s_list_model = self.serial_eval(model_evaluate_, to_model_evaluate, params)
-
-            #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
-            self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
-            add_list_model_final += add_list_model
-            all_model_eval += to_model_evaluate # count all inds evaluated by model
-            #print("model list length: ",len(add_list_model_final)) 
-            #print("all model evals length: ", len(all_model_eval))
-
-            # convert maximize to minimize
-            # for random walk emitter, fitnes of CMAES is the magnitude of vector in the target_direction
-            reward_list = []
-            for s in s_list_model:
-                s_dir = s.desc - desc_init
-                comp_proj = (np.dot(s_dir, target_dir))/np.linalg.norm(target_dir)
-                reward_list.append(comp_proj)
-
-            cost_arr = -np.array(reward_list)
-            es.tell(solutions, list(cost_arr))
-            #es.disp()
-
-            if i%10==0:
-                cm.save_archive(self.model_archive, str(gen)+"_"+str(i), params, self.log_dir)
-            #i +=1
-            
-            self.model_eval_time = time.time() - start
-            #print("model_eval_time", self.model_eval_time)
-            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
-            gen += 1
-
-        self.model_eval_time = time.time() - start
-        print(f"Random walk model emitter ended in {self.model_eval_time} after {gen} gen") 
-        return add_list_model_final, all_model_eval
-
-    def improvement_emitter():
-    
-        return 1
-    
-    def model_disagr_emitter(self, to_model_evaluate, pool, params, gen):
-        '''
-        emitter which maximises model dissagreement
-        CMAES fitness function is disagreement
-        '''
-        start = time.time()
-        add_list_model_final = []
-        all_model_eval = []
-
-        # sample an inidivudal from the archive to init cmaes
-        rand1 = np.random.randint(len(self.model_archive))
-        ind_init = self.model_archive[rand1]
-        mean_init = ind_init.x
-        sigma_init = 0.01
-        popsize = 50
-        max_iterations = 100
-        es = cma.CMAEvolutionStrategy(mean_init,
-                                      sigma_init,
-                                      {'popsize': popsize,
-                                       'bounds': [0,1]})
-        gen = 0
-        for i in range(max_iterations):
-        #i = 0 
-        #while not es.stop():
-            to_model_evaluate = []
-            solutions = es.ask()
-            for sol in solutions:
-                to_model_evaluate += [(sol, self.f_model)]
-            s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
-            #s_list_model = self.serial_eval(model_evaluate_, to_model_evaluate, params)
-
-            #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
-            self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
-            add_list_model_final += add_list_model
-            all_model_eval += to_model_evaluate # count all inds evaluated by model
-            #print("model list length: ",len(add_list_model_final)) 
-            #print("all model evals length: ", len(all_model_eval))
-
-            # convert maximize to minimize
-            # for disagr_emitter, fitness of CMA-ES is model disagreement
-            reward_list = []
-            for s in s_list_model:
-                s_dis = s.model_dis
-                reward_list.append(s_dis)
-
-            cost_arr = -np.array(reward_list)
-            es.tell(solutions, list(cost_arr))
-            es.disp()
-
-            if i%10==0:
-                cm.save_archive(self.model_archive, str(gen)+"_"+str(i), params, self.log_dir)
-            #i +=1
-            print(f'Current valid population at gen {gen}: {len(add_list_model_final)}')
-            gen += 1
-
-        self.model_eval_time = time.time() - start    
-        print(f"Model disagr emitter ended in {self.model_eval_time} after {gen} gen")        
-        return add_list_model_final, all_model_eval
-
-    
-    ################## Custom functions for Model Based QD ####################
-    def serial_eval(self, evaluate_function, to_evaluate, params):
-        s_list = map(evaluate_function, to_evaluate)
-        return list(s_list)
-    
-    def evaluate_solution_surrogate_model(self, gen):
-        #torch.set_num_threads(1)
-        with torch.no_grad():
-            x = ptu.from_numpy(gen)
-            x = x.view(1, -1)
-        
-            pred = self.model.output_pred(x)            
-            fitness = pred[0,0]
-            desc = [pred[0,1:1+self.dim_map]]
-            
-        obs_traj = None
-        act_traj = None
-        
-        return fitness, desc, obs_traj, act_traj
-    
-    def evaluate_batch(self, z_batch):
-        '''
-        # For batch evaluations of NN models
-        #to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive, self.f_model, params, batch=True)
-        #s_list_model = self.evaluate_batch(to_model_evaluate)
-        '''
-        f = self.f_model
-        fit_batch, desc_batch, obs_traj_b, act_traj_b = f(z_batch) 
-        # this is a batch eval functions so returns everything as [batch_size, dim]
-        s_list = []
-        for i in range(len(z_batch)):
-            z = z_batch[i]
-            desc = desc_batch[i] 
-            desc_ground = desc
-            fit = fit_batch[i]
-            obs_traj = obs_traj_b[i]
-            act_traj = act_traj_b[i]
-            
-            s = cm.Species(z, desc, desc_ground, fit, obs_traj, act_traj)
-            s_list.append(s) 
-        
-        return s_list
-    
-    def get_gen_bd_fit_dataset(self, s_list):
-        x = []
-        y = []
-        for s in s_list:
-            x.append(s.x)
-            y.append(np.concatenate((s.fitness, s.desc), axis=None))
-
-        x = np.array(x)
-        y = np.array(y)
-        dataset = [x,y]
-
-        return dataset
-    
     def add_sa_to_buffer(self, s_list, replay_buffer):
         for sol in s_list:
             s = sol.obs_traj[:-1]  
