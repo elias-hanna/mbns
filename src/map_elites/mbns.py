@@ -263,7 +263,7 @@ class ModelBasedNS(NS):
 
                     offspring = s_list
                     self.update_population_novelty(population,
-                                                   offpsring,
+                                                   offspring,
                                                    self.archive,
                                                    params)
                     
@@ -535,7 +535,7 @@ class ModelBasedNS(NS):
 
             ## Update population nov (pop + offsprings)
             self.update_population_novelty(model_population,
-                                           model_offpsring,
+                                           model_offspring,
                                            self.model_archive,
                                            params)
             

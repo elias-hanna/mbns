@@ -306,7 +306,7 @@ class NS:
             elif nov == 'sum':
                 pop[i].nov = sum(ind_novs[:,i])
 
-    def update_population_novelty(self, population, offpsring, archive, params):
+    def update_population_novelty(self, population, offspring, archive, params):
         ## Update population nov (pop + offsprings)
         ensembling = False
         if 'model_type' in params:
@@ -415,7 +415,7 @@ class NS:
 
                 ## Update population nov (pop + offsprings)
                 self.update_population_novelty(population,
-                                               offpsring,
+                                               offspring,
                                                self.archive,
                                                params)
                 # ensembling = False
