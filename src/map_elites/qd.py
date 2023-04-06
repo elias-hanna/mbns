@@ -281,7 +281,10 @@ class QD:
             n_evals += len(to_evaluate) # total number of  real evals
             b_evals += len(to_evaluate) # number of evals since last dump
 
-            bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
+            if (self.qd_type=="cvt") or (self.qd_type=="grid"):
+                bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive.values()]
+            else:
+                bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
 
             # write archive during dump period
             

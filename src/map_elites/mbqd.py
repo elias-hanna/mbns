@@ -526,7 +526,10 @@ class ModelBasedQD:
             b_evals += len(to_evaluate) # number of evals since last dump
             n_model_evals += len(to_model_evaluate) # total number of model evals
 
-            bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
+            if (self.qd_type=="cvt") or (self.qd_type=="grid"):
+                bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive.values()]
+            else:
+                bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
 
             # write archive during dump period
             if b_evals >= params['dump_period'] and params['dump_period'] != -1 \
