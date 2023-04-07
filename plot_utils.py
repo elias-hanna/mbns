@@ -6,6 +6,7 @@ from exps_utils import get_env_params, process_args, plot_cov_and_trajs, \
 import os, sys
 import argparse
 import matplotlib.pyplot as plt
+from multiprocessing import Pool
 
 #----------Data manipulation imports--------#
 import numpy as np
@@ -102,6 +103,56 @@ def compute_cov(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
     ## return coverage (number of bins filled)
     return len(counts[counts>=1])/total_bins
 
+def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total_evals):
+    dict_vals = bds_per_gen.values()
+    only_gen_num = [int(s.split('_')[1]) for s in bds_per_gen.keys()]
+    max_gen = max(only_gen_num)
+    gen_covs = []
+    gen_evals = []
+    step = (total_evals-100)//(max_gen-1)
+    for (gen, n_evals) in zip(range(1, max_gen+1), range(100, total_evals+step, step)):
+        gen_bd_data = bds_per_gen[f'bd_{gen}']
+        gen_bd_df = pd.DataFrame(gen_bd_data, columns=[f'bd{i}' for i in range(dim_map)])
+        gen_cov = compute_cov(gen_bd_df, ss_min, ss_max, dim_map, bd_inds, nb_div)
+        gen_covs.append(gen_cov)
+        gen_evals.append(n_evals)
+    return gen_covs, gen_evals
+
+def process_rep(var_tuple):
+    rep_dir, ss_min, ss_max, dim_map, bd_inds, nb_div, bd_cols = var_tuple
+    ## get the last archive file name
+    archive_fname = filter_archive_fnames(rep_dir)
+    if archive_fname is None:
+        return np.nan, [], [], []
+    ## Load it as a pandas dataframe
+    archive_data = pd_read_csv_fast(archive_fname)
+    # drop the last column which was made because there is a
+    # comma after last value i a line
+    archive_data = archive_data.iloc[:,:-1]
+    ## Compute coverage and save it
+    final_cov = compute_cov(archive_data, ss_min,
+                            ss_max, dim_map,
+                            bd_inds, nb_div)
+
+    ## Get coverage and evals per gen
+    bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen.npz')
+    gen_covs = []
+    gen_evals = []
+    try:
+        bds_per_gen = np.load(bds_per_gen_fpath)
+    
+        total_evals = int(archive_fname.split('/')[-1].replace('.', '_').split('_')[1])
+        gen_covs, gen_evals = get_cov_per_gen(bds_per_gen, ss_min,
+                                              ss_max, dim_map,
+                                              bd_inds, nb_div,
+                                              total_evals)
+    except Exception as e:
+        print(f'Received error {e} when processing file: {bds_per_gen_fpath}')
+    ## Get archive BDs array and save it
+    archive_bds = archive_data[bd_cols].to_numpy()
+
+    return final_cov, gen_covs, gen_evals, archive_bds
+
 def main(args):
     ## Process command-line args
     plot_params = process_plot_args(args)
@@ -138,9 +189,16 @@ def main(args):
     # Get current working dir (folder from which py script was executed)
     root_wd = os.getcwd()
 
+    covs_per_gen = []
+    evals_per_gen = []
+
+    pool = Pool(10) ## use 10 cores (10 reps...)
     
     ## Go over methods (daqd, qd, qd_grid, ns)
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
+        covs_per_gen.append([])
+        evals_per_gen.append([])
+        
         print(f"Processing {ps_method} results on {args.environment}...")
         ## Go inside the policy search method folder
         # new working dir
@@ -162,24 +220,91 @@ def main(args):
         rep_cpt = 0
         all_psm_bds.append([])
         ## Go over repetitions
-        for rep_dir in rep_dirs:
-            ## get the last archive file name
-            archive_fname = filter_archive_fnames(rep_dir)
-            if archive_fname is None:
-                continue
-            ## Load it as a pandas dataframe
-            archive_data = pd_read_csv_fast(archive_fname)
-            # drop the last column which was made because there is a
-            # comma after last value i a line
-            archive_data = archive_data.iloc[:,:-1]
-            ## Compute coverage and save it
-            coverages[psm_cpt, rep_cpt] = compute_cov(archive_data, ss_min,
-                                                      ss_max, dim_map,
-                                                      bd_inds, nb_div)
-            ## Get archive BDs array and save it
-            archive_bds = archive_data[bd_cols].to_numpy()
+        
+        processed_results = pool.imap(process_rep, zip(rep_dirs,
+                                                      itertools.repeat(ss_min),
+                                                      itertools.repeat(ss_max),
+                                                      itertools.repeat(dim_map),
+                                                      itertools.repeat(bd_inds),
+                                                      itertools.repeat(nb_div),
+                                                      itertools.repeat(bd_cols)))
+        
+        # for rep_dir in rep_dirs:
+        #     ## get the last archive file name
+        #     archive_fname = filter_archive_fnames(rep_dir)
+        #     if archive_fname is None:
+        #         continue
+        #     ## Load it as a pandas dataframe
+        #     archive_data = pd_read_csv_fast(archive_fname)
+        #     # drop the last column which was made because there is a
+        #     # comma after last value i a line
+        #     archive_data = archive_data.iloc[:,:-1]
+        #     ## Compute coverage and save it
+        #     coverages[psm_cpt, rep_cpt] = compute_cov(archive_data, ss_min,
+        #                                               ss_max, dim_map,
+        #                                               bd_inds, nb_div)
+
+        #     bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen.npz')
+        #     bds_per_gen = np.load(bds_per_gen_fpath)
+        #     total_evals = int(archive_fname.split('/')[-1].replace('.', '_').split('_')[1])
+        #     gen_covs, gen_evals = get_cov_per_gen(bds_per_gen, ss_min,
+        #                                           ss_max, dim_map,
+        #                                           bd_inds, nb_div,
+        #                                           total_evals)
+        #     covs_per_gen[psm_cpt].append(gen_covs)
+        #     evals_per_gen[psm_cpt].append(gen_evals)
+        #     ## Get archive BDs array and save it
+        #     archive_bds = archive_data[bd_cols].to_numpy()
+        #     all_psm_bds[psm_cpt].append(archive_bds)
+        #     rep_cpt += 1
+    
+        for (final_cov, gen_covs, gen_evals, archive_bds) in processed_results:
+            coverages[psm_cpt, rep_cpt] = final_cov 
+            covs_per_gen[psm_cpt].append(gen_covs)
+            evals_per_gen[psm_cpt].append(gen_evals)
             all_psm_bds[psm_cpt].append(archive_bds)
             rep_cpt += 1
+            
+    pool.close()
+
+    fig, ax = plt.subplots()
+
+    psm_covs_medians = []
+    psm_n_evals_medians = []
+    psm_covs_1qs = []
+    psm_covs_3qs = []
+    
+    ## Reformat data to plot it properly per evals, only need to this for daqd
+    for (ps_method, psm_idx) in zip(ps_methods, range(len(ps_methods))):
+        max_gens = max([len(i) for i in covs_per_gen[psm_idx]])
+        for (cov_per_gen, eval_per_gen) in zip(covs_per_gen[psm_idx], evals_per_gen[psm_idx]):
+            if len(cov_per_gen) < max_gens:
+                for _ in range(max_gens-len(cov_per_gen)):
+                    cov_per_gen.append(np.nan)
+                    eval_per_gen.append(np.nan)
+                    
+        ## Compute median (excluding nans) for considered psm 
+        psm_covs_medians.append(np.nanmedian(covs_per_gen[psm_idx], axis=0))
+        psm_n_evals_medians.append(np.nanmedian(evals_per_gen[psm_idx], axis=0))
+        psm_covs_1qs.append(np.nanquantile(covs_per_gen[psm_idx], 1/4, axis=0))
+        psm_covs_3qs.append(np.nanquantile(covs_per_gen[psm_idx], 3/4, axis=0))
+
+        ax.plot(psm_n_evals_medians[psm_idx], psm_covs_medians[psm_idx],
+                label=ps_method)
+        ax.fill_between(psm_n_evals_medians[psm_idx],
+                        psm_covs_1qs[psm_idx],
+                        psm_covs_3qs[psm_idx],
+                        alpha=0.2)
+
+    ax.set_xlabel("Number of evaluations")
+    ax.set_ylabel("Archive coverage")
+    
+    plt.title(f'Archive coverage evolution of several EAs on {args.environment}')
+    fig.set_size_inches(35, 14)
+    plt.legend()
+    
+    plt.savefig(f"{args.environment}_coverage_vs_evals",
+                dpi=300, bbox_inches='tight')
 
     ## Handle plotting now
     ## Figure for boxplot of all methods on environment
@@ -211,8 +336,9 @@ def main(args):
         psm_bds = np.empty((len_psm_bds, dim_map))
         cur_len = 0
         for array_psm_bds in all_psm_bds[psm_cpt]:
-            psm_bds[cur_len:cur_len+len(array_psm_bds)] = array_psm_bds
-            cur_len += len(array_psm_bds)
+            if len(array_psm_bds) > 0:
+                psm_bds[cur_len:cur_len+len(array_psm_bds)] = array_psm_bds
+                cur_len += len(array_psm_bds)
             
         ax.scatter(x=psm_bds[:,0], y=psm_bds[:,1], s=30, alpha=0.3)
 
@@ -231,7 +357,8 @@ def main(args):
 if __name__ == '__main__':
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
-
+    warnings.filterwarnings("ignore", category=FutureWarning) ## for pandas frame.append
+    
     parser = argparse.ArgumentParser()
     parser.add_argument('--ps-methods', nargs="*",
                         type=str, default=['ns', 'qd', 'daqd'])
