@@ -456,6 +456,124 @@ class HexapodEnv:
         else: 
             return fitness, desc, obs_traj, act_traj
 
+    def simulate_model_ensemble_all(self, ctrls, sim_time, mean, disagr):
+        states_recorded = []
+        actions_recorded = []
+        model_disagrs = []
+        controllers = []
+
+        for ctrl in ctrls:
+            controllers.append(SinusoidController(ctrl, False, self.ctrl_freq))
+            controllers[-1].configure()
+
+
+        # initial state
+        # for this ensembles - the states need to be fed in the form of ensemble_size
+        # state and actions fed in as [ensemble_size, dim_size]
+        # ts expand and flatten takes care of the num particles/
+        ens_size = self.dynamics_model.ensemble_size
+
+        state = np.zeros(48)
+        state[5] = -0.014 # robot com height when feet on ground is 0.136m 
+
+        act_dim = 18
+        if not mean:
+            S = np.tile(state, (ens_size*len(ctrls), 1))
+            A = np.empty((ens_size*len(ctrls),
+                          act_dim))
+        else:
+            S = np.tile(state, (len(ctrls), 1))
+            A = np.empty((len(ctrls), act_dim))
+
+        
+        for t in np.arange(0.0, sim_time, 1/self.ctrl_freq):
+            for i in range(len(ctrls)):
+                action = controller.commanded_jointpos(t)
+                states_recorded.append(state)
+                actions_recorded.append(action)
+                s = ptu.from_numpy(state)
+                a = ptu.from_numpy(action)
+
+                a = a.repeat(self.dynamics_model.ensemble_size,1)
+
+                
+            #print("s shape: ", state.shape)
+            #print("a shape:", a.shape)
+            
+            # if probalistic dynamics model - choose output mean or sample
+            if disagr:
+                pred_delta_ns, _ = self.dynamics_model.sample_with_disagreement(torch.cat((self.dynamics_model._expand_to_ts_form(s), self.dynamics_model._expand_to_ts_form(a)), dim=-1))
+                pred_delta_ns = ptu.get_numpy(pred_delta_ns)
+                disagreement = self.compute_abs_disagreement(state, pred_delta_ns)
+                #print("Disagreement: ", disagreement.shape)
+                disagreement = ptu.get_numpy(disagreement) 
+                #disagreement = ptu.get_numpy(disagreement[0,3]) 
+                #disagreement = ptu.get_numpy(torch.mean(disagreement)) 
+                model_disagr.append(disagreement)
+                
+            else:
+                pred_delta_ns = self.dynamics_model.output_pred_ts_ensemble(s,a, mean=mean)
+                
+            #print("Samples: ", pred_delta_ns.shape)
+            #print(state.shape)
+            #print(pred_delta_ns.shape)            
+            state = pred_delta_ns + state 
+
+        final_pos = state[0] # for now just pick one model - but you have all models here
+        states_recorded = np.array(states_recorded)
+        actions_recorded = np.array(actions_recorded)
+        model_disagr = np.array(model_disagr)
+        
+        return final_pos, states_recorded, actions_recorded, model_disagr
+
+    def evaluate_solution_model_ensemble_all(self, ctrl, mean=True, disagreement=True):
+        sim_time = 3.0
+        final_poses, states_recs, actions_recs, disagrs = \
+            self.simulate_model_ensemble_all(
+                ctrl,
+                sim_time,
+                mean,
+                disagreement
+            )
+        
+        ## TODO, handle all data as batch of evals
+        s_record = states_rec[:,0,:]
+        #--------Compute BD (final x-y pos)-----------#
+        x_pos = final_pos[3]
+        y_pos = final_pos[4]
+        
+        # normalize BD
+        offset = 1.5 # in this case the offset is the saem for both x and y descriptors
+        fullmap_size = 3 # 8m for full map size 
+        x_desc = (x_pos + offset)/fullmap_size
+        y_desc = (y_pos + offset)/fullmap_size
+    
+        desc = [[x_desc,y_desc]]
+
+        last_s = np.empty((1, s_record.shape[1]))
+        last_s[0,:len(final_pos)] = final_pos
+        full_traj = np.vstack((s_record, last_s))
+        desc = self.compute_bd(full_traj)
+        #------------Compute Fitness-------------------#
+        beta = self.desired_angle(x_pos, y_pos)
+        final_rot_z = final_pos[2] # final yaw angle of the robot 
+        dist_metric = abs(self.angle_dist(beta, final_rot_z))
+        
+        fitness = -dist_metric
+
+        obs_traj = states_rec
+        act_traj = actions_rec
+
+        #------------ Absolute disagreement --------------#
+        # disagr is the abs disagreement trajectory for each dimension [300,1,48]
+        # can also save the entire disagreement trajectory - but we will take final mean dis
+        final_disagr = np.mean(disagr[-1,0,:])
+        
+        if disagreement:
+            return fitness, desc, obs_traj, act_traj, final_disagr
+        else: 
+            return fitness, desc, obs_traj, act_traj
+
 
     def evaluate_solution_uni(self, ctrl, render=False, video_name=None):
         '''
