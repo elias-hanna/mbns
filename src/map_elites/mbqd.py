@@ -330,14 +330,14 @@ class ModelBasedQD:
                 #to_evaluate = self.random_archive_init_model(to_evaluate) #init synthetic archive 
 
                 start = time.time()
-                ## real sys eval, we force parallel
+                ## real sys eval, we force parallel, then revert to real params value
+                parallel = params['parallel']
                 params['parallel'] =  True
                 s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params) #init real archive
-                params['parallel'] =  False
+                params['parallel'] =  parallel
                 #s_list = cm.parallel_eval(model_evaluate_, to_evaluate, pool, params) #init model
                 self.eval_time = time.time() - start 
                 self.archive, add_list, _ = self.addition_condition(s_list, self.archive, params)
-
             else:
                 print("Evaluation on model")
                 # variation/selection loop - select ind from archive to evolve                
@@ -414,10 +414,11 @@ class ModelBasedQD:
                     to_evaluate = []
                     for z in add_list_model: 
                         to_evaluate += [(z.x, self.f_real)]
-                    ## real sys eval, we force parallel
+                    ## real sys eval, we force parallel, then revert to real params value
+                    parallel = params['parallel']
                     params['parallel'] =  True
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
-                    params['parallel'] =  False
+                    params['parallel'] =  parallel
                     self.archive, add_list, discard_list = self.addition_condition(s_list, self.archive, params)
                     ## Create Species pairs for model eval and real eval
                     # nb: useful only if order is not preserved by parallel eval

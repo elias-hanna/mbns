@@ -224,10 +224,11 @@ class ModelBasedNS(NS):
                 print("Evaluation on real environment for initialization")
                 to_evaluate = self.random_archive_init(to_evaluate) # init real archive
                 start = time.time()
-                ## real sys eval, we force parallel
+                ## real sys eval, we force parallel, then revert to real params value
+                parallel = params['parallel']
                 params['parallel'] =  True
                 s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params) #init real archive
-                params['parallel'] =  False
+                params['parallel'] =  parallel
 
                 population = s_list
                 
@@ -256,10 +257,11 @@ class ModelBasedNS(NS):
                     to_evaluate = []
                     for z in add_list_model: 
                         to_evaluate += [(z.x, self.f_real)]
-                    ## real sys eval, we force parallel
+                    ## real sys eval, we force parallel, then revert to real params value
+                    parallel = params['parallel']
                     params['parallel'] =  True
                     s_list = cm.parallel_eval(evaluate_, to_evaluate, pool, params)
-                    params['parallel'] =  False
+                    params['parallel'] =  parallel
 
                     offspring = s_list
                     self.update_population_novelty(population,
