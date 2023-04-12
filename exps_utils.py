@@ -1248,10 +1248,8 @@ class WrappedEnv():
 
         s_0 = ptu.from_numpy(s_0)
         a_0 = ptu.from_numpy(a_0)
-        print(f"s0 on CPU: {s_0.cpu()}")
-        print(f"s0 on GPU: {s_0.cuda()}")
-        print(f"a0 on CPU: {a_0.cpu()}")
-        print(f"a0 on GPU: {a_0.cuda()}")
+        print(f"s0 on GPU: {s_0.is_cuda}")
+        print(f"a0 on GPU: {a_0.is_cuda}")
 
         # a_0 = a_0.repeat(self._dynamics_model.ensemble_size,1)
 
