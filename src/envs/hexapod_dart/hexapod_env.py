@@ -373,7 +373,6 @@ class HexapodEnv:
             #print(pred_delta_ns.shape)            
             state = pred_delta_ns + state 
 
-        import pdb; pdb.set_trace()
         final_pos = state[0] # for now just pick one model - but you have all models here
         states_recorded = np.array(states_recorded)
         actions_recorded = np.array(actions_recorded)
@@ -518,7 +517,6 @@ class HexapodEnv:
         final_poses = []
         for i in range(len(ctrls)):
             final_poses.append(S[i*ens_size:i*ens_size+ens_size][0])
-            
             states_recorded[i] = np.array(states_recorded[i])
             actions_recorded[i] = np.array(actions_recorded[i])
             model_disagrs[i] = np.array(model_disagrs[i])
@@ -580,7 +578,7 @@ class HexapodEnv:
             act_trajs.append(act_traj)
             disagr_trajs.append(final_disagr)
 
-        return fit_lst, bd_list, obs_trajs, act_trajs, disagr_trajs
+        return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def forward_multiple(self, A, S, mean=True, disagr=True, ensemble=True, det_ens=False):
         ## Takes a list of actions A and a list of states S we want to query the model from
