@@ -1222,8 +1222,8 @@ class WrappedEnv():
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
-            print(f"s0 on GPU: {s_0.is_cuda}")
-            print(f"a0 on GPU: {a_0.is_cuda}")
+            # print(f"s0 on GPU: {s_0.is_cuda}")
+            # print(f"a0 on GPU: {a_0.is_cuda}")
             return self.dynamics_model.output_pred_with_ts(
                     torch.cat((s_0, a_0), dim=-1),
                     mean=mean), [0]*len(s_0)
@@ -1232,8 +1232,8 @@ class WrappedEnv():
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
-            print(f"s0 on GPU: {s_0.is_cuda}")
-            print(f"a0 on GPU: {a_0.is_cuda}")
+            # print(f"s0 on GPU: {s_0.is_cuda}")
+            # print(f"a0 on GPU: {a_0.is_cuda}")
             return self.dynamics_model.output_pred(
                     torch.cat((s_0, a_0), dim=-1),
                     mean=mean), [0]*len(s_0)
@@ -1248,8 +1248,8 @@ class WrappedEnv():
 
         s_0 = ptu.from_numpy(s_0)
         a_0 = ptu.from_numpy(a_0)
-        print(f"s0 on GPU: {s_0.is_cuda}")
-        print(f"a0 on GPU: {a_0.is_cuda}")
+        # print(f"s0 on GPU: {s_0.is_cuda}")
+        # print(f"a0 on GPU: {a_0.is_cuda}")
 
         # a_0 = a_0.repeat(self._dynamics_model.ensemble_size,1)
 
