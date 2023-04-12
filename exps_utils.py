@@ -1138,8 +1138,8 @@ class WrappedEnv():
                     ## Don't use mean predictions and keep each particule trajectory
                     # Be careful, in that case there is no need to repeat each state in
                     # forward multiple function
-                    disagreement = self.compute_abs_disagreement(S[i*ens_size:i*ens_size+ens_size]
-                                                                 , batch_pred_delta_ns[i])
+                    disagreement = self.compute_abs_disagreement(S[i*ens_size:i*ens_size+ens_size],
+                                                                 batch_pred_delta_ns[i])
                     # print("Disagreement: ", disagreement.shape)
                     # print("Disagreement: ", disagreement)
                     disagreement = ptu.get_numpy(disagreement)
@@ -1222,6 +1222,10 @@ class WrappedEnv():
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
+            print(f"s0 on CPU: {s_0.cpu()}")
+            print(f"s0 on GPU: {s_0.cuda()}")
+            print(f"a0 on CPU: {a_0.cpu()}")
+            print(f"a0 on GPU: {a_0.cuda()}")
             return self.dynamics_model.output_pred_with_ts(
                     torch.cat((s_0, a_0), dim=-1),
                     mean=mean), [0]*len(s_0)
@@ -1230,6 +1234,10 @@ class WrappedEnv():
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
+            print(f"s0 on CPU: {s_0.cpu()}")
+            print(f"s0 on GPU: {s_0.cuda()}")
+            print(f"a0 on CPU: {a_0.cpu()}")
+            print(f"a0 on GPU: {a_0.cuda()}")
             return self.dynamics_model.output_pred(
                     torch.cat((s_0, a_0), dim=-1),
                     mean=mean), [0]*len(s_0)
@@ -1244,6 +1252,10 @@ class WrappedEnv():
 
         s_0 = ptu.from_numpy(s_0)
         a_0 = ptu.from_numpy(a_0)
+        print(f"s0 on CPU: {s_0.cpu()}")
+        print(f"s0 on GPU: {s_0.cuda()}")
+        print(f"a0 on CPU: {a_0.cpu()}")
+        print(f"a0 on GPU: {a_0.cuda()}")
 
         # a_0 = a_0.repeat(self._dynamics_model.ensemble_size,1)
 

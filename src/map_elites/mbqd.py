@@ -523,7 +523,6 @@ class ModelBasedQD:
                 print("Model train time: ", self.model_train_time)
                 evals_since_last_train = 0
 
-                ptu.set_gpu_mode(False)
             # count evals
             gen += 1 # generations
             n_evals += len(to_evaluate) # total number of  real evals
