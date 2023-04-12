@@ -1053,7 +1053,7 @@ class WrappedEnv():
         return fit_list, bd_list, obs_trajs, act_trajs, disagr_trajs
 
     def evaluate_solution_model_ensemble_all(self, ctrls, mean=True, disagr=True,
-                                                 render=False):
+                                             render=False):
         """
         Input: ctrl (array of floats) the genome of the individual
         Output: Trajectory and actions taken
