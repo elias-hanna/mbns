@@ -114,8 +114,6 @@ class ModelBasedQD:
                  bins=None,
                  log_dir='./',):
 
-        torch.set_num_threads(24)
-        
         self.qd_type = params["type"]    # QD type - grid, cvt, unstructured
         self.dim_map = dim_map           # number of BD dimensions  
         self.dim_x = dim_x               # gemotype size (number of genotype dim)
@@ -362,6 +360,7 @@ class ModelBasedQD:
                 '''
 
                 # uniform selection of emitter - other options is UCB
+                ptu.set_gpu_mode(False)
                 emitter = params["emitter_selection"] #np.random.randint(3)
                 if emitter == 0: 
                     add_list_model, to_model_evaluate = self.random_model_emitter(to_model_evaluate, pool, params)
@@ -371,7 +370,6 @@ class ModelBasedQD:
                     add_list_model, to_model_evaluate = self.random_walk_emitter(to_model_evaluate, pool, params, gen)
                 elif emitter == 3: 
                     add_list_model, to_model_evaluate = self.model_disagr_emitter(to_model_evaluate, pool, params, gen)
-
                     
                 ### REAL EVALUATIONS ###
                 if params['transfer_selection'] == 'disagr':
@@ -492,13 +490,17 @@ class ModelBasedQD:
             self.add_sa_to_buffer(s_list, self.replay_buffer)
             #print("Replay buffer size: ", self.replay_buffer._size)
             
-            if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]: 
-                # s_list are solutions that have been evaluated in the real setting
-                print("Training model")
+            if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]:
+
+                if torch.cuda.is_available():
+                    ptu.set_gpu_mode(True)
+                    print("Training model on GPU")
+                else:
+                    # s_list are solutions that have been evaluated in the real setting
+                    print("Training model on CPU")
                 start = time.time()
                 if params["model_variant"]=="dynamics" or params["model_variant"]=="all_dynamics":
                     # FOR DYNAMICS MODEL
-                    # torch.set_num_threads(24)
                     self.dynamics_model_trainer.train_from_buffer(self.replay_buffer, 
                                                                   holdout_pct=0.1,
                                                                   max_grad_steps=100000,
@@ -521,6 +523,7 @@ class ModelBasedQD:
                 print("Model train time: ", self.model_train_time)
                 evals_since_last_train = 0
 
+                ptu.set_gpu_mode(False)
             # count evals
             gen += 1 # generations
             n_evals += len(to_evaluate) # total number of  real evals
@@ -931,7 +934,6 @@ class ModelBasedQD:
         return list(s_list)
     
     def evaluate_solution_surrogate_model(self, gen):
-        #torch.set_num_threads(1)
         with torch.no_grad():
             x = ptu.from_numpy(gen)
             x = x.view(1, -1)
