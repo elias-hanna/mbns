@@ -166,6 +166,7 @@ class ParallelizedLayer(nn.Module):
         self.b = nn.Parameter(b_init, requires_grad=True)
 
     def forward(self, x):
+        ptu.to_current_device(self)
         # assumes x is 3D: (ensemble_size, batch_size, dimension)
         return x @ self.W + self.b
 
@@ -232,9 +233,27 @@ class ParallelizedEnsemble(nn.Module):
     def forward(self, input):
         dim = len(input.shape)
 
-        # input normalization
-        h = (input - self.input_mu) / self.input_std
+        # self_attrs = [attr for attr in dir(self) if not attr.startswith('__')]
 
+        # tensor_attrs = [attr for attr in self_attrs if torch.is_tensor(getattr(self, attr))]
+
+        # ## Put the tensors on the right device
+        # for tensor_name in tensor_attrs:
+        #     tensor = getattr(self, tensor_name)
+        #     if isinstance(tensor, torch.nn.Parameter):
+        #         tensor = tensor.to(ptu.device)
+        #         tensor = torch.nn.Parameter(tensor)
+        #     else:
+        #         tensor = tensor.to(ptu.device)
+        #     setattr(self, tensor_name, tensor)
+
+        ptu.to_current_device(self)
+        
+        try:
+            # input normalization
+            h = (input - self.input_mu) / self.input_std
+        except:
+            import pdb; pdb.set_trace()
         # repeat h to make amenable to parallelization
         # if dim = 3, then we probably already did this somewhere else
         # (e.g. bootstrapping in training optimization)

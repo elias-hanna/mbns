@@ -73,6 +73,22 @@ def gpu_enabled():
 def set_device(gpu_id):
     torch.cuda.set_device(gpu_id)
 
+def to_current_device(obj):
+    global device
+    self_attrs = [attr for attr in dir(obj) if not attr.startswith('__')]
+
+    tensor_attrs = [attr for attr in self_attrs if torch.is_tensor(getattr(obj, attr))]
+
+    ## Put the tensors on the right device
+    for tensor_name in tensor_attrs:
+        tensor = getattr(obj, tensor_name)
+        if isinstance(tensor, torch.nn.Parameter):
+            tensor = tensor.to(device)
+            tensor = torch.nn.Parameter(tensor)
+        else:
+            tensor = tensor.to(device)
+        setattr(obj, tensor_name, tensor)
+
 
 # noinspection PyPep8Naming
 def FloatTensor(*args, torch_device=None, **kwargs):
