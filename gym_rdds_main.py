@@ -176,9 +176,13 @@ def main(args):
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
 
-    nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
-    px['nov_l'] = nov_l
-    print(f'INFO: nov_l param set to {nov_l} for environment {args.environment}')
+    if args.environment != 'hexapod_omni':
+        nov_l = (1.5/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1.5% of BD space (maximum 100^bd_space_dim inds in archive)
+        if args.adaptive_novl:
+            px['nov_l'] = nov_l
+        
+    if args.qd_type == 'unstructured':
+        print(f'INFO: nov_l param set to {px["nov_l"]} for environment {args.environment}')
 
     ## Get the environment task horizon, observation and action space dimensions
     if not is_local_env:

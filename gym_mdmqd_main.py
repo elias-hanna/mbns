@@ -165,7 +165,7 @@ def main(args):
     bins = env_params['bins'] ## for grid based qd
 
     if args.environment != 'hexapod_omni':
-        nov_l = (1/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1% of BD space (maximum 100^bd_space_dim inds in archive)
+        nov_l = (1.5/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1.5% of BD space (maximum 100^bd_space_dim inds in archive)
         if args.adaptive_novl:
             px['nov_l'] = nov_l
 
