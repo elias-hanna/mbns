@@ -361,6 +361,14 @@ class ModelBasedQD:
 
                 # uniform selection of emitter - other options is UCB
                 ptu.set_gpu_mode(False)
+                ## Send model params to current device
+                ptu.to_current_device(self.dynamics_model)
+                ## And layers params to current device 
+                ptu.to_current_device(self.dynamics_model.fc0)
+                ptu.to_current_device(self.dynamics_model.fc1)
+                ptu.to_current_device(self.dynamics_model.fcs[0])
+                ptu.to_current_device(self.dynamics_model.fcs[1])
+                ptu.to_current_device(self.dynamics_model.last_fc)
                 emitter = params["emitter_selection"] #np.random.randint(3)
                 if emitter == 0: 
                     add_list_model, to_model_evaluate = self.random_model_emitter(to_model_evaluate, pool, params)
@@ -493,7 +501,16 @@ class ModelBasedQD:
             if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]:
 
                 if torch.cuda.is_available():
-                    ptu.set_gpu_mode(True)
+                    if not ptu._use_gpu:
+                        ptu.set_gpu_mode(True)
+                        ## Send model params to current device
+                        ptu.to_current_device(self.dynamics_model)
+                        ## And layers params to current device 
+                        ptu.to_current_device(self.dynamics_model.fc0)
+                        ptu.to_current_device(self.dynamics_model.fc1)
+                        ptu.to_current_device(self.dynamics_model.fcs[0])
+                        ptu.to_current_device(self.dynamics_model.fcs[1])
+                        ptu.to_current_device(self.dynamics_model.last_fc)
                     print("Training model on GPU")
                 else:
                     # s_list are solutions that have been evaluated in the real setting
