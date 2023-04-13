@@ -270,6 +270,16 @@ class ModelBasedQD:
                 
         return archive, add_list, discard_list
 
+    def dynamics_model_gpu_mode(self, mode):
+        ptu.set_gpu_mode(mode)
+        ## Send model params to current device
+        ptu.to_current_device(self.dynamics_model)
+        ## And layers params to current device 
+        ptu.to_current_device(self.dynamics_model.fc0)
+        ptu.to_current_device(self.dynamics_model.fc1)
+        ptu.to_current_device(self.dynamics_model.fcs[0])
+        ptu.to_current_device(self.dynamics_model.fcs[1])
+        ptu.to_current_device(self.dynamics_model.last_fc)
     
     # model based map-elites algorithm
     def compute(self,
@@ -359,16 +369,10 @@ class ModelBasedQD:
                 #print("Model discard list: ", len(discard_list_model))
                 '''
 
+                if ptu._use_gpu:
+                    ## Switch dynamics model to CPU
+                    self.dynamics_model_gpu_mode(False)
                 # uniform selection of emitter - other options is UCB
-                ptu.set_gpu_mode(False)
-                ## Send model params to current device
-                ptu.to_current_device(self.dynamics_model)
-                ## And layers params to current device 
-                ptu.to_current_device(self.dynamics_model.fc0)
-                ptu.to_current_device(self.dynamics_model.fc1)
-                ptu.to_current_device(self.dynamics_model.fcs[0])
-                ptu.to_current_device(self.dynamics_model.fcs[1])
-                ptu.to_current_device(self.dynamics_model.last_fc)
                 emitter = params["emitter_selection"] #np.random.randint(3)
                 if emitter == 0: 
                     add_list_model, to_model_evaluate = self.random_model_emitter(to_model_evaluate, pool, params)
@@ -502,15 +506,8 @@ class ModelBasedQD:
 
                 if torch.cuda.is_available():
                     if not ptu._use_gpu:
-                        ptu.set_gpu_mode(True)
-                        ## Send model params to current device
-                        ptu.to_current_device(self.dynamics_model)
-                        ## And layers params to current device 
-                        ptu.to_current_device(self.dynamics_model.fc0)
-                        ptu.to_current_device(self.dynamics_model.fc1)
-                        ptu.to_current_device(self.dynamics_model.fcs[0])
-                        ptu.to_current_device(self.dynamics_model.fcs[1])
-                        ptu.to_current_device(self.dynamics_model.last_fc)
+                        ## Switch dynamics model to GPU
+                        self.dynamics_model_gpu_mode(True)
                     print("Training model on GPU")
                 else:
                     # s_list are solutions that have been evaluated in the real setting
