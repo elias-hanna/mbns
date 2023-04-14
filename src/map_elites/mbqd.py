@@ -593,13 +593,19 @@ class ModelBasedQD:
                 if isinstance(self.archive, dict):
                     real_bd_traj_data = [s.obs_traj for s in self.archive.values()]
                     if len(self.model_archive.values()) > 0:
-                        model_bd_traj_data = [s.obs_traj for s in self.model_archive.values()]
+                        # model_bd_traj_data = [s.obs_traj for s in self.model_archive.values()]
+                        model_bd_traj_data = [s.obs_traj for s in add_list_model]
                         has_model_data = True
                 else:
                     real_bd_traj_data = [s.obs_traj for s in self.archive]
                     if len(self.model_archive) > 0:
-                        model_bd_traj_data = [s.obs_traj for s in self.model_archive]
+                        # model_bd_traj_data = [s.obs_traj for s in self.model_archive]
+                        if self.params['env_name'] == 'hexapod_omni':
+                            model_bd_traj_data = [s.obs_traj[:,0,:] for s in add_list_model]
+                        else:
+                            model_bd_traj_data = [s.obs_traj for s in add_list_model]
                         has_model_data = True
+
                 ## Format the bd data to plot with labels
                 all_bd_traj_data = []
                 all_bd_traj_data.append((real_bd_traj_data, 'real system'))

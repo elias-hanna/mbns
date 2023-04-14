@@ -76,7 +76,7 @@ def to_current_device(obj):
     global device
     self_attrs = [attr for attr in dir(obj) if not attr.startswith('__')]
     tensor_attrs = [attr for attr in self_attrs if torch.is_tensor(getattr(obj, attr))]
-    
+
     ## Put the tensors on the right device
     for tensor_name in tensor_attrs:
         tensor = getattr(obj, tensor_name)
@@ -90,7 +90,6 @@ def to_current_device(obj):
         ## Conserves if tensor/param is trainable or not
         tensor.requires_grad = requires_grad
         setattr(obj, tensor_name, tensor)
-
 
 # noinspection PyPep8Naming
 def FloatTensor(*args, torch_device=None, **kwargs):

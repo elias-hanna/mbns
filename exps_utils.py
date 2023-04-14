@@ -1638,10 +1638,10 @@ def get_env_params(args):
         env_params['act_dim'] = 18
         env_params['a_min'] = np.array([-1]*env_params['act_dim'])
         env_params['a_max'] = np.array([1]*env_params['act_dim'])
-        # env_params['obs_min'] = env_params['ss_min'] = np.array([-1]*env_params['obs_dim'])
-        # env_params['obs_max'] = env_params['ss_max'] = np.array([1]*env_params['obs_dim'])
-        env_params['obs_min'] = env_params['ss_min'] = np.array([(-1+1.5)/3]*env_params['obs_dim'])
-        env_params['obs_max'] = env_params['ss_max'] = np.array([(1+1.5)/3]*env_params['obs_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-1]*env_params['obs_dim'])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([1]*env_params['obs_dim'])
+        # env_params['obs_min'] = env_params['ss_min'] = np.array([(-1+1.5)/3]*env_params['obs_dim'])
+        # env_params['obs_max'] = env_params['ss_max'] = np.array([(1+1.5)/3]*env_params['obs_dim'])
         init_obs = np.zeros(48)
         init_obs[5] = -0.014 # robot com height when feet on ground is 0.136m 
         env_params['init_obs'] = init_obs
