@@ -540,9 +540,10 @@ class ModelBasedNS():
             if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]:
                 
                 if torch.cuda.is_available():
-                    ## Switch dynamics model to GPU
-                    print("Switched dynamics model to GPU")
-                    self.dynamics_model_gpu_mode(True)
+                    if not ptu._use_gpu:
+                        ## Switch dynamics model to GPU
+                        print("Switched dynamics model to GPU")
+                        self.dynamics_model_gpu_mode(True)
                     print("Training model on GPU")
                 else:
                     print("Training model on CPU")
