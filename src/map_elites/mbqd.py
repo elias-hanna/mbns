@@ -524,8 +524,8 @@ class ModelBasedQD:
                     # self.dynamics_model.cuda()
                     print("Training model on GPU")
                 else:
-                    # s_list are solutions that have been evaluated in the real setting
                     print("Training model on CPU")
+                # s_list are solutions that have been evaluated in the real setting
                 start = time.time()
                 if params["model_variant"]=="dynamics" or params["model_variant"]=="all_dynamics":
                     # FOR DYNAMICS MODEL

@@ -44,6 +44,7 @@ import multiprocessing
 
 # from scipy.spatial import cKDTree : TODO -- faster?
 from sklearn.neighbors import KDTree
+from sklearn.neighbors import NearestNeighbors
 
 from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
@@ -103,7 +104,7 @@ def model_evaluate_all_(T):
                                      act_traj=act_traj_list[i], model_dis=disagr_list[i]))
     return model_inds
 
-class ModelBasedNS(NS):
+class ModelBasedNS():
     def __init__(self,
                  dim_map, dim_x,
                  f_real, f_model,
@@ -112,9 +113,9 @@ class ModelBasedNS(NS):
                  params=cm.default_params,
                  log_dir='./',):
 
+        self.qd_type = params["type"]    # QD type - grid, cvt, unstructured
         self.dim_map = dim_map           # number of BD dimensions  
         self.dim_x = dim_x               # gemotype size (number of genotype dim)
-        self.bins = bins                 # grid shape - only for grid map elites
         self.params = params
 
         # 2 eval functions
@@ -167,8 +168,181 @@ class ModelBasedNS(NS):
         
         return to_evaluate
 
+    def random_archive_init(self, to_evaluate):
+        for i in range(0, self.params['pop_size']):
+            x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
+            to_evaluate += [(x, self.f_real)]
+        
+        return to_evaluate
+
+
+    def select_and_mutate(self, to_evaluate, archive, f, params, variation_operator=cm.variation, batch=False):
+
+        if (self.qd_type=="cvt") or (self.qd_type=="grid"):
+            keys = list(archive.keys())
+        elif (self.qd_type=="unstructured" or self.qd_type=="fixed"):
+            keys = archive
+                    
+        # we select all the parents at the same time because randint is slow
+        rand1 = np.random.randint(len(keys), size=self.params['batch_size'])
+        rand2 = np.random.randint(len(keys), size=self.params['batch_size'])
+            
+        for n in range(0, params['batch_size']):
+            # parent selection - mutation operators like iso_dd/sbx require 2 gen parents
+            if (self.qd_type == "cvt") or (self.qd_type=="grid"):
+                x = archive[keys[rand1[n]]]
+                y = archive[keys[rand2[n]]]
+            elif (self.qd_type == "unstructured" or self.qd_type == "fixed"):                    
+                x = archive[rand1[n]]
+                y = archive[rand2[n]]
+                
+            # copy & add variation
+            z = variation_operator(x.x, y.x, params)
+
+            if batch:
+                to_evaluate += [z]
+            else: 
+                to_evaluate += [(z, f)]
+
+        return to_evaluate
+    
+    def addition_condition(self, s_list, archive, params):
+        add_list = [] # list of solutions that were added
+        discard_list = []
+        if self.qd_type == "fixed":
+            if params['arch_sel'] ==  'random':
+                ## Randomly add lambda inds to archive
+                sel_s_list = np.random.choice(s_list, size=params['lambda'], replace=False)
+            elif params['arch_sel'] == 'nov' or params['arch_sel'] == 'novelty':
+                ## Add lambda inds to archive based on novelty
+                sorted_s_list = sorted(s_list, key=lambda x:x.nov, reverse=True)
+                sel_s_list = sorted_s_list[:params['lambda']]
+            discard_list = s_list.copy()
+            for s in sel_s_list:
+                archive.append(s)
+                add_list.append(s)
+                discard_list.remove(s)
+        else:
+            for s in s_list:
+                if self.qd_type == "unstructured":
+                    success = unstructured_container.add_to_archive(s, archive, params)
+                else:
+                    success = cvt.add_to_archive(s, s.desc, self.archive, self.kdt)
+                if success:
+                    add_list.append(s)
+                else:
+                    discard_list.append(s) #not important for alogrithm but to collect stats
+
+        return archive, add_list, discard_list
+    
     def model_condition(self, s_list, archive, params):
         return self.addition_condition(s_list, archive, params)
+    
+    def update_novelty_scores(self, pop, archive, k=15):
+        # Convert the dataset to a numpy array
+        all_bds = []
+        all_bds += [ind.desc for ind in pop] # pop is usually pop + offspring
+        all_bds += [ind.desc for ind in archive]
+        all_bds = np.array(all_bds)
+        novelty_scores = np.empty((len(all_bds)))
+        # Compute the k-NN of the data point
+        neighbors = NearestNeighbors(n_neighbors=k)
+        neighbors.fit(all_bds)
+
+        ## New way
+        neigh_dists, neigh_inds = neighbors.kneighbors()
+        for ind, dists in zip(pop, neigh_dists):
+            ind.nov = np.mean(dists)
+
+    # nov: min takes minimum of novelty from all models, mean takes the mean
+    def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='sum', norm=False):
+        # Get novelty scores on all models of ensemble individually
+        ind_novs = []
+        ens_size = self.params['ensemble_size']
+        if self.params["include_target"]:
+            ens_size += 1
+        for i in range(ens_size):
+            ind_novs.append([])
+            # Convert the dataset to a numpy array
+            all_bds = []
+            all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
+                        for ind in pop] # pop is usually pop + offspring 
+
+            all_bds += [ind.desc[i*self.dim_map:i*self.dim_map+self.dim_map]
+                        for ind in archive]
+            all_bds = np.array(all_bds)
+
+            novelty_scores = np.empty((len(all_bds)))
+            # Compute the k-NN of the data point
+            neighbors = NearestNeighbors(n_neighbors=k)
+            neighbors.fit(all_bds)
+
+            ## New way
+            neigh_dists, neigh_inds = neighbors.kneighbors()
+            for idx, dists in zip(range(len(pop)), neigh_dists):
+                novelty_scores[idx] = np.mean(dists)
+            max_nov = np.max(novelty_scores)
+            min_nov = np.min(novelty_scores)
+            novelty_scores = (novelty_scores - min_nov)/(max_nov - min_nov)
+
+            for idx in range(len(pop)):
+                ind_novs[i].append(novelty_scores[idx])
+                
+            # if norm:
+            #     max_bd = np.max(all_bds, axis=0)
+            #     min_bd = np.min(all_bds, axis=0)
+            #     all_bds = (all_bds - min_bd)/(max_bd - min_bd)
+            # # Compute the k-NN of the data point
+            # neighbors = NearestNeighbors(n_neighbors=k)
+            # neighbors.fit(all_bds)
+
+            # ## New way
+            # neigh_dists, neigh_inds = neighbors.kneighbors()
+            # for ind, dists in zip(pop, neigh_dists):
+            #     ind_novs[i].append(np.mean(dists))
+
+        ind_novs = np.array(ind_novs)
+        # update all individuals nov by minimum of novelty on all environments
+        for i in range(len(pop)):
+            if nov == 'min':
+                pop[i].nov = np.min(ind_novs[:,i])
+            elif nov == 'mean':
+                pop[i].nov = np.mean(ind_novs[:,i])
+            elif nov == 'sum':
+                pop[i].nov = sum(ind_novs[:,i])
+
+    def update_population_novelty(self, population, offspring, archive, params):
+        ## Update population nov (pop + offsprings)
+        ensembling = False
+        if 'model_type' in params:
+            if 'perfect_model_on' in params:
+                if params['perfect_model_on']:
+                    ensembling = False
+            elif params['model_type'] == 'det':
+                ensembling = False
+            else:
+                ensembling = True
+        if ensembling:
+            self.update_novelty_scores_ensemble(population + offspring,
+                                                archive,
+                                                nov=params['nov_ens'],
+                                                norm=params['norm_bd'])
+        else:
+            self.update_novelty_scores(population + offspring, archive)
+
+    def dynamics_model_gpu_mode(self, mode):
+        ptu.set_gpu_mode(mode)
+        ## Send model params to current device
+        ptu.to_current_device(self.dynamics_model)
+        ## And layers params to gpu or cpu
+        if mode:
+            self.dynamics_model.fc0.cuda()
+            self.dynamics_model.fc1.cuda()
+            self.dynamics_model.last_fc.cuda()
+        else:
+            self.dynamics_model.fc0.cpu()
+            self.dynamics_model.fc1.cpu()
+            self.dynamics_model.last_fc.cpu()
     
     # model based map-elites algorithm
     def compute(self,
@@ -245,11 +419,26 @@ class ModelBasedNS(NS):
                 model_population = population.copy()
                 
                 tmp_archive = self.archive.copy() # tmp archive for stats of negatives
+
+                if ptu._use_gpu:
+                    ## Switch dynamics model to CPU
+                    print("Switched dynamics model to CPU")
+                    self.dynamics_model_gpu_mode(False)
+                
                 # uniform selection of emitter - other options is UCB
                 emitter = params["emitter_selection"] #np.random.randint(3)
 
                 if emitter == 0: 
-                    add_list_model, to_model_evaluate = novelty_search_emitter(to_model_evaluate, model_population, pool, params)
+                    model_population, to_model_evaluate = self.novelty_search_emitter(
+                        to_model_evaluate,
+                        model_population,
+                        pool,
+                        params)
+
+                    ## Filter out the individuals that remained in population
+                    add_list_model = [ind for ind in model_population if ind not in population]
+                    
+                    
                 ### REAL EVALUATIONS ###    
                 # if model finds novel solutions - evaluate in real setting
                 if len(add_list_model) > 0:
@@ -269,7 +458,8 @@ class ModelBasedNS(NS):
                                                    self.archive,
                                                    params)
                     
-                    self.archive, add_list, discard_list = self.addition_condition(offspring, self.archive, params)
+                    self.archive, add_list, discard_list = self.addition_condition(
+                        offspring, self.archive, params)
 
                     ## Update population
                     sorted_pop = sorted(population + offspring,
@@ -347,9 +537,16 @@ class ModelBasedNS(NS):
             self.add_sa_to_buffer(s_list, self.replay_buffer)
             #print("Replay buffer size: ", self.replay_buffer._size)
             
-            if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]: 
+            if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]:
+                
+                if torch.cuda.is_available():
+                    ## Switch dynamics model to GPU
+                    print("Switched dynamics model to GPU")
+                    self.dynamics_model_gpu_mode(True)
+                    print("Training model on GPU")
+                else:
+                    print("Training model on CPU")
                 # s_list are solutions that have been evaluated in the real setting
-                print("Training model")
                 start = time.time()
                 if params["model_variant"]=="dynamics" or params["model_variant"]=="all_dynamics":
                     # FOR DYNAMICS MODEL
@@ -394,8 +591,9 @@ class ModelBasedNS(NS):
                 print("Save archive and model time: ", save_end)
             elif params['dump_mode'] == 'gen':
                 save_start = time.time()
-                
+            
                 # write archive
+                #print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
                 print("[{}/{}]".format(n_evals, int(max_evals)))
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
                 ## Also save model archive for more visualizations
@@ -407,13 +605,19 @@ class ModelBasedNS(NS):
                 if isinstance(self.archive, dict):
                     real_bd_traj_data = [s.obs_traj for s in self.archive.values()]
                     if len(self.model_archive.values()) > 0:
-                        model_bd_traj_data = [s.obs_traj for s in self.model_archive.values()]
+                        # model_bd_traj_data = [s.obs_traj for s in self.model_archive.values()]
+                        model_bd_traj_data = [s.obs_traj for s in add_list_model]
                         has_model_data = True
                 else:
                     real_bd_traj_data = [s.obs_traj for s in self.archive]
                     if len(self.model_archive) > 0:
-                        model_bd_traj_data = [s.obs_traj for s in self.model_archive]
+                        # model_bd_traj_data = [s.obs_traj for s in self.model_archive]
+                        if self.params['env_name'] == 'hexapod_omni':
+                            model_bd_traj_data = [s.obs_traj[:,0,:] for s in add_list_model]
+                        else:
+                            model_bd_traj_data = [s.obs_traj for s in add_list_model]
                         has_model_data = True
+
                 ## Format the bd data to plot with labels
                 all_bd_traj_data = []
                 all_bd_traj_data.append((real_bd_traj_data, 'real system'))
@@ -430,6 +634,7 @@ class ModelBasedNS(NS):
 
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
+                
                 
             # write log -  write log every generation 
             if (self.qd_type=="cvt") or (self.qd_type=="grid"):
@@ -518,8 +723,9 @@ class ModelBasedNS(NS):
         add_list_model_final = []
         all_model_eval = []
         gen = 0
-        while len(add_list_model_final) < params['min_found_model']:
+        # while len(add_list_model_final) < params['min_found_model']:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
+        for model_gen in range(params['model_budget_gen']):
             to_model_evaluate=[]
 
             to_model_evaluate = self.select_and_mutate(to_model_evaluate,
@@ -540,13 +746,15 @@ class ModelBasedNS(NS):
                                            model_offspring,
                                            self.model_archive,
                                            params)
-            
+
             self.model_archive, add_list_model, discard_list_model = self.addition_condition(model_offspring, self.model_archive, params)
 
             ## Update population
-            sorted_model_pop = sorted(model_population + model_offspring,
+            model_sorted_pop = sorted(model_population + model_offspring,
                                       key=lambda x:x.nov, reverse=True)
-            filtered_s_model_pop = [ind for ind in model_sorted_pop if ind not in self.model_archive]
+            # filtered_s_model_pop = [ind for ind in model_sorted_pop if ind not in self.model_archive]
+            filtered_s_model_pop = model_sorted_pop
+            
             model_population = filtered_s_model_pop[:params['pop_size']]
 
             ### Need to think of what individuals to select for transfer
@@ -554,10 +762,16 @@ class ModelBasedNS(NS):
             all_model_eval += to_model_evaluate # count all inds evaluated by model
             print(f'Individuals evaluated on model: {len(s_list_model)}\nCurrent valid population at gen {gen}: {len(add_list_model_final)}')
             gen += 1
-            
+
         self.model_eval_time = time.time() - start
         print(f"Novelty Search emitter ended in {self.model_eval_time} after {gen} gen")
-        return add_list_model_final, all_model_eval
+
+        if params['model_ns_return'] == 'archive':
+            return self.model_archive, all_model_eval
+        elif params['model_ns_return'] == 'population':
+            return model_population, all_model_eval
+        # return add_list_model_final, all_model_eval
+        # return model_population, all_model_eval
 
     def add_sa_to_buffer(self, s_list, replay_buffer):
         for sol in s_list:

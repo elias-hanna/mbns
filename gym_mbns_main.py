@@ -1,7 +1,7 @@
 #----------Algo imports--------#
 from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
-from src.map_elites.mbqd import ModelBasedQD
+from src.map_elites.mbns import ModelBasedNS
 
 from exps_utils import get_dynamics_model, get_surrogate_model, \
     get_observation_model, addition_condition, evaluate_, evaluate_all_, \
@@ -29,18 +29,6 @@ import gym
 from exps_utils import get_env_params
 from exps_utils import WrappedEnv
 
-#----------Init methods imports--------#
-from model_init_study.initializers.random_policy_initializer \
-    import RandomPolicyInitializer
-from model_init_study.initializers.random_actions_initializer \
-    import RandomActionsInitializer
-from model_init_study.initializers.random_actions_random_policies_hybrid_initializer \
-    import RARPHybridInitializer
-from model_init_study.initializers.brownian_motion \
-    import BrownianMotion
-from model_init_study.initializers.colored_noise_motion \
-    import ColoredNoiseMotion
-
 #----------Data manipulation imports--------#
 import numpy as np
 import copy
@@ -66,7 +54,11 @@ def main(args):
     {
         # type of qd 'unstructured, grid, cvt'
         "type": args.qd_type,
-        
+        # arg for NS
+        "pop_size": args.pop_size,
+        # args for MBNS
+        "model_budget_gen": 10,
+        "model_ns_return": args.model_ns_return,
         # more of this -> higher-quality CVT
         "cvt_samples": 25000,
         "cvt_use_cache": True,
@@ -149,44 +141,17 @@ def main(args):
         "transfer_selection": args.transfer_selection,
         "nb_transfer": args.nb_transfer,
         'env_name': args.environment,
-        'init_method': args.init_method,
+        'init_method': 'vanilla',
         'plot_functor': plot_cov_and_trajs,
         'args': args,
     }
 
-    
+    ## Set archive to fixed number of adds per gen as we are doing NS here
+    px['type'] = 'fixed'
+            
     #########################################################################
     ####################### Preparation of run ##############################
     #########################################################################
-    
-    noise_beta = 2
-    if args.init_method == 'random-policies':
-        Initializer = RandomPolicyInitializer
-    elif args.init_method == 'random-actions':
-        Initializer = RandomActionsInitializer
-    elif args.init_method == 'rarph':
-        Initializer = RARPHybridInitializer
-    elif args.init_method == 'brownian-motion':
-        Initializer = BrownianMotion
-    elif args.init_method == 'levy-flight':
-        Initializer = LevyFlight
-    elif args.init_method == 'colored-noise-beta-0':
-        Initializer = ColoredNoiseMotion
-        noise_beta = 0
-    elif args.init_method == 'colored-noise-beta-1':
-        Initializer = ColoredNoiseMotion
-        noise_beta = 1
-    elif args.init_method == 'colored-noise-beta-2':
-        Initializer = ColoredNoiseMotion
-        noise_beta = 2
-    elif args.init_method == 'no-init':
-        ## this will do uninitialized model daqd
-        pass
-    elif args.init_method == 'vanilla':
-        ## This will do vanilla daqd
-        pass
-    else:
-        raise Exception(f"Warning {args.init_method} isn't a valid initializer")
     
     env_params = get_env_params(args)
 
@@ -204,12 +169,12 @@ def main(args):
     dim_map = env_params['dim_map']
     bd_inds = env_params['bd_inds']
     bins = env_params['bins'] ## for grid based qd
-    
+
     if args.environment != 'hexapod_omni':
         nov_l = (1.5/100)*(np.max(ss_max[bd_inds]) - np.min(ss_min[bd_inds]))# 1.5% of BD space (maximum 100^bd_space_dim inds in archive)
         if args.adaptive_novl:
             px['nov_l'] = nov_l
-        
+
     if args.qd_type == 'unstructured':
         print(f'INFO: nov_l param set to {px["nov_l"]} for environment {args.environment}')
 
@@ -266,7 +231,7 @@ def main(args):
     {
         'obs_dim': state_dim,
         'action_dim': act_dim,
-        'layer_size': [500, 400],
+        'layer_size': [50, 40],
         # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
@@ -343,6 +308,7 @@ def main(args):
         'dim_map': dim_map,
         'bd_inds': bd_inds,
         'bins': bins,
+
         ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
@@ -352,17 +318,6 @@ def main(args):
         ## Dump params/ memory gestion params
         "log_ind_trajs": args.log_ind_trajs,
         "dump_ind_trajs": args.dump_ind_trajs,
-        ## Model Init Study params
-        'n_init_episodes': args.init_episodes,
-        # 'n_test_episodes': int(.2*args.init_episodes), # 20% of n_init_episodes
-        'n_test_episodes': 2,
-        'action_init': 0,
-        ## Random walks parameters
-        'step_size': 0.1,
-        'noise_beta': noise_beta,
-        ## RA parameters
-        'action_lasting_steps': 5,
-
     }
     px['dab_params'] = params
     px['min'] = params['policy_param_init_min']
@@ -384,7 +339,7 @@ def main(args):
     px['dim_x'] = dim_x
     
     surrogate_model_params['gen_dim'] = dim_x
-    
+
     ## Get the various models we need for the run
     dynamics_model, dynamics_model_trainer = get_dynamics_model(params)
     if observation_model_params:
@@ -398,21 +353,10 @@ def main(args):
         action_dim=act_dim,
         env_info_sizes=dict(),
     )
-
-    ## Initialize model with wnb from previous run if an init method is to be used
-    if args.init_method != 'no-init' and args.init_method != 'vanilla':
-        if args.init_data_path is not None:
-            data_path = args.init_data_path
-            path = f'{data_path}/{args.environment}_results/{args.rep}/'\
-                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
-        else:
-            import src
-            path_to_src = src.__path__[0]
-            module_path = f'{path_to_src}/..'
-            path = f'{module_path}/data/{args.environment}_results/{args.rep}/'\
-                f'{args.environment}_{args.init_method}_{args.init_episodes}_model_wnb.pt'
-        dynamics_model.load_state_dict(torch.load(path))
-        dynamics_model.eval()
+        
+    if observation_model_params:
+        observation_model = get_observation_model(params)
+    surrogate_model, surrogate_model_trainer = get_surrogate_model(surrogate_model_params)
 
     if not is_local_env:
         env.set_dynamics_model(dynamics_model)
@@ -432,7 +376,7 @@ def main(args):
     ## Else if we evaluate on the generated random models we use one of below
     elif args.model_variant == "dynamics" :
         if args.model_type == "det":
-            f_model = env.evaluate_solution_model 
+            f_model = env.evaluate_solution_multi_model
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble
     elif args.model_variant == "all_dynamics":
@@ -443,17 +387,13 @@ def main(args):
         elif args.model_type == "prob":
             f_model = env.evaluate_solution_model_ensemble_all
 
-    mbqd = ModelBasedQD(dim_map, dim_x,
+    mbns = ModelBasedNS(dim_map, dim_x,
                         f_real, f_model,
-                        surrogate_model, surrogate_model_trainer,
                         dynamics_model, dynamics_model_trainer,
-                        replay_buffer, 
-                        n_niches=args.n_niches,
-                        params=px, bins=bins,
-                        log_dir=args.log_dir)
+                        replay_buffer,
+                        params=px, log_dir=args.log_dir)
 
-    #mbqd.compute(num_cores_set=cpu_count()-1, max_evals=args.max_evals)
-    archive, n_evals = mbqd.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    archive, n_evals = mbns.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
     
     cm.save_archive(archive, f"{n_evals}_real_all", px, args.log_dir)
         
@@ -529,10 +469,12 @@ def main(args):
 
     print()
     print(f'Finished performing mbqd search successfully.')
+
     
 if __name__ == "__main__":
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
+    warnings.filterwarnings("ignore", category=RuntimeWarning) 
 
     parser = argparse.ArgumentParser()
     args = process_args(parser)

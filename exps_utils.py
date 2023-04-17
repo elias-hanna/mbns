@@ -1939,7 +1939,8 @@ def process_args(parser):
     parser.add_argument('--train-freq-gen', type=int, default=500)
     parser.add_argument('--train-freq-eval', type=int, default=500)
     parser.add_argument('--no-training', action='store_true')
-
+    #-------------MBNS params-----------#
+    parser.add_argument('--model-ns-return', type=str, default='population')
     #-----------Controller params--------#
     parser.add_argument('--c-type', type=str, default='ffnn') # Type of controller to use
     parser.add_argument('--norm-controller-input', type=int, default=1) # minmax Normalize input space

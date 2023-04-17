@@ -138,8 +138,6 @@ class NS:
                  params=cm.default_params,
                  log_dir='./',):
 
-        #torch.set_num_threads(24)
-        
         self.qd_type = params["type"]    # QD type - grid, cvt, unstructured
         self.dim_map = dim_map           # number of BD dimensions  
         self.dim_x = dim_x               # gemotype size (number of genotype dim)
