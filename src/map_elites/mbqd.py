@@ -274,12 +274,22 @@ class ModelBasedQD:
         ptu.set_gpu_mode(mode)
         ## Send model params to current device
         ptu.to_current_device(self.dynamics_model)
+        ## And layers params to gpu or cpu
+        if mode:
+            self.dynamics_model.fc0.cuda()
+            self.dynamics_model.fc1.cuda()
+            self.dynamics_model.last_fc.cuda()
+        else:
+            self.dynamics_model.fc0.cpu()
+            self.dynamics_model.fc1.cpu()
+            self.dynamics_model.last_fc.cpu()
+            
         ## And layers params to current device 
-        ptu.to_current_device(self.dynamics_model.fc0)
-        ptu.to_current_device(self.dynamics_model.fc1)
-        ptu.to_current_device(self.dynamics_model.fcs[0])
-        ptu.to_current_device(self.dynamics_model.fcs[1])
-        ptu.to_current_device(self.dynamics_model.last_fc)
+        # ptu.to_current_device(self.dynamics_model.fc0)
+        # ptu.to_current_device(self.dynamics_model.fc1)
+        # ptu.to_current_device(self.dynamics_model.fcs[0])
+        # ptu.to_current_device(self.dynamics_model.fcs[1])
+        # ptu.to_current_device(self.dynamics_model.last_fc)
     
     # model based map-elites algorithm
     def compute(self,
@@ -371,7 +381,9 @@ class ModelBasedQD:
 
                 if ptu._use_gpu:
                     ## Switch dynamics model to CPU
+                    print("Switched dynamics model to CPU")
                     self.dynamics_model_gpu_mode(False)
+                    # self.dynamics_model.cpu()
                 # uniform selection of emitter - other options is UCB
                 emitter = params["emitter_selection"] #np.random.randint(3)
                 if emitter == 0: 
@@ -505,9 +517,11 @@ class ModelBasedQD:
             if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]:
 
                 if torch.cuda.is_available():
-                    if not ptu._use_gpu:
-                        ## Switch dynamics model to GPU
-                        self.dynamics_model_gpu_mode(True)
+                    # if not ptu._use_gpu:
+                    ## Switch dynamics model to GPU
+                    print("Switched dynamics model to GPU")
+                    self.dynamics_model_gpu_mode(True)
+                    # self.dynamics_model.cuda()
                     print("Training model on GPU")
                 else:
                     # s_list are solutions that have been evaluated in the real setting

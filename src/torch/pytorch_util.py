@@ -84,7 +84,7 @@ def to_current_device(obj):
         ## Check if its a tensor or param
         if isinstance(tensor, torch.nn.Parameter):
             tensor = tensor.to(device)
-            tensor = torch.nn.Parameter(tensor)
+            tensor = torch.nn.Parameter(tensor, requires_grad=requires_grad)
         else:
             tensor = tensor.to(device)
         ## Conserves if tensor/param is trainable or not
