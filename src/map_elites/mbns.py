@@ -437,7 +437,7 @@ class ModelBasedNS():
 
                     ## Filter out the individuals that remained in population
                     add_list_model = [ind for ind in model_population if ind not in population]
-                    
+                    add_list_model = [ind for ind in model_population if ind not in self.archive]
                     
                 ### REAL EVALUATIONS ###    
                 # if model finds novel solutions - evaluate in real setting
