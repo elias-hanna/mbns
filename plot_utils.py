@@ -171,6 +171,9 @@ def main(args):
     a_max = env_params['a_max'] 
     ss_min = env_params['ss_min']
     ss_max = env_params['ss_max']
+    if env_name == 'hexapod_omni':
+        ss_min = (ss_min+1.5)/3
+        ss_max = (ss_max+1.5)/3
     init_obs = env_params['init_obs'] 
     state_dim = env_params['state_dim']
     obs_min = env_params['obs_min']
@@ -202,7 +205,7 @@ def main(args):
         print(f"Processing {ps_method} results on {args.environment}...")
         ## Go inside the policy search method folder
         # new working dir
-        if ps_method == 'daqd':
+        if ps_method == 'daqd' or 'mbns' in ps_method:
             method_wd = os.path.join(root_wd,
                                      f'{env_name}_{ps_method}_results/ffnn_2l_10n_prob_4_h-1_1wps_results/')
         else:

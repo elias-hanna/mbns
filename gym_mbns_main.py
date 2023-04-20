@@ -147,7 +147,10 @@ def main(args):
     }
 
     ## Set archive to fixed number of adds per gen as we are doing NS here
-    px['type'] = 'fixed'
+    if args.algo == 'mbnslc':
+        px['type'] = 'unstructured'
+    else:
+        px['type'] = 'fixed'
             
     #########################################################################
     ####################### Preparation of run ##############################

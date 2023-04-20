@@ -134,7 +134,8 @@ class ModelBasedQD:
         elif params["model_variant"]=="direct":
             self.f_model = self.evaluate_solution_surrogate_model 
             print("Direct Model Variant")
-            
+
+        self.params['on_model'] = False
         # Model and Model trainer init -
         # initialize the classes outside this class and pass in
         self.model = model # refers to the direct qd surrogate model
