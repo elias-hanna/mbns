@@ -60,7 +60,7 @@ def main(args):
         "model_budget_gen": 10,
         "adaptive_model_budget_gen": True,
         "model_ns_return": args.model_ns_return,
-        "model_discard_out_of_bs": True,
+        "model_discard_out_of_bs": False,
         # more of this -> higher-quality CVT
         "cvt_samples": 25000,
         "cvt_use_cache": True,
@@ -234,7 +234,7 @@ def main(args):
     {
         'obs_dim': state_dim,
         'action_dim': act_dim,
-        'layer_size': [50, 40],
+        'layer_size': [500, 400],
         # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
