@@ -470,10 +470,12 @@ class ModelBasedNS():
                         params)
                     self.qd_type = 'fixed'
                     
-                ## Filter out the individuals that remained in population
+                ## Filter out the individuals already evaluated that remained in population
                 add_list_model = [ind for ind in model_population if ind not in population]
                 add_list_model = [ind for ind in model_population if ind not in self.archive]
-                    
+                add_list_model = [ind for ind in model_population if ind.model_dis != 0]
+
+
                 ### REAL EVALUATIONS ###    
                 # if model finds novel solutions - evaluate in real setting
                 if len(add_list_model) == 0:
@@ -894,9 +896,14 @@ class ModelBasedNS():
         print(f"Novelty Search emitter ended in {self.model_eval_time} after {gen} gen")
 
         params['on_model'] = False
+        print("Portion of individuals to eval that come from model evals: ")
         if params['model_ns_return'] == 'archive':
+            print(len([0 for i in self.model_archive if len(i.obs_traj.shape)>2])
+                  /len(self.model_archive))
             return self.model_archive, all_model_eval
         elif params['model_ns_return'] == 'population':
+            print(len([0 for i in model_population if len(i.obs_traj.shape)>2])
+                  /len(model_population))
             return model_population, all_model_eval
         # return add_list_model_final, all_model_eval
         # return model_population, all_model_eval
