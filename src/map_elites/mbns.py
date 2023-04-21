@@ -252,12 +252,16 @@ class ModelBasedNS():
 
         ## New way
         neigh_dists, neigh_inds = neighbors.kneighbors()
+        # if on_model:
+            # import pdb; pdb.set_trace()
         for ind, dists in zip(pop, neigh_dists):
             ind.nov = np.mean(dists)
-            if on_model:
+            # if on_model:
+                ## Handle real sys evals
                 # if ind.model_dis != 0:
-                ind.nov /= ind.model_dis
-            
+                    # ind.nov = ind.model_dis
+                
+                    
     # nov: min takes minimum of novelty from all models, mean takes the mean
     def update_novelty_scores_ensemble(self, pop, archive, k=15, nov='sum', norm=False):
         # Get novelty scores on all models of ensemble individually
@@ -384,6 +388,8 @@ class ModelBasedNS():
         bds_per_gen = {}
         # main loop
         while (n_evals < max_evals):
+            # uniform selection of emitter - other options is UCB
+            emitter = params["emitter_selection"] #np.random.randint(3)
             # lists of individuals we want to evaluate (list of tuples) for this gen
             # each entry in the list is a tuple of the genotype and the evaluation function
             to_evaluate = []
@@ -400,7 +406,7 @@ class ModelBasedNS():
             self.model_train_time = 0
             
             # random initialization of archive - start up
-            if len(self.archive) == 0 and params['init_method'] == 'vanilla': 
+            if len(self.archive) == 0: 
                 print("Evaluation on real environment for initialization")
                 to_evaluate = self.random_archive_init(to_evaluate) # init real archive
                 start = time.time()
@@ -411,6 +417,7 @@ class ModelBasedNS():
                 params['parallel'] =  parallel
 
                 population = s_list
+                self.population = population
                 
                 self.eval_time = time.time() - start 
 
@@ -426,17 +433,21 @@ class ModelBasedNS():
                 print("Evaluation on model")
                 # variation/selection loop - select ind from archive to evolve                
                 self.model_archive = self.archive.copy()
+                if emitter == 1:
+                    self.model_archive = population.copy()
+                    
                 model_population = population.copy()
 
-                ## Adaptive number of generations on model
-                model_budget_gen = np.floor(self.params['max_model_budget_gen']*0.2)
-                if n_evals/max_evals >= .1: ## Increase linearly until 10 gen at .9
-                    model_budget_gen += np.ceil((n_evals/max_evals - 0.1)*
-                                                self.params['max_model_budget_gen'])
-                if model_budget_gen > self.params['max_model_budget_gen']:
-                    model_budget_gen = self.params['max_model_budget_gen']
-                    
-                params['model_budget_gen'] = int(model_budget_gen)
+                if params['adaptive_model_budget_gen']:
+                    ## Adaptive number of generations on model
+                    model_budget_gen = np.floor(self.params['max_model_budget_gen']*0.2)
+                    if n_evals/max_evals >= .1: ## Increase linearly until 10 gen at .9
+                        model_budget_gen += np.ceil((n_evals/max_evals - 0.1)*
+                                                    self.params['max_model_budget_gen'])
+                    if model_budget_gen > self.params['max_model_budget_gen']:
+                        model_budget_gen = self.params['max_model_budget_gen']
+
+                    params['model_budget_gen'] = int(model_budget_gen)
 
                 tmp_archive = self.archive.copy() # tmp archive for stats of negatives
 
@@ -445,23 +456,29 @@ class ModelBasedNS():
                     print("Switched dynamics model to CPU")
                     self.dynamics_model_gpu_mode(False)
                 
-                # uniform selection of emitter - other options is UCB
-                # emitter = params["emitter_selection"] #np.random.randint(3)
-
-                # if emitter == 0: 
-                model_population, to_model_evaluate = self.novelty_search_emitter(
-                    to_model_evaluate,
-                    model_population,
-                    pool,
-                    params)
-
+                if emitter == 0: 
+                    model_population, to_model_evaluate = self.novelty_search_emitter(
+                        to_model_evaluate,
+                        model_population,
+                        pool,
+                        params)
+                if emitter == 1:
+                    self.qd_type = 'unstructured'
+                    model_population, to_model_evaluate = self.random_model_emitter(
+                        to_model_evaluate,
+                        pool,
+                        params)
+                    self.qd_type = 'fixed'
+                    
                 ## Filter out the individuals that remained in population
                 add_list_model = [ind for ind in model_population if ind not in population]
                 add_list_model = [ind for ind in model_population if ind not in self.archive]
                     
                 ### REAL EVALUATIONS ###    
                 # if model finds novel solutions - evaluate in real setting
-                if len(add_list_model) > 0:
+                if len(add_list_model) == 0:
+                    continue
+                elif len(add_list_model) > 0:
                     start = time.time()
                     to_evaluate = []
                     for z in add_list_model: 
@@ -638,9 +655,12 @@ class ModelBasedNS():
                     if len(self.model_archive) > 0:
                         # model_bd_traj_data = [s.obs_traj for s in self.model_archive]
                         if self.params['env_name'] == 'hexapod_omni':
-                            model_bd_traj_data = [s.obs_traj[:,0,:] for s in add_list_model]
-                        else:
-                            model_bd_traj_data = [s.obs_traj for s in add_list_model]
+                            for s in add_list_model:
+                                if len(s.obs_traj.shape) > 2: ## Model ensemble
+                                    s.obs_traj = s.obs_traj[:,0,:]
+                            # model_bd_traj_data = [s.obs_traj[:,0,:] for s in add_list_model]
+                        # else:
+                        model_bd_traj_data = [s.obs_traj for s in add_list_model]
                         has_model_data = True
 
                 ## Format the bd data to plot with labels
@@ -742,9 +762,74 @@ class ModelBasedNS():
     
 
     ##################### Emitters ##############################
+    def random_model_emitter(self, to_model_evaluate, pool, params):
+        start = time.time()
+        params['on_model'] = True
+        add_list_model_final = []
+        all_model_eval = []
+        gen = 0
+        ## Here model archive == NS population
+        while len(add_list_model_final) < params['min_found_model']:
+        #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
+            to_model_evaluate=[]
+
+            # if (len(self.model_archive) <= params['random_init']*self.n_niches):
+            # if (len(self.model_archive) < params['pop_size']):
+            if False:
+                to_model_evaluate = self.random_archive_init_model(to_model_evaluate)
+                if len(self.model_archive) > 0:
+                    to_model_evaluate = random.sample(to_model_evaluate,
+                                                      int(params['random_init']*self.n_niches -
+                                                          len(self.model_archive)))
+
+
+                    ## Create fake archive with new species created to have an archive size of 100
+                    fake_archive = self.model_archive.copy()
+                    for n in range(int(params['random_init']*self.n_niches -
+                                                          len(self.model_archive))):
+                        s = cm.Species(to_model_evaluate[n][0], [], [])
+                        fake_archive.append(s)
+
+                    to_model_evaluate = self.select_and_mutate(to_model_evaluate,
+                                                               fake_archive,
+                                                               self.f_model, params)
+            else:
+                to_model_evaluate = self.select_and_mutate(to_model_evaluate, self.model_archive,
+                                                           self.f_model, params)
+            if params["model_variant"]=="dynamics" or params["perfect_model_on"]:
+                #s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+                print("Starting evaluation of individuals using dynamics model")
+                s_list_model = cm.parallel_eval(model_evaluate_, to_model_evaluate, pool, params)
+            elif params["model_variant"]=="direct":
+                s_list_model = self.serial_eval(evaluate_, to_model_evaluate, params)
+            elif params["model_variant"]=="all_dynamics":
+                print("Starting evaluation of batched individuals using dynamics model")
+                s_list_model = model_evaluate_all_(to_model_evaluate)
+            #self.model_archive, add_list_model, discard_list_model = self.model_condition(s_list_model, self.model_archive, params)
+            self.model_archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.model_archive, params)
+
+            add_list_model_final += add_list_model
+            all_model_eval += to_model_evaluate # count all inds evaluated by model
+            #print("to model eval length: ",len(to_model_evaluate)) 
+            #print("s list length: ",len(s_list_model)) 
+            #print("model list length: ",len(add_list_model_final)) 
+            #print("all model evals length: ", len(all_model_eval))
+
+            #if i%20 ==0: 
+            #    cm.save_archive(self.model_archive, "model_gen_"+str(i), params, self.log_dir)
+            #    print("Model gen: ", i)
+            #    print("Model archive size: ", len(self.model_archive))
+            print(f'Individuals evaluated on model: {len(s_list_model)}\nCurrent valid population at gen {gen}: {len(add_list_model_final)}')
+            gen += 1
+        self.model_eval_time = time.time() - start
+        params['on_model'] = False
+        print(f"Random model emitter ended in {self.model_eval_time} after {gen} gen")
+        return add_list_model_final, all_model_eval
+
     def novelty_search_emitter(self, to_model_evaluate, model_population,
                                pool, params):
         start = time.time()
+        real_pop = model_population.copy()
         params['on_model'] = True
         add_list_model_final = []
         all_model_eval = []
@@ -767,18 +852,22 @@ class ModelBasedNS():
 
             model_offspring = s_list_model
 
-            ## Discard individuals that go out of BD space (model exploitation?)
-            ok_list_model = model_offspring.copy()
-            for s in model_offspring:
-                # if ((s.desc < self.o_params['state_min'][self.o_params['bd_inds']]) |
-                #     ((s.desc > self.o_params['state_max'][self.o_params['bd_inds']]))).any():
-                if ((s.obs_traj[-1,0,:][self.o_params['bd_inds']] < self.o_params['state_min'][self.o_params['bd_inds']]) |
-                    ((s.obs_traj[-1,0,:][self.o_params['bd_inds']] > self.o_params['state_max'][self.o_params['bd_inds']]))).any():
-                    # import pdb; pdb.set_trace()
-                    ok_list_model.remove(s)
-            print(f'OK: {len(ok_list_model)}, DISCARD: {len(model_offspring)-len(ok_list_model)}')
-            model_offspring = ok_list_model.copy()
-            
+            if params['model_discard_out_of_bs']:
+                ## Discard individuals that go out of BD space (model exploitation?)
+                ok_list_model = model_offspring.copy()
+                for s in model_offspring:
+                    # if ((s.desc < self.o_params['state_min'][self.o_params['bd_inds']]) |
+                    #     ((s.desc > self.o_params['state_max'][self.o_params['bd_inds']]))).any():
+                    if ((s.obs_traj[-1,0,:][self.o_params['bd_inds']] < self.o_params['state_min'][self.o_params['bd_inds']]) |
+                        ((s.obs_traj[-1,0,:][self.o_params['bd_inds']] > self.o_params['state_max'][self.o_params['bd_inds']]))).any():
+                        # import pdb; pdb.set_trace()
+                        ok_list_model.remove(s)
+
+                print(f'OK: {len(ok_list_model)}, DISCARD: {len(model_offspring)-len(ok_list_model)}')
+                model_offspring = ok_list_model.copy()
+
+            if len(model_offspring) == 0:
+                continue
             ## Update population nov (pop + offsprings)
             self.update_population_novelty(model_population,
                                            model_offspring,

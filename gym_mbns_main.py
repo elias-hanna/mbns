@@ -58,7 +58,9 @@ def main(args):
         "pop_size": args.pop_size,
         # args for MBNS
         "model_budget_gen": 10,
+        "adaptive_model_budget_gen": True,
         "model_ns_return": args.model_ns_return,
+        "model_discard_out_of_bs": True,
         # more of this -> higher-quality CVT
         "cvt_samples": 25000,
         "cvt_use_cache": True,
@@ -133,15 +135,13 @@ def main(args):
         ## for dump
         "ensemble_dump": False,
         
-        # 0 for random emiiter, 1 for optimizing emitter
-        # 2 for random walk emitter, 3 for model disagreement emitter
+        # 0 for ns emitter, 1 for random emitter
         "emitter_selection": 0,
 
         "min_found_model": args.min_found_model,
         "transfer_selection": args.transfer_selection,
         "nb_transfer": args.nb_transfer,
         'env_name': args.environment,
-        'init_method': 'vanilla',
         'plot_functor': plot_cov_and_trajs,
         'args': args,
     }
@@ -312,7 +312,6 @@ def main(args):
         'bd_inds': bd_inds,
         'bins': bins,
 
-        ## pretraining parameters
         'pretrain': args.pretrain,
         ## srf parameters
         'srf_var': 0.001,

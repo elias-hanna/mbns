@@ -1969,7 +1969,7 @@ def process_args(parser):
     parser.add_argument('--clip-state', action='store_true')
 
     #----------Model Init Study params--------#
-    parser.add_argument('--init-method', type=str, default='random-policies')
+    parser.add_argument('--init-method', type=str, default='vanilla')
     parser.add_argument('--init-episodes', type=int, default='20')
     parser.add_argument('--init-data-path', type=str, default=None)
 
