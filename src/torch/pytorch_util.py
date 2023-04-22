@@ -56,6 +56,9 @@ else:
     device = None
     _gpu_id = 0
 
+def cuda_available():
+    return torch.cuda.is_available()
+
 def set_gpu_mode(mode, gpu_id=0):
     global _use_gpu
     global device

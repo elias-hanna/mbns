@@ -36,6 +36,7 @@
 #|
 #| The fact that you are presently reading this means that you have
 #| had knowledge of the CeCILL license and that you accept its terms.
+
 import os, sys
 import time
 import math, random
@@ -49,14 +50,10 @@ from sklearn.neighbors import NearestNeighbors
 from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
 from src.map_elites import model_condition_utils
-from src.map_elites.ns import NS
 
-import torch
 import src.torch.pytorch_util as ptu
 
 import cma
-
-from multiprocessing import get_context
 
 def evaluate_(t):
     # evaluate a single vector (x) with a function f and return a species
@@ -356,22 +353,14 @@ class ModelBasedNS():
     
     # model based map-elites algorithm
     def compute(self,
-                num_cores_set,
+                pool,
                 max_evals=1e5,
                 params=None,):
 
         if params is None:
             params = self.params
 
-        # setup the parallel processing pool
-        if num_cores_set == 0:
-            num_cores = multiprocessing.cpu_count() - 1 # use all cores
-        else:
-            num_cores = num_cores_set
-            
-        # pool = multiprocessing.Pool(num_cores)
-        pool = get_context("spawn").Pool(num_cores)
-        #pool = ThreadPool(num_cores)
+        
         
         gen = 0 # generation
         n_evals = 0 # number of evaluations since the beginning
@@ -582,7 +571,8 @@ class ModelBasedNS():
             
             if (((gen%params["train_freq"]) == 0)or(evals_since_last_train>params["evals_per_train"])) and params["train_model_on"]:
                 
-                if torch.cuda.is_available():
+                # if torch.cuda.is_available():
+                if ptu.cuda_available():
                     if not ptu._use_gpu:
                         ## Switch dynamics model to GPU
                         print("Switched dynamics model to GPU")

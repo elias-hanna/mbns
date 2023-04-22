@@ -1,55 +1,8 @@
-#----------Algo imports--------#
-from src.map_elites import common as cm
-from src.map_elites import unstructured_container, cvt
-from src.map_elites.mbns import ModelBasedNS
-
-from exps_utils import get_dynamics_model, get_surrogate_model, \
-    get_observation_model, addition_condition, evaluate_, evaluate_all_, \
-    process_args,plot_cov_and_trajs, save_archive_cov_by_gen
-
-#----------Model imports--------#
-from src.models.observation_models.deterministic_obs_model import DeterministicObsModel
-from src.models.observation_models.srf_deterministic_obs_model import SrfDeterministicObsModel
-from src.models.dynamics_models.srf_deterministic_ensemble import SrfDeterministicEnsemble
-from src.models.dynamics_models.deterministic_model import DeterministicDynModel
-from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
-from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
-from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
-from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
-import src.torch.pytorch_util as ptu
-import torch
-
-#----------controller imports--------#
-from model_init_study.controller.nn_controller \
-    import NeuralNetworkController
-from exps_utils import RNNController
-
-#----------Environment imports--------#
-import gym
-from exps_utils import get_env_params
-from exps_utils import WrappedEnv
-
-#----------Data manipulation imports--------#
-import numpy as np
-import copy
-import pandas as pd
-import itertools
-
-#----------Utils imports--------#
-import os, sys
-import argparse
-import matplotlib.pyplot as plt
-
-import random
-
-import time
-import tqdm
 
 ################################################################################
 ################################### MAIN #######################################
 ################################################################################
-def main(args):
-
+def main(args, pool):
     px = \
     {
         # type of qd 'unstructured, grid, cvt'
@@ -395,7 +348,8 @@ def main(args):
                         replay_buffer,
                         params=px, log_dir=args.log_dir)
 
-    archive, n_evals = mbns.compute(num_cores_set=args.num_cores, max_evals=args.max_evals)
+    # archive, n_evals = mbns.compute(pool, num_cores_set=args.num_cores, max_evals=args.max_evals)
+    archive, n_evals = mbns.compute(pool, max_evals=args.max_evals)
     
     cm.save_archive(archive, f"{n_evals}_real_all", px, args.log_dir)
         
@@ -474,6 +428,54 @@ def main(args):
 
     
 if __name__ == "__main__":
+    #----------Algo imports--------#
+    from src.map_elites import common as cm
+    from src.map_elites import unstructured_container, cvt
+    from src.map_elites.mbns import ModelBasedNS
+
+    from exps_utils import get_dynamics_model, get_surrogate_model, \
+        get_observation_model, addition_condition, evaluate_, evaluate_all_, \
+        process_args,plot_cov_and_trajs, save_archive_cov_by_gen
+
+    #----------Model imports--------#
+    from src.models.observation_models.deterministic_obs_model import DeterministicObsModel
+    from src.models.observation_models.srf_deterministic_obs_model import SrfDeterministicObsModel
+    from src.models.dynamics_models.srf_deterministic_ensemble import SrfDeterministicEnsemble
+    from src.models.dynamics_models.deterministic_model import DeterministicDynModel
+    from src.models.dynamics_models.deterministic_ensemble import DeterministicEnsemble
+    from src.models.dynamics_models.probabilistic_ensemble import ProbabilisticEnsemble
+    from src.models.surrogate_models.det_surrogate import DeterministicQDSurrogate
+    from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
+    import src.torch.pytorch_util as ptu
+    import torch
+    import torch.multiprocessing as multiprocessing
+
+    #----------controller imports--------#
+    from model_init_study.controller.nn_controller \
+        import NeuralNetworkController
+    from exps_utils import RNNController
+
+    #----------Environment imports--------#
+    import gym
+    from exps_utils import get_env_params
+    from exps_utils import WrappedEnv
+
+    #----------Data manipulation imports--------#
+    import numpy as np
+    import copy
+    import pandas as pd
+    import itertools
+
+    #----------Utils imports--------#
+    import os, sys
+    import argparse
+    import matplotlib.pyplot as plt
+
+    import random
+
+    import time
+    import tqdm
+
     import warnings
     warnings.filterwarnings("ignore", category=DeprecationWarning) 
     warnings.filterwarnings("ignore", category=RuntimeWarning) 
@@ -481,4 +483,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = process_args(parser)
 
-    main(args)
+    # multiprocessing.set_start_method('spawn')
+
+    num_cores_set = args.num_cores
+    # setup the parallel processing pool
+    if num_cores_set == 0:
+        num_cores = multiprocessing.cpu_count() - 1 # use all cores
+    else:
+        num_cores = num_cores_set
+        
+    # pool = multiprocessing.Pool(num_cores)
+    pool = multiprocessing.get_context("spawn").Pool(num_cores)
+    # pool = get_context("fork").Pool(num_cores)
+    #pool = ThreadPool(num_cores)
+
+    main(args, pool)
