@@ -89,7 +89,7 @@ def main(args, pool):
         "ensemble_dump": False,
         
         # 0 for ns emitter, 1 for random emitter
-        "emitter_selection": 0,
+        "emitter_selection": args.emitter,
 
         "min_found_model": args.min_found_model,
         "transfer_selection": args.transfer_selection,

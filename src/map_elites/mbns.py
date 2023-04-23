@@ -621,6 +621,24 @@ class ModelBasedNS():
                 ptu.save_model(self.dynamics_model, self.save_model_path)
                 print("Done saving torch model")
 
+                dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
+                np.savez(dump_path,
+                         all_errors_medians=all_errors_medians,
+                         all_errors_1q=all_errors_1q,
+                         all_errors_3q=all_errors_3q,
+                         add_errors_medians=add_errors_medians,
+                         add_errors_1q=add_errors_1q,
+                         add_errors_3q=add_errors_3q,
+                         discard_errors_medians=discard_errors_medians,
+                         discard_errors_1q=discard_errors_1q,
+                         discard_errors_3q=discard_errors_3q)
+                print("Done saving descriptor estimation errors")
+
+                print("Saving behavior descriptors per generation")
+                dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
+                np.savez(dump_path, **bds_per_gen)
+                print("Done saving behavior descriptors per generation")
+
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
             elif params['dump_mode'] == 'gen':
@@ -669,6 +687,23 @@ class ModelBasedNS():
                 ptu.save_model(self.dynamics_model, self.save_model_path)
                 print("Done saving torch model")
 
+                dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
+                np.savez(dump_path,
+                         all_errors_medians=all_errors_medians,
+                         all_errors_1q=all_errors_1q,
+                         all_errors_3q=all_errors_3q,
+                         add_errors_medians=add_errors_medians,
+                         add_errors_1q=add_errors_1q,
+                         add_errors_3q=add_errors_3q,
+                         discard_errors_medians=discard_errors_medians,
+                         discard_errors_1q=discard_errors_1q,
+                         discard_errors_3q=discard_errors_3q)
+                print("Done saving descriptor estimation errors")
+
+                print("Saving behavior descriptors per generation")
+                dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
+                np.savez(dump_path, **bds_per_gen)
+                print("Done saving behavior descriptors per generation")
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
                 

@@ -1931,7 +1931,8 @@ def process_args(parser):
     parser.add_argument('--lambda-add', type=int, default=15)
     parser.add_argument('--arch-sel', type=str, default='random')
     parser.add_argument('--rep', type=int, default='1')
-
+    parser.add_argument('--emitter', type=int, default=0)
+    
     #-------------DAQD params-----------#
     parser.add_argument('--transfer-selection', type=str, default='all')
     parser.add_argument('--min-found-model', type=int, default=100)
