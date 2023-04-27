@@ -31,9 +31,12 @@ def pd_read_csv_fast(filename):
     data = pd.read_csv(filename, nrows=1)
     ## Only keep important columns and 5 genotype columns for merge purposes
     usecols = [col for col in data.columns if 'bd' in col or 'fit' in col]
-    usecols += [col for col in data.columns if 'x' in col][:5]
+    # usecols += [col for col in data.columns if 'x' in col][:5]
+    usecols += [col for col in data.columns if 'x' in col][:2]
     ## Return the complete dataset (without the << useless >> columns
-    return pd.read_csv(filename, usecols=usecols)
+    # return pd.read_csv(filename, usecols=usecols, encoding_errors='ignore')
+    return pd.read_csv(filename, usecols=usecols, engine='python')
+    # return pd.read_csv(filename, usecols=usecols)
 
 def filter_archive_fnames(cwd):
     # get files in cwd
@@ -80,6 +83,10 @@ def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
     data = data.append(df_max, ignore_index = True)
 
     for i in range(dim_map):
+        # print(data)
+        # data[f'{i}_bin'] = data[f'{i}_bin'].astype(str)
+        # pd.set_option('display.max_rows', data.shape[0]+1)
+        # print(data)
         data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
                                   bins = nb_div, 
                                   labels = [p for p in range(nb_div)])
@@ -172,8 +179,10 @@ def main(args):
     ss_min = env_params['ss_min']
     ss_max = env_params['ss_max']
     if env_name == 'hexapod_omni':
-        ss_min = (ss_min+1.5)/3
-        ss_max = (ss_max+1.5)/3
+        # ss_min = (ss_min+1.5)/3  
+        # ss_max = (ss_max+1.5)/3
+        ss_min[:] = 0
+        ss_max[:] = 1
     init_obs = env_params['init_obs'] 
     state_dim = env_params['state_dim']
     obs_min = env_params['obs_min']
@@ -348,12 +357,11 @@ def main(args):
         ax.set_xlabel("x-axis")
         ax.set_ylabel("y-axis")
 
+        ax.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
+        ax.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
         plt.title(f"Cumulated coverage (over {n_reps} reps for {ps_method} on {args.environment} environment")
         fig.set_size_inches(28, 28)
-        plt.savefig(f"{args.environment}_{ps_method}_cum_coverage")
-    
-        ## Plot the coverage and archive size evolution over evaluations
-        
+        plt.savefig(f"{args.environment}_{ps_method}_cum_coverage")        
         
         
 

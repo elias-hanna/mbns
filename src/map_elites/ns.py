@@ -164,9 +164,14 @@ class NS:
             self.o_params = params['dab_params']
         
         self.archive = [] # init archive as list
-        self.model_archive = []        
+        self.all_evals_archive = []        
         self.population = None
-        
+
+    def addition_condition_all_evals(self, s_list, params):
+        ## Dump all evals in an unstructured container archive
+        for s in s_list:
+            success = unstructured_container.add_to_archive(s, self.all_evals_archive, params)
+
     def random_archive_init(self, to_evaluate):
         for i in range(0, self.params['pop_size']):
             x = np.random.uniform(low=self.params['min'], high=self.params['max'], size=self.dim_x)
@@ -387,6 +392,8 @@ class NS:
                 self.archive, add_list, _ = self.addition_condition(population,
                                                                     self.archive,
                                                                     params)
+                ## Add evaluations to unstructured archive containing all evals
+                self.addition_condition_all_evals(population, params)
                 
             else:
                 # variation/selection loop - select ind from population to evolve
@@ -438,6 +445,9 @@ class NS:
                                                                     self.archive,
                                                                     params)
 
+                ## Add evaluations to unstructured archive containing all evals
+                self.addition_condition_all_evals(offspring, params)
+                
                 ## Update population
                 sorted_pop = sorted(population + offspring,
                                     key=lambda x:x.nov, reverse=True)
@@ -454,10 +464,14 @@ class NS:
 
             # write archive during dump period
             
-            if b_evals >= params['dump_period'] and params['dump_period'] != -1:
+            if (b_evals >= params['dump_period'] and params['dump_period'] != -1) \
+               or params['dump_mode'] == 'gen':
                 # write archive
-                print("[{}/{}]".format(int(n_evals), int(max_evals)), end=" ", flush=True)
+                print("[{}/{}]".format(int(n_evals), int(max_evals)), end=" ",
+                      flush=True)
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
+                cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
+                                params, self.log_dir)
                 b_evals = 0
 
             # write log -  write log every generation 
@@ -482,6 +496,8 @@ class NS:
         print("==========================================")
         print("End of NS algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
+        cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
+                        params, self.log_dir)
         pool.close()
         self.log_file.close()
 
