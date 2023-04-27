@@ -465,7 +465,6 @@ class NS:
             bds_per_gen_all_evals[f'bd_{gen}'] = [ind.desc for ind in self.all_evals_archive]
 
             # write archive during dump period
-            
             if (b_evals >= params['dump_period'] and params['dump_period'] != -1) \
                or params['dump_mode'] == 'gen':
                 # write archive
@@ -507,8 +506,6 @@ class NS:
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
         cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
                         params, self.log_dir)
-        pool.close()
-        self.log_file.close()
 
         print("Saving behavior descriptors per generation")
         dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
@@ -517,4 +514,7 @@ class NS:
         np.savez(dump_path, **bds_per_gen_all_evals)
         print("Done saving behavior descriptors per generation")
         
+        pool.close()
+        self.log_file.close()
+
         return self.archive, n_evals

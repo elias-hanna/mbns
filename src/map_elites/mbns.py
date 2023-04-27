@@ -157,7 +157,13 @@ class ModelBasedNS():
             self.o_params = params['dab_params']
                 
         self.archive = [] # init archive as list
+        self.all_evals_archive = []        
         self.model_archive = []        
+
+    def addition_condition_all_evals(self, s_list, params):
+        ## Dump all evals in an unstructured container archive
+        for s in s_list:
+            success = unstructured_container.add_to_archive(s, self.all_evals_archive, params)
 
     def random_archive_init_model(self, to_evaluate):
         for i in range(0, self.params['random_init_batch']):
@@ -375,6 +381,7 @@ class ModelBasedNS():
         discard_errors_medians = []; discard_errors_1q = []; discard_errors_3q = []
 
         bds_per_gen = {}
+        bds_per_gen_all_evals = {}
         # main loop
         while (n_evals < max_evals):
             # uniform selection of emitter - other options is UCB
@@ -417,7 +424,9 @@ class ModelBasedNS():
                                                                     params)
                 if params['args'].algo == 'mbnslc':
                         self.qd_type = 'fixed'
-
+                ## Add evaluations to unstructured archive containing all evals
+                self.addition_condition_all_evals(population, params)
+                
             else:
                 print("Evaluation on model")
                 # variation/selection loop - select ind from archive to evolve                
@@ -492,6 +501,9 @@ class ModelBasedNS():
                         offspring, self.archive, params)
                     if params['args'].algo == 'mbnslc':
                         self.qd_type = 'fixed'
+
+                    ## Add evaluations to unstructured archive containing all evals
+                    self.addition_condition_all_evals(offspring, params)
 
                     ## Update population
                     sorted_pop = sorted(population + offspring,
@@ -601,18 +613,23 @@ class ModelBasedNS():
             n_model_evals += len(to_model_evaluate) # total number of model evals
 
             bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
+            bds_per_gen_all_evals[f'bd_{gen}'] = [ind.desc for ind in self.all_evals_archive]
 
             # write archive during dump period
-            if b_evals >= params['dump_period'] and params['dump_period'] != -1 \
-               and params['dump_mode'] == 'budget':
+            if (b_evals >= params['dump_period'] and params['dump_period'] != -1) \
+               or params['dump_mode'] == 'gen':
                 save_start = time.time()
             
                 # write archive
                 #print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
                 print("[{}/{}]".format(n_evals, int(max_evals)))
-                cm.save_archive(self.archive, n_evals, params, self.log_dir)
+                cm.save_archive(self.archive, n_evals,
+                                params, self.log_dir)
+                cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
+                                params, self.log_dir)
                 ## Also save model archive for more visualizations
-                cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
+                cm.save_archive(self.model_archive, f"{n_evals}_model",
+                                params, self.log_dir)
                 b_evals = 0
                 
                 # Save models
@@ -637,20 +654,10 @@ class ModelBasedNS():
                 print("Saving behavior descriptors per generation")
                 dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
                 np.savez(dump_path, **bds_per_gen)
+                dump_path = os.path.join(self.log_dir, 'bds_per_gen_all_evals.npz')
+                np.savez(dump_path, **bds_per_gen_all_evals)
                 print("Done saving behavior descriptors per generation")
 
-                save_end = time.time() - save_start
-                print("Save archive and model time: ", save_end)
-            elif params['dump_mode'] == 'gen':
-                save_start = time.time()
-            
-                # write archive
-                #print("[{}/{}]".format(n_evals, int(max_evals)), end=" ", flush=True)
-                print("[{}/{}]".format(n_evals, int(max_evals)))
-                cm.save_archive(self.archive, n_evals, params, self.log_dir)
-                ## Also save model archive for more visualizations
-                cm.save_archive(self.model_archive, f"{n_evals}_model", params, self.log_dir)
-                b_evals = 0
                 # plot cov
                 ## Extract real sys BD data from s_list
                 has_model_data = False
@@ -680,33 +687,10 @@ class ModelBasedNS():
                     all_bd_traj_data.append((model_bd_traj_data, 'model'))
 
                 params['plot_functor'](all_bd_traj_data, params['args'], self.o_params)
+
                 
-                # Save models
-                #ptu.save_model(self.model, self.save_model_path)
-                print("Saving torch model")
-                ptu.save_model(self.dynamics_model, self.save_model_path)
-                print("Done saving torch model")
-
-                dump_path = os.path.join(self.log_dir, 'desc_estimation_errors.npz')
-                np.savez(dump_path,
-                         all_errors_medians=all_errors_medians,
-                         all_errors_1q=all_errors_1q,
-                         all_errors_3q=all_errors_3q,
-                         add_errors_medians=add_errors_medians,
-                         add_errors_1q=add_errors_1q,
-                         add_errors_3q=add_errors_3q,
-                         discard_errors_medians=discard_errors_medians,
-                         discard_errors_1q=discard_errors_1q,
-                         discard_errors_3q=discard_errors_3q)
-                print("Done saving descriptor estimation errors")
-
-                print("Saving behavior descriptors per generation")
-                dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
-                np.savez(dump_path, **bds_per_gen)
-                print("Done saving behavior descriptors per generation")
                 save_end = time.time() - save_start
                 print("Save archive and model time: ", save_end)
-                
                 
             # write log -  write log every generation 
             if (self.qd_type=="cvt") or (self.qd_type=="grid"):
@@ -759,6 +743,8 @@ class ModelBasedNS():
         print("End of QD algorithm - saving final archive")        
         print("Saving final real archive")
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
+        cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
+                        params, self.log_dir)
         print("Done saving final real archive")
         # Save models
         print("Saving torch model")
@@ -782,11 +768,15 @@ class ModelBasedNS():
         print("Saving behavior descriptors per generation")
         dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
         np.savez(dump_path, **bds_per_gen)
-        print("Done saving behavior descriptors per generation")
-        
-        return self.archive, n_evals
+        dump_path = os.path.join(self.log_dir, 'bds_per_gen_all_evals.npz')
+        np.savez(dump_path, **bds_per_gen_all_evals)
 
-    
+        print("Done saving behavior descriptors per generation")
+
+        pool.close()
+        self.log_file.close()
+
+        return self.archive, n_evals
 
     ##################### Emitters ##############################
     def random_model_emitter(self, to_model_evaluate, pool, params):
