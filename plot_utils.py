@@ -126,7 +126,7 @@ def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total
     return gen_covs, gen_evals
 
 def process_rep(var_tuple):
-    rep_dir, ss_min, ss_max, dim_map, bd_inds, nb_div, bd_cols = var_tuple
+    rep_dir, ps_method, ss_min, ss_max, dim_map, bd_inds, nb_div, bd_cols = var_tuple
     ## get the last archive file name
     archive_fname = filter_archive_fnames(rep_dir)
     if archive_fname is None:
@@ -142,7 +142,10 @@ def process_rep(var_tuple):
                             bd_inds, nb_div)
 
     ## Get coverage and evals per gen
-    bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen.npz')
+    if ps_method == 'ns':
+        bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen_all_evals.npz')
+    else:
+        bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen.npz')
     gen_covs = []
     gen_evals = []
     try:
@@ -234,12 +237,13 @@ def main(args):
         ## Go over repetitions
         
         processed_results = pool.imap(process_rep, zip(rep_dirs,
-                                                      itertools.repeat(ss_min),
-                                                      itertools.repeat(ss_max),
-                                                      itertools.repeat(dim_map),
-                                                      itertools.repeat(bd_inds),
-                                                      itertools.repeat(nb_div),
-                                                      itertools.repeat(bd_cols)))
+                                                       itertools.repeat(ps_method),
+                                                       itertools.repeat(ss_min),
+                                                       itertools.repeat(ss_max),
+                                                       itertools.repeat(dim_map),
+                                                       itertools.repeat(bd_inds),
+                                                       itertools.repeat(nb_div),
+                                                       itertools.repeat(bd_cols)))
         
         # for rep_dir in rep_dirs:
         #     ## get the last archive file name

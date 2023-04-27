@@ -13,6 +13,7 @@ environments=(ball_in_cup hexapod_omni fastsim_maze fastsim_maze_traps empty_maz
 
 environments=(hexapod_omni fastsim_maze)
 environments=(hexapod_omni)
+environments=(ball_in_cup)
 
 ## considered policy search methods
 psms=(ns qd_grid qd_unstructured daqd)
@@ -20,7 +21,7 @@ psms=(ns qd_grid qd_unstructured)
 
 psms=(mbns_archive_random mbns_archive_novelty mbns_population_random mbns_population_novelty mbns_test mbns_adaptative_test ns)
 psms=(daqd mbns_population_novelty)
-psms=(daqd mbns_population_novelty)
+psms=(ns qd)
 
 ## Other parameters
 # nb_div: grid shape per dim for cov computing

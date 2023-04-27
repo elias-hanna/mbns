@@ -353,6 +353,7 @@ class NS:
         print("################# Starting NS algorithm #################")
 
         bds_per_gen = {}
+        bds_per_gen_all_evals = {}
         # main loop
         while (n_evals < max_evals):
             # lists of individuals we want to evaluate (list of tuples) for this gen
@@ -461,6 +462,7 @@ class NS:
             b_evals += len(to_evaluate) # number of evals since last dump
 
             bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
+            bds_per_gen_all_evals[f'bd_{gen}'] = [ind.desc for ind in self.all_evals_archive]
 
             # write archive during dump period
             
@@ -474,6 +476,13 @@ class NS:
                                 params, self.log_dir)
                 b_evals = 0
 
+                print("Saving behavior descriptors per generation")
+                dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
+                np.savez(dump_path, **bds_per_gen)
+                dump_path = os.path.join(self.log_dir, 'bds_per_gen_all_evals.npz')
+                np.savez(dump_path, **bds_per_gen_all_evals)
+                print("Done saving behavior descriptors per generation")
+                
             # write log -  write log every generation 
             fit_list = np.array([x.fitness for x in self.archive])
             self.log_file.write("{} {} {} {} {} {} {} {} {}\n".format(
@@ -504,6 +513,8 @@ class NS:
         print("Saving behavior descriptors per generation")
         dump_path = os.path.join(self.log_dir, 'bds_per_gen.npz')
         np.savez(dump_path, **bds_per_gen)
+        dump_path = os.path.join(self.log_dir, 'bds_per_gen_all_evals.npz')
+        np.savez(dump_path, **bds_per_gen_all_evals)
         print("Done saving behavior descriptors per generation")
         
         return self.archive, n_evals
