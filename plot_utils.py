@@ -38,7 +38,7 @@ def pd_read_csv_fast(filename):
     return pd.read_csv(filename, usecols=usecols, engine='python')
     # return pd.read_csv(filename, usecols=usecols)
 
-def filter_archive_fnames(cwd):
+def filter_archive_fnames(cwd, ps_method):
     # get files in cwd
     try:
         all_fnames = next(os.walk(cwd))[2]
@@ -53,6 +53,12 @@ def filter_archive_fnames(cwd):
     # remove real_all files (keep only archive_budget.dat files)
     all_archive_fnames = [fname for fname in all_archive_fnames
                           if '_real_all.dat' not in fname]
+
+    if ps_method == 'ns':
+        # remove archive_eval.dat files, keep only archive_evals_all_evals.dat
+        all_archive_fnames = [fname for fname in all_archive_fnames
+                              if '_all_evals.dat' in fname]
+        
     # now keep only the one with highest evaluation number
     # copy the file names and replace with _ for easier split 
     fnames_copy = [copy.copy(fname).replace('.', '_') for fname in all_archive_fnames]
@@ -128,7 +134,7 @@ def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total
 def process_rep(var_tuple):
     rep_dir, ps_method, ss_min, ss_max, dim_map, bd_inds, nb_div, bd_cols = var_tuple
     ## get the last archive file name
-    archive_fname = filter_archive_fnames(rep_dir)
+    archive_fname = filter_archive_fnames(rep_dir, ps_method)
     if archive_fname is None:
         return np.nan, [], [], []
     ## Load it as a pandas dataframe
