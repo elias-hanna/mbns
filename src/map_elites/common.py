@@ -339,7 +339,7 @@ def parallel_eval(evaluate_function, to_evaluate, pool, params):
         # for result in tqdm.tqdm(pool.map(evaluate_function, to_evaluate), total=len(to_evaluate)):
             # s_list.append(result)
         s_list = []
-        for result in tqdm.tqdm(pool.imap_unordered(evaluate_function, to_evaluate), total=len(to_evaluate)):
+        for result in tqdm.tqdm(pool.imap_unordered(evaluate_function, to_evaluate, chunksize=int(len(to_evaluate)/pool._processes)), total=len(to_evaluate)):
             s_list.append(result)
     else:
         print("Starting sequential eval")
