@@ -223,7 +223,7 @@ def main(args):
         print(f"Processing {ps_method} results on {args.environment}...")
         ## Go inside the policy search method folder
         # new working dir
-        if ps_method == 'daqd' or 'mbns' in ps_method:
+        if 'daqd' in ps_method or 'mbns' in ps_method:
             method_wd = os.path.join(root_wd,
                                      f'{env_name}_{ps_method}_results/ffnn_2l_10n_prob_4_h-1_1wps_results/')
         else:
