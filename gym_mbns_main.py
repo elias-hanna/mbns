@@ -493,8 +493,8 @@ if __name__ == "__main__":
         num_cores = num_cores_set
         
     # pool = multiprocessing.Pool(num_cores)
-    # pool = multiprocessing.get_context("spawn").Pool(num_cores)
-    pool = get_context("fork").Pool(num_cores)
+    pool = multiprocessing.get_context("spawn").Pool(num_cores)
+    # pool = get_context("fork").Pool(num_cores)
     #pool = ThreadPool(num_cores)
 
     main(args, pool)
