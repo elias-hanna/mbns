@@ -1,4 +1,3 @@
-
 ################################################################################
 ################################### MAIN #######################################
 ################################################################################
@@ -448,8 +447,9 @@ if __name__ == "__main__":
     from src.data_management.replay_buffers.simple_replay_buffer import SimpleReplayBuffer
     import src.torch.pytorch_util as ptu
     import torch
-    import torch.multiprocessing as multiprocessing
-
+    # import torch.multiprocessing as multiprocessing
+    import multiprocessing
+    
     #----------controller imports--------#
     from model_init_study.controller.nn_controller \
         import NeuralNetworkController
@@ -483,7 +483,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = process_args(parser)
 
-    # multiprocessing.set_start_method('spawn')
+    multiprocessing.set_start_method('spawn')
 
     num_cores_set = args.num_cores
     # setup the parallel processing pool
@@ -493,8 +493,8 @@ if __name__ == "__main__":
         num_cores = num_cores_set
         
     # pool = multiprocessing.Pool(num_cores)
-    pool = multiprocessing.get_context("spawn").Pool(num_cores)
-    # pool = get_context("fork").Pool(num_cores)
+    # pool = multiprocessing.get_context("spawn").Pool(num_cores)
+    pool = get_context("fork").Pool(num_cores)
     #pool = ThreadPool(num_cores)
 
     main(args, pool)

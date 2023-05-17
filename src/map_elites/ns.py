@@ -499,7 +499,7 @@ class NS:
 
             self.gen_time = time.time() - gen_start_time 
 
-            print(f"n_evals: {int(n_evals)}/{int(max_evals)}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
+            print(f"n_evals: {int(n_evals)}/{int(max_evals)}, archive_size: {len(self.archive)}, unstructured_archive_size: {len(self.all_evals_archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
         print("End of NS algorithm - saving final archive")        

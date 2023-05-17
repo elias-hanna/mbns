@@ -366,8 +366,6 @@ class ModelBasedNS():
         if params is None:
             params = self.params
 
-        
-        
         gen = 0 # generation
         n_evals = 0 # number of evaluations since the beginning
         b_evals = 0 # number evaluation since the last dump
@@ -737,7 +735,7 @@ class ModelBasedNS():
                                                                    len(to_model_evaluate),))
                 self.time_log_file.flush()
 
-            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
+            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, unstructured_archive_size: {len(self.all_evals_archive)}, eval time: {self.gen_time}")
                 
         print("==========================================")
         print("End of QD algorithm - saving final archive")        
