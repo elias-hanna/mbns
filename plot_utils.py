@@ -54,8 +54,9 @@ def filter_archive_fnames(cwd, ps_method):
     all_archive_fnames = [fname for fname in all_archive_fnames
                           if '_real_all.dat' not in fname]
 
-    if ps_method == 'ns':
+    if ps_method == 'ns' or 'mbns' in ps_method:
         # remove archive_eval.dat files, keep only archive_evals_all_evals.dat
+        # which corresponds to unstructured archives
         all_archive_fnames = [fname for fname in all_archive_fnames
                               if '_all_evals.dat' in fname]
         

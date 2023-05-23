@@ -467,10 +467,17 @@ class ModelBasedNS():
                     self.qd_type = 'fixed'
                     
                 ## Filter out the individuals already evaluated that remained in population
-                add_list_model = [ind for ind in model_population if ind not in population]
-                add_list_model = [ind for ind in model_population if ind not in self.archive]
-                add_list_model = [ind for ind in model_population if ind.model_dis != 0]
-
+                # add_list_model = [ind for ind in model_population if ind not in population]
+                # add_list_model = [ind for ind in model_population if ind not in self.archive]
+                if self.params['env_name'] == 'hexapod_omni':
+                    add_list_model = [ind for ind in model_population
+                                      if ind.model_dis != 0]
+                ## Problem comes from  hexapod omni using a single model
+                ## Would require to switch to single model inference in all envs
+                else:
+                    add_list_model = [ind for ind in model_population
+                                      if hasattr(ind.model_dis, '__len__')]
+                
 
                 ### REAL EVALUATIONS ###    
                 # if model finds novel solutions - evaluate in real setting

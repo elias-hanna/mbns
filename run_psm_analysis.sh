@@ -10,16 +10,12 @@ reps=10
 
 ## Environments
 environments=(ball_in_cup hexapod_omni fastsim_maze fastsim_maze_traps empty_maze)
-
-environments=(fastsim_maze fastsim_maze_traps)
-environments=(empty_maze)
-
-# environments=(hexapod_omni fastsim_maze)
-# environments=(hexapod_omni)
+environments=(ball_in_cup)
 
 ## considered policy search methods
 psms=(ns qd_grid qd_unstructured daqd)
-psms=(ns qd_grid qd_unstructured qd_unstructured_adaptive daqd daqd_adaptive)
+psms=(ns qd_grid qd_unstructured qd_unstructured_adaptive daqd)
+# psms=(ns mbns_population_novelty qd_grid qd_unstructured daqd)
 
 # psms=(mbns_archive_random mbns_archive_novelty mbns_population_random mbns_population_novelty mbns_test mbns_adaptative_test ns)
 # psms=(daqd mbns_population_novelty)
@@ -33,7 +29,7 @@ nb_div=40 ## Good for mazes
 
 nb_divs=(20 40 40 40)
 
-nb_divs=(20 40)
+nb_divs=(20 20 40)
 
 daqd_folder=~/src/daqd
 
