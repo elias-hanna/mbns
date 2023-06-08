@@ -497,7 +497,8 @@ class ModelBasedNS():
                     offspring = s_list
                     self.update_population_novelty(population,
                                                    offspring,
-                                                   self.archive,
+                                                   # self.archive,
+                                                   self.all_evals_archive,
                                                    params)
 
                     if params['args'].algo == 'mbnslc':
@@ -893,7 +894,12 @@ class ModelBasedNS():
             ## Update population nov (pop + offsprings)
             self.update_population_novelty(model_population,
                                            model_offspring,
-                                           self.model_archive,
+                                           ## Compare to real NS arch + model
+                                           # self.model_archive,
+                                           ## Compare to real NS arch
+                                           # self.archive,
+                                           ## Compare to all evals unstruc arch
+                                           self.all_evals_archive,
                                            params)
 
             self.model_archive, add_list_model, discard_list_model = self.addition_condition(model_offspring, self.model_archive, params)
