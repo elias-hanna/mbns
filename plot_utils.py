@@ -132,6 +132,9 @@ def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total
         gen_evals.append(n_evals)
     return gen_covs, gen_evals
 
+def compute_qd_score(data):
+    return data['fit'].sum()
+
 def process_rep(var_tuple):
     rep_dir, ps_method, ss_min, ss_max, dim_map, bd_inds, nb_div, bd_cols = var_tuple
     ## get the last archive file name
@@ -148,6 +151,8 @@ def process_rep(var_tuple):
                             ss_max, dim_map,
                             bd_inds, nb_div)
 
+    final_qd_score = compute_qd_score(archive_data)
+    
     ## Get coverage and evals per gen
     if ps_method == 'ns':
         bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen_all_evals.npz')
@@ -168,7 +173,7 @@ def process_rep(var_tuple):
     ## Get archive BDs array and save it
     archive_bds = archive_data[bd_cols].to_numpy()
 
-    return final_cov, gen_covs, gen_evals, archive_bds
+    return final_cov, gen_covs, gen_evals, archive_bds, final_qd_score
 
 def main(args):
     ## Process command-line args
@@ -207,6 +212,8 @@ def main(args):
     all_psm_bds = []
     coverages = np.empty((n_ps_methods, n_reps))
     coverages[:] = np.nan
+    qd_scores = np.empty((n_ps_methods, n_reps))
+    qd_scores[:] = np.nan
 
     # Get current working dir (folder from which py script was executed)
     root_wd = os.getcwd()
@@ -281,8 +288,9 @@ def main(args):
         #     all_psm_bds[psm_cpt].append(archive_bds)
         #     rep_cpt += 1
     
-        for (final_cov, gen_covs, gen_evals, archive_bds) in processed_results:
+        for (final_cov, gen_covs, gen_evals, archive_bds, final_qd_score) in processed_results:
             coverages[psm_cpt, rep_cpt] = final_cov 
+            qd_scores[psm_cpt, rep_cpt] = final_qd_score 
             covs_per_gen[psm_cpt].append(gen_covs)
             evals_per_gen[psm_cpt].append(gen_evals)
             all_psm_bds[psm_cpt].append(archive_bds)
@@ -312,6 +320,7 @@ def main(args):
         psm_covs_1qs.append(np.nanquantile(covs_per_gen[psm_idx], 1/4, axis=0))
         psm_covs_3qs.append(np.nanquantile(covs_per_gen[psm_idx], 3/4, axis=0))
 
+        import pdb; pdb.set_trace()
         ax.plot(psm_n_evals_medians[psm_idx], psm_covs_medians[psm_idx],
                 label=ps_method)
         ax.fill_between(psm_n_evals_medians[psm_idx],
@@ -334,11 +343,16 @@ def main(args):
     fig, ax = plt.subplots()
     # filter nan values
     all_psm_covs = []
+    all_psm_qd_score = []
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
         cov_vals = coverages[psm_cpt]
         if not np.isnan(cov_vals).all():
             filtered_cov_vals = cov_vals[~np.isnan(cov_vals)]
             all_psm_covs.append(filtered_cov_vals)
+        qd_score_vals = coverages[psm_cpt]
+        if not np.isnan(qd_score_vals).all():
+            filtered_qd_score_vals = qd_score_vals[~np.isnan(qd_score_vals)]
+            all_psm_qd_scores.append(filtered_qd_score_vals)
         
     ## Add to the coverage boxplot the policy search method
     ax.boxplot(all_psm_covs)
@@ -346,10 +360,22 @@ def main(args):
 
     ax.set_ylabel("Coverage")
 
-    plt.title(f"Coverage for each policy search method on {args.environment} environment")
+    plt.title(f"Final coverage for each policy search method on {args.environment} environment")
     fig.set_size_inches(28, 14)
     plt.legend()
     plt.savefig(f"{args.environment}_bp_coverage")
+
+    ## Add to the qd score boxplot the policy search method
+    ax.boxplot(all_psm_qd_scores)
+    ax.set_xticklabels(ps_methods)
+
+    ax.set_ylabel("QD-Score")
+
+    plt.title(f"Final QD-Score for each policy search method on {args.environment} environment")
+    fig.set_size_inches(28, 14)
+    plt.legend()
+    plt.savefig(f"{args.environment}_bp_coverage")
+    
     
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
         ## Plot the cumulated (over repetitions) archives BDs
