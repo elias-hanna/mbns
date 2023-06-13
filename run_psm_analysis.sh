@@ -10,7 +10,8 @@ reps=10
 
 ## Environments
 environments=(ball_in_cup hexapod_omni fastsim_maze fastsim_maze_traps empty_maze)
-environments=(fastsim_maze_traps)
+# environments=(fastsim_maze_traps)
+environments=(hexapod_omni)
 
 ## considered policy search methods
 psms=(ns qd_grid qd_unstructured daqd)

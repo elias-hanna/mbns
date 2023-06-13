@@ -320,7 +320,7 @@ def main(args):
         psm_covs_1qs.append(np.nanquantile(covs_per_gen[psm_idx], 1/4, axis=0))
         psm_covs_3qs.append(np.nanquantile(covs_per_gen[psm_idx], 3/4, axis=0))
 
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         ax.plot(psm_n_evals_medians[psm_idx], psm_covs_medians[psm_idx],
                 label=ps_method)
         ax.fill_between(psm_n_evals_medians[psm_idx],
@@ -343,7 +343,7 @@ def main(args):
     fig, ax = plt.subplots()
     # filter nan values
     all_psm_covs = []
-    all_psm_qd_score = []
+    all_psm_qd_scores = []
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
         cov_vals = coverages[psm_cpt]
         if not np.isnan(cov_vals).all():
