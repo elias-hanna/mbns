@@ -117,7 +117,7 @@ def compute_cov(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
     ## return coverage (number of bins filled)
     return len(counts[counts>=1])/total_bins
 
-def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total_evals):
+def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total_evals, ps_method):
     dict_vals = bds_per_gen.values()
     only_gen_num = [int(s.split('_')[1]) for s in bds_per_gen.keys()]
     max_gen = max(only_gen_num)
@@ -130,7 +130,26 @@ def get_cov_per_gen(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total
         gen_cov = compute_cov(gen_bd_df, ss_min, ss_max, dim_map, bd_inds, nb_div)
         gen_covs.append(gen_cov)
         gen_evals.append(n_evals)
+
     return gen_covs, gen_evals
+
+def get_cov_per_gen_safe(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, total_evals, ps_method):
+    dict_vals = bds_per_gen.values()
+    only_gen_num = [int(s.split('_')[1]) for s in bds_per_gen.keys()]
+    max_gen = max(only_gen_num)
+    gen_covs = []
+    gen_evals = []
+    step = 50
+    
+    for (gen, n_evals) in zip(range(1, max_gen+1, max_gen//step), range(100, total_evals+total_evals//step, total_evals//step)):    
+        gen_bd_data = bds_per_gen[f'bd_{gen}']
+        gen_bd_df = pd.DataFrame(gen_bd_data, columns=[f'bd{i}' for i in range(dim_map)])
+        gen_cov = compute_cov(gen_bd_df, ss_min, ss_max, dim_map, bd_inds, nb_div)
+        gen_covs.append(gen_cov)
+        gen_evals.append(n_evals)
+
+    return gen_covs, gen_evals
+
 
 def compute_qd_score(data):
     return data['fit'].sum()
@@ -154,7 +173,7 @@ def process_rep(var_tuple):
     final_qd_score = compute_qd_score(archive_data)
     
     ## Get coverage and evals per gen
-    if ps_method == 'ns':
+    if ps_method == 'ns' or 'mbns' in ps_method:
         bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen_all_evals.npz')
     else:
         bds_per_gen_fpath = os.path.join(rep_dir, 'bds_per_gen.npz')
@@ -164,10 +183,10 @@ def process_rep(var_tuple):
         bds_per_gen = np.load(bds_per_gen_fpath)
     
         total_evals = int(archive_fname.split('/')[-1].replace('.', '_').split('_')[1])
-        gen_covs, gen_evals = get_cov_per_gen(bds_per_gen, ss_min,
-                                              ss_max, dim_map,
-                                              bd_inds, nb_div,
-                                              total_evals)
+        gen_covs, gen_evals = get_cov_per_gen_safe(bds_per_gen, ss_min,
+                                                   ss_max, dim_map,
+                                                   bd_inds, nb_div,
+                                                   total_evals, ps_method)
     except Exception as e:
         print(f'Received error {e} when processing file: {bds_per_gen_fpath}')
     ## Get archive BDs array and save it
@@ -313,13 +332,22 @@ def main(args):
                 for _ in range(max_gens-len(cov_per_gen)):
                     cov_per_gen.append(np.nan)
                     eval_per_gen.append(np.nan)
-                    
+
         ## Compute median (excluding nans) for considered psm 
         psm_covs_medians.append(np.nanmedian(covs_per_gen[psm_idx], axis=0))
         psm_n_evals_medians.append(np.nanmedian(evals_per_gen[psm_idx], axis=0))
         psm_covs_1qs.append(np.nanquantile(covs_per_gen[psm_idx], 1/4, axis=0))
         psm_covs_3qs.append(np.nanquantile(covs_per_gen[psm_idx], 3/4, axis=0))
-
+        # if ps_method == 'daqd' or 'mbns' in ps_method:
+        #     psm_n_evals_medians[-1] = np.array(psm_n_evals_medians[-1])
+        #     # psm_covs_medians[-1] = np.array(psm_covs_medians[-1])
+        #     # psm_covs_1qs[-1] = np.array(psm_covs_1qs[-1])
+        #     # psm_covs_3qs[-1] = np.array(psm_covs_3qs[-1])
+        #     psm_n_evals_medians[-1] = psm_n_evals_medians[-1][psm_n_evals_medians[-1]<49000]
+        #     psm_covs_medians[-1] = psm_covs_medians[-1][:len(psm_n_evals_medians)]
+        #     psm_covs_1qs[-1] = psm_covs_1qs[-1][:len(psm_n_evals_medians)]
+        #     psm_covs_3qs[-1] = psm_covs_3qs[-1][:len(psm_n_evals_medians)]
+        
         # import pdb; pdb.set_trace()
         ax.plot(psm_n_evals_medians[psm_idx], psm_covs_medians[psm_idx],
                 label=ps_method)
@@ -339,8 +367,6 @@ def main(args):
                 dpi=300, bbox_inches='tight')
 
     ## Handle plotting now
-    ## Figure for boxplot of all methods on environment
-    fig, ax = plt.subplots()
     # filter nan values
     all_psm_covs = []
     all_psm_qd_scores = []
@@ -349,11 +375,13 @@ def main(args):
         if not np.isnan(cov_vals).all():
             filtered_cov_vals = cov_vals[~np.isnan(cov_vals)]
             all_psm_covs.append(filtered_cov_vals)
-        qd_score_vals = coverages[psm_cpt]
+        qd_score_vals = qd_scores[psm_cpt]
         if not np.isnan(qd_score_vals).all():
             filtered_qd_score_vals = qd_score_vals[~np.isnan(qd_score_vals)]
             all_psm_qd_scores.append(filtered_qd_score_vals)
         
+    ## Figure for coverage boxplot of all methods on environment
+    fig, ax = plt.subplots()
     ## Add to the coverage boxplot the policy search method
     ax.boxplot(all_psm_covs)
     ax.set_xticklabels(ps_methods)
@@ -362,9 +390,10 @@ def main(args):
 
     plt.title(f"Final coverage for each policy search method on {args.environment} environment")
     fig.set_size_inches(28, 14)
-    plt.legend()
     plt.savefig(f"{args.environment}_bp_coverage")
 
+    ## Figure for qd-score boxplot of all methods on environment
+    fig, ax = plt.subplots()
     ## Add to the qd score boxplot the policy search method
     ax.boxplot(all_psm_qd_scores)
     ax.set_xticklabels(ps_methods)
@@ -373,8 +402,7 @@ def main(args):
 
     plt.title(f"Final QD-Score for each policy search method on {args.environment} environment")
     fig.set_size_inches(28, 14)
-    plt.legend()
-    plt.savefig(f"{args.environment}_bp_coverage")
+    plt.savefig(f"{args.environment}_bp_qd_score")
     
     
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
