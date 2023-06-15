@@ -139,7 +139,7 @@ def get_cov_per_gen_safe(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, 
     max_gen = max(only_gen_num)
     gen_covs = []
     gen_evals = []
-    step = 50
+    step = 100
     
     for (gen, n_evals) in zip(range(1, max_gen+1, max_gen//step), range(100, total_evals+total_evals//step, total_evals//step)):    
         gen_bd_data = bds_per_gen[f'bd_{gen}']
@@ -383,7 +383,8 @@ def main(args):
     ## Figure for coverage boxplot of all methods on environment
     fig, ax = plt.subplots()
     ## Add to the coverage boxplot the policy search method
-    ax.boxplot(all_psm_covs)
+    ax.boxplot(all_psm_covs, 0, '') # don't show the outliers
+    # ax.boxplot(all_psm_covs)
     ax.set_xticklabels(ps_methods)
 
     ax.set_ylabel("Coverage")
@@ -395,7 +396,8 @@ def main(args):
     ## Figure for qd-score boxplot of all methods on environment
     fig, ax = plt.subplots()
     ## Add to the qd score boxplot the policy search method
-    ax.boxplot(all_psm_qd_scores)
+    ax.boxplot(all_psm_qd_scores, 0, '') # don't show the outliers
+    # ax.boxplot(all_psm_qd_scores)
     ax.set_xticklabels(ps_methods)
 
     ax.set_ylabel("QD-Score")
