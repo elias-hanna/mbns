@@ -212,11 +212,6 @@ def main(args):
     a_max = env_params['a_max'] 
     ss_min = env_params['ss_min']
     ss_max = env_params['ss_max']
-    if env_name == 'hexapod_omni':
-        # ss_min = (ss_min+1.5)/3  
-        # ss_max = (ss_max+1.5)/3
-        ss_min[:] = 0
-        ss_max[:] = 1
     init_obs = env_params['init_obs'] 
     state_dim = env_params['state_dim']
     obs_min = env_params['obs_min']
@@ -225,6 +220,21 @@ def main(args):
     bd_inds = env_params['bd_inds']
     bins = env_params['bins'] ## for grid based qd
 
+    ## Cast state space lims in float in case they're not already
+    ss_min = ss_min.astype(np.float64)
+    ss_max = ss_max.astype(np.float64)
+    ## Correct state space for plotting on hexapod
+    if env_name == 'hexapod_omni':
+        # ss_min = (ss_min+1.5)/3  
+        # ss_max = (ss_max+1.5)/3
+        # ss_min[:] = 0
+        # ss_max[:] = 1
+
+        ss_min[bd_inds[0]] = 0.15 ; ss_min[bd_inds[1]] = 0.2
+        ss_max[bd_inds[0]] = 0.86 ; ss_max[bd_inds[1]] = 0.82
+        # min mbns: [0.15273238 0.21077263]
+        # max mbns: [0.85483918 0.81122953]
+        
     ## get bd cols
     bd_cols = [f'bd{i}' for i in range(dim_map)]
     ## Create main data holders
@@ -418,7 +428,7 @@ def main(args):
             if len(array_psm_bds) > 0:
                 psm_bds[cur_len:cur_len+len(array_psm_bds)] = array_psm_bds
                 cur_len += len(array_psm_bds)
-            
+
         ax.scatter(x=psm_bds[:,0], y=psm_bds[:,1], s=30, alpha=0.3)
 
         ax.set_xlabel("x-axis")
