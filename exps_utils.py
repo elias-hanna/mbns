@@ -1324,15 +1324,33 @@ class WrappedEnv():
         if ensemble and not mean:
             ## Return bd for each model and flatten it all
             if self._env_name == 'ball_in_cup':
+                ## BD is relative xyz pos
                 bd = obs_wps[:,:,:3].flatten()
             elif 'maze' in self._env_name:
+                ## BD is xy pos
                 bd = obs_wps[:,:,:2].flatten()
             elif 'redundant_arm' in self._env_name:
+                ## BD is final EE pos
                 bd = obs_wps[:,:,-2:].flatten()
             elif self._env_name == 'half_cheetah':
+                ## BD is x pos
                 bd = obs_wps[:,:,:1].flatten()
             elif self._env_name == 'walker2d':
+                ## BD is x pos
                 bd = obs_wps[:,:,:1].flatten()
+            elif self._env_name == 'cartpole':
+                ## BD is pos of cart + orientation of pole
+                bd = obs_wps[:,:,[0,2]].flatten()
+            elif self._env_name == 'pusher':
+                ## BD is EE pos + object pos
+                bd = obs_wps[:,:,-6:].flatten()
+            elif self._env_name == 'reacher':
+                ## BD is EE pos
+                ees = np.empty((obs_wps.shape[0], obs_wps.shape[1], 3))
+                for i in obs_wps.shape[0]:
+                    for j in obs_wps.shape[1]:
+                        ees[i,j] = self._env.get_EE_pos(obs_wps[i,j])
+                bd = ees.flatten()
             return bd
 
         if self._env_name == 'ball_in_cup':
@@ -1345,6 +1363,18 @@ class WrappedEnv():
             bd = obs_wps[:,:1].flatten()
         elif self._env_name == 'walker2d':
             bd = obs_wps[:,:1].flatten()
+        elif self._env_name == 'cartpole':
+            ## BD is pos of cart + orientation of pole
+            bd = obs_wps[:,[0,2]].flatten()
+        elif self._env_name == 'pusher':
+            ## BD is EE pos + object pos
+            bd = obs_wps[:,-6:].flatten()
+        elif self._env_name == 'reacher':
+            ## BD is EE pos
+            ees = np.empty((obs_wps.shape[0], 3))
+            for i in obs_wps.shape[0]:
+                ees[i] = self._env.get_EE_pos(obs_wps[i])
+            bd = ees.flatten()
         return bd
         
     def energy_minimization_fit(self, actions, disagrs):
@@ -1649,6 +1679,45 @@ def get_env_params(args):
         env_params['dim_map'] = 2
         ## Need to check the dims for hexapod
         env_params['bd_inds'] = [3, 4]
+        env_params['bins'] = [50, 50]
+    elif args.environment == 'cartpole':
+        env_params['is_local_env'] = True
+        max_step = 200  
+        env_params['state_dim'] = env_params['obs_dim'] = 4
+        env_params['act_dim'] = 1
+        env_params['a_min'] = np.array([-1]*env_params['act_dim'])
+        env_params['a_max'] = np.array([1]*env_params['act_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-1.]*env_params['obs_dim'])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([1.]*env_params['obs_dim'])
+        env_params['init_obs'] = np.zeros(4)
+        env_params['dim_map'] = 2
+        env_params['bd_inds'] = [0, 2]
+        env_params['bins'] = [50, 50]
+    elif args.environment == 'pusher':
+        env_params['is_local_env'] = True
+        max_step = 150
+        env_params['state_dim'] = env_params['obs_dim'] = 20
+        env_params['act_dim'] = 7
+        env_params['a_min'] = np.array([-1]*env_params['act_dim'])
+        env_params['a_max'] = np.array([1]*env_params['act_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-1.]*env_params['obs_dim'])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([1.]*env_params['obs_dim'])
+        env_params['init_obs'] = np.zeros(20)
+        env_params['dim_map'] = 6
+        env_params['bd_inds'] = [14, 15, 16, 17, 18, 19]
+        env_params['bins'] = [50, 50]
+    elif args.environment == 'pusher':
+        env_params['is_local_env'] = True
+        max_step = 150
+        env_params['state_dim'] = env_params['obs_dim'] = 20
+        env_params['act_dim'] = 7
+        env_params['a_min'] = np.array([-1]*env_params['act_dim'])
+        env_params['a_max'] = np.array([1]*env_params['act_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-1.]*env_params['obs_dim'])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([1.]*env_params['obs_dim'])
+        env_params['init_obs'] = np.zeros(17)
+        env_params['dim_map'] = 3
+        env_params['bd_inds'] = [0, 1, 2] ## not right but bd not in obs
         env_params['bins'] = [50, 50]
     else:
         raise ValueError(f"{args.environment} is not a defined environment")
