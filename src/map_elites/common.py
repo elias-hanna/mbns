@@ -381,12 +381,12 @@ def save_archive(archive, gen, params, log_dir):
         if params["ensemble_dump"] == True:
             for k in range(params["ensemble_size"]):
                 for i in range(params['dim_map']):
-                    headers += f'bd{i}_m{k}' + ','
+                    headers += 'bd{}_m{}'.format(i, k) + ','
         else:
             for i in range(params['dim_map']):
-                headers += f'bd{i}' + ','
+                headers += 'bd{}'.format(i) + ','
         for i in range(params['dim_x']):
-            headers += f'x{i}' + ','
+            headers += 'x{}'.format(i) + ','
         if params['dump_ind_trajs'] == True:
             headers += 'ind_trajs' + ','
         f.write(headers + "\n")
@@ -412,7 +412,7 @@ def save_archive(archive, gen, params, log_dir):
                 ## Add the trajectories
                 if k.obs_traj is not None and params['dump_ind_trajs'] == True:
                     ## Good way ?
-                    ind_trajs_filename = f'ind_trajs_{ind_cpt}'
+                    ind_trajs_filename = 'ind_trajs_{}'.format(ind_cpt)
                     ind_string += 'ind_trajs/' + ind_trajs_filename + '.npz' + ','
                     # obs_traj_filename = f'obs_traj_{ind_cpt}'
                     # act_traj_filename = f'act_traj_{ind_cpt}'

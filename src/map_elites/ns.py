@@ -53,10 +53,10 @@ from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
 from src.map_elites import model_condition_utils
 
-import torch
-import src.torch.pytorch_util as ptu
+# import torch
+# import src.torch.pytorch_util as ptu
 
-import cma
+# import cma
 
 def evaluate_(t):
     # evaluate a single vector (x) with a function f and return a species
@@ -461,8 +461,8 @@ class NS:
             n_evals += len(to_evaluate) # total number of  real evals
             b_evals += len(to_evaluate) # number of evals since last dump
 
-            bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
-            bds_per_gen_all_evals[f'bd_{gen}'] = [ind.desc for ind in self.all_evals_archive]
+            bds_per_gen['bd_{}'.format(gen)] = [ind.desc for ind in self.archive]
+            bds_per_gen_all_evals['bd_{}'.format(gen)] = [ind.desc for ind in self.all_evals_archive]
 
             # write archive during dump period
             if (b_evals >= params['dump_period'] and params['dump_period'] != -1) \
@@ -471,7 +471,7 @@ class NS:
                 print("[{}/{}]".format(int(n_evals), int(max_evals)), end=" ",
                       flush=True)
                 cm.save_archive(self.archive, n_evals, params, self.log_dir)
-                cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
+                cm.save_archive(self.all_evals_archive, "{}_all_evals".format(n_evals),
                                 params, self.log_dir)
                 b_evals = 0
 
@@ -499,12 +499,12 @@ class NS:
 
             self.gen_time = time.time() - gen_start_time 
 
-            print(f"n_evals: {int(n_evals)}/{int(max_evals)}, archive_size: {len(self.archive)}, unstructured_archive_size: {len(self.all_evals_archive)}, eval time: {self.gen_time}")
+            print("n_evals: {}/{}, archive_size: {}, unstructured_archive_size: {}, eval time: {}".format(int(n_evals),int(max_evals), len(self.archive), len(self.all_evals_archive), self.gen_time))
                 
         print("==========================================")
         print("End of NS algorithm - saving final archive")        
         cm.save_archive(self.archive, n_evals, params, self.log_dir)
-        cm.save_archive(self.all_evals_archive, f"{n_evals}_all_evals",
+        cm.save_archive(self.all_evals_archive, "{}_all_evals".format(n_evals),
                         params, self.log_dir)
 
         print("Saving behavior descriptors per generation")

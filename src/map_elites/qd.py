@@ -51,10 +51,10 @@ from src.map_elites import common as cm
 from src.map_elites import unstructured_container, cvt
 from src.map_elites import model_condition_utils
 
-import torch
-import src.torch.pytorch_util as ptu
+# import torch
+# import src.torch.pytorch_util as ptu
 
-import cma
+# import cma
 
 def evaluate_(t):
     # evaluate a single vector (x) with a function f and return a species
@@ -130,7 +130,7 @@ class QD:
             else:
                 if self.bins is None:
                     self.bins = [50]*params['dim_map']
-                    print(f"WARNING: Using {self.bins} as bins (default)")
+                    print("WARNING: Using {} as bins (default)".format(self.bins))
                 bd_limits = None
                 if 'dab_params' in params:
                     self.o_params['bins'] = self.bins
@@ -282,9 +282,9 @@ class QD:
             b_evals += len(to_evaluate) # number of evals since last dump
 
             if (self.qd_type=="cvt") or (self.qd_type=="grid"):
-                bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive.values()]
+                bds_per_gen['bd_{}'.format(gen)] = [ind.desc for ind in self.archive.values()]
             else:
-                bds_per_gen[f'bd_{gen}'] = [ind.desc for ind in self.archive]
+                bds_per_gen['bd_{}'.format(gen)] = [ind.desc for ind in self.archive]
 
             # write archive during dump period
             
@@ -325,7 +325,9 @@ class QD:
 
             self.gen_time = time.time() - gen_start_time 
 
-            print(f"n_evals: {n_evals}, archive_size: {len(self.archive)}, eval time: {self.gen_time}")
+            print("n_evals: {}, archive_size: {}, eval time: {}".format(n_evals,
+                                                                        len(self.archive),
+                                                                        self.gen_time))
                 
         print("==========================================")
         print("End of QD algorithm - saving final archive")        
@@ -366,118 +368,118 @@ class QD:
         self.model_eval_time = time.time() - start         
         return add_list_final, all_eval
     
-    def optimizing_emitter(self, to_model_evaluate, pool, params, gen):
-        '''
-        uses CMA - no mutations
-        '''
-        start = time.time()
-        add_list_model_final = []
-        all_model_eval = []
+    # def optimizing_emitter(self, to_model_evaluate, pool, params, gen):
+    #     '''
+    #     uses CMA - no mutations
+    #     '''
+    #     start = time.time()
+    #     add_list_model_final = []
+    #     all_model_eval = []
 
-        rand1 = np.random.randint(len(self.archive))
-        mean_init = (self.archive[rand1]).x
-        sigma_init = 0.01
-        popsize = 50
-        max_iterations = 100
-        es = cma.CMAEvolutionStrategy(mean_init,
-                                      sigma_init,
-                                      {'popsize': popsize,
-                                       'bounds': [0,1]})
+    #     rand1 = np.random.randint(len(self.archive))
+    #     mean_init = (self.archive[rand1]).x
+    #     sigma_init = 0.01
+    #     popsize = 50
+    #     max_iterations = 100
+    #     es = cma.CMAEvolutionStrategy(mean_init,
+    #                                   sigma_init,
+    #                                   {'popsize': popsize,
+    #                                    'bounds': [0,1]})
         
-        #for i in range(max_iterations):
-        i = 0 
-        while not es.stop():
-            to_model_evaluate = []
-            solutions = es.ask()
-            for sol in solutions:
-                to_model_evaluate += [(sol, self.f_real)]
-            if params["model_variant"]=="all_dynamics":
-                s_list_model = evaluate_all_(to_evaluate)
-            else:
-                s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
-            self.archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.archive, params)
-            add_list_model_final += add_list_model
-            all_model_eval += to_model_evaluate # count all inds evaluated by model
-            #print("model list length: ",len(add_list_model_final)) 
-            #print("all model evals length: ", len(all_model_eval))
+    #     #for i in range(max_iterations):
+    #     i = 0 
+    #     while not es.stop():
+    #         to_model_evaluate = []
+    #         solutions = es.ask()
+    #         for sol in solutions:
+    #             to_model_evaluate += [(sol, self.f_real)]
+    #         if params["model_variant"]=="all_dynamics":
+    #             s_list_model = evaluate_all_(to_evaluate)
+    #         else:
+    #             s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+    #         self.archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.archive, params)
+    #         add_list_model_final += add_list_model
+    #         all_model_eval += to_model_evaluate # count all inds evaluated by model
+    #         #print("model list length: ",len(add_list_model_final)) 
+    #         #print("all model evals length: ", len(all_model_eval))
 
-            # convert maximize to minimize
-            # for optimizing emitter fitness of CMAES is fitness of the ind
-            reward_list = []
-            for s in s_list_model:
-                reward_list.append(s.fitness)
+    #         # convert maximize to minimize
+    #         # for optimizing emitter fitness of CMAES is fitness of the ind
+    #         reward_list = []
+    #         for s in s_list_model:
+    #             reward_list.append(s.fitness)
 
-            cost_arr = -np.array(reward_list)
-            es.tell(solutions, list(cost_arr))
-            es.disp()
+    #         cost_arr = -np.array(reward_list)
+    #         es.tell(solutions, list(cost_arr))
+    #         es.disp()
 
-            # save archive at every cmaes iteration
-            if i%5==0:
-                cm.save_archive(self.archive, str(gen)+"_"+str(i), params, self.log_dir)
-            i +=1
-        self.model_eval_time = time.time() - start
+    #         # save archive at every cmaes iteration
+    #         if i%5==0:
+    #             cm.save_archive(self.archive, str(gen)+"_"+str(i), params, self.log_dir)
+    #         i +=1
+    #     self.model_eval_time = time.time() - start
         
-        return add_list_model_final, all_model_eval
+    #     return add_list_model_final, all_model_eval
 
-    def random_walk_emitter(self, to_model_evaluate, pool, params, gen):
-        start = time.time()
-        add_list_model_final = []
-        all_model_eval = []
+    # def random_walk_emitter(self, to_model_evaluate, pool, params, gen):
+    #     start = time.time()
+    #     add_list_model_final = []
+    #     all_model_eval = []
 
-        # sample an inidivudal from the archive to init cmaes
-        rand1 = np.random.randint(len(self.archive))
-        ind_init = self.archive[rand1]
-        mean_init = ind_init.x
-        sigma_init = 0.01
-        popsize = 50
-        max_iterations = 50
-        es = cma.CMAEvolutionStrategy(mean_init,
-                                      sigma_init,
-                                      {'popsize': popsize,
-                                       'bounds': [0,1]})
+    #     # sample an inidivudal from the archive to init cmaes
+    #     rand1 = np.random.randint(len(self.archive))
+    #     ind_init = self.archive[rand1]
+    #     mean_init = ind_init.x
+    #     sigma_init = 0.01
+    #     popsize = 50
+    #     max_iterations = 50
+    #     es = cma.CMAEvolutionStrategy(mean_init,
+    #                                   sigma_init,
+    #                                   {'popsize': popsize,
+    #                                    'bounds': [0,1]})
 
-        # sample random vector/direction in the BD space to compute CMAES fitness on
-        # BD space is 2 dim
-        desc_init = ind_init.desc
-        target_dir = np.random.uniform(-1,1,size=2)
+    #     # sample random vector/direction in the BD space to compute CMAES fitness on
+    #     # BD space is 2 dim
+    #     desc_init = ind_init.desc
+    #     target_dir = np.random.uniform(-1,1,size=2)
         
-        #for i in range(max_iterations):
-        i = 0
-        while not es.stop(): 
-            to_model_evaluate = []
-            solutions = es.ask()
-            for sol in solutions:
-                to_model_evaluate += [(sol, self.f_real)]
-            if params["model_variant"]=="all_dynamics":
-                s_list_model = evaluate_all_(to_evaluate)
-            else:
-                s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
+    #     #for i in range(max_iterations):
+    #     i = 0
+    #     while not es.stop(): 
+    #         to_model_evaluate = []
+    #         solutions = es.ask()
+    #         for sol in solutions:
+    #             to_model_evaluate += [(sol, self.f_real)]
+    #         if params["model_variant"]=="all_dynamics":
+    #             s_list_model = evaluate_all_(to_evaluate)
+    #         else:
+    #             s_list_model = cm.parallel_eval(evaluate_, to_model_evaluate, pool, params)
 
-            self.archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.archive, params)
-            add_list_model_final += add_list_model
-            all_model_eval += to_model_evaluate # count all inds evaluated by model
-            #print("model list length: ",len(add_list_model_final)) 
-            #print("all model evals length: ", len(all_model_eval))
+    #         self.archive, add_list_model, discard_list_model = self.addition_condition(s_list_model, self.archive, params)
+    #         add_list_model_final += add_list_model
+    #         all_model_eval += to_model_evaluate # count all inds evaluated by model
+    #         #print("model list length: ",len(add_list_model_final)) 
+    #         #print("all model evals length: ", len(all_model_eval))
 
-            # convert maximize to minimize
-            # for random walk emitter, fitnes of CMAES is the magnitude of vector in the target_direction
-            reward_list = []
-            for s in s_list_model:
-                s_dir = s.desc - desc_init
-                comp_proj = (np.dot(s_dir, target_dir))/np.linalg.norm(target_dir)
-                reward_list.append(comp_proj)
+    #         # convert maximize to minimize
+    #         # for random walk emitter, fitnes of CMAES is the magnitude of vector in the target_direction
+    #         reward_list = []
+    #         for s in s_list_model:
+    #             s_dir = s.desc - desc_init
+    #             comp_proj = (np.dot(s_dir, target_dir))/np.linalg.norm(target_dir)
+    #             reward_list.append(comp_proj)
 
-            cost_arr = -np.array(reward_list)
-            es.tell(solutions, list(cost_arr))
-            es.disp()
+    #         cost_arr = -np.array(reward_list)
+    #         es.tell(solutions, list(cost_arr))
+    #         es.disp()
 
-            # save archive at every cmaes iteration
-            if i%10==0:
-                cm.save_archive(self.archive, str(gen)+"_"+str(i), params, self.log_dir)
-            i +=1
+    #         # save archive at every cmaes iteration
+    #         if i%10==0:
+    #             cm.save_archive(self.archive, str(gen)+"_"+str(i), params, self.log_dir)
+    #         i +=1
             
-        self.model_eval_time = time.time() - start
-        return add_list_model_final, all_model_eval
+    #     self.model_eval_time = time.time() - start
+    #     return add_list_model_final, all_model_eval
     
     def improvement_emitter():
     

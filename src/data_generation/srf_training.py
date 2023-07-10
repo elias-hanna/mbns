@@ -119,8 +119,8 @@ if __name__ == '__main__':
     # fake_in, fake_out = get_training_samples(dim_in, dim_out, sa_min, sa_max, 10000)
     # fake_in_ens, fake_out_ens = get_ensemble_training_samples(dim_in, dim_out, sa_min, sa_max)
     fake_in_ens, fake_out_ens = get_ensemble_training_samples(params)
-    print(f'Shape of generated data:\ninput -> {fake_in_ens.shape}\n'\
-          f'output -> {fake_out_ens.shape}')
+    print('Shape of generated data:\ninput -> {}\n' \
+          'output -> {}'.format(fake_in_ens.shape, fake_out_ens.shape))
     import pdb; pdb.set_trace()
     exit()
     # structured field with a size 100x100 and a grid-size of 1x1

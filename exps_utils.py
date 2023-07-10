@@ -420,10 +420,10 @@ class WrappedEnv():
         self.bd_inds = params['bd_inds']
         print('###############################################################')
         print('################ Environment parameters: ######################')
-        print(f'###### - env name:        {self._env_name}                    ')
-        print(f'###### - task horizon:    {self._env_max_h}                   ')
-        print(f'###### - model horizon:    {self._model_max_h}                ')
-        print(f'###### - controller type: {params["controller_type"]}         ')
+        print('###### - env name:        {}'.format(self._env_name))
+        print('###### - task horizon:    {}'.format(self._env_max_h))
+        print('###### - model horizon:   {}'.format(self._model_max_h))
+        print('###### - controller type: {}'.format(params["controller_type"]))
         print('###############################################################')
 
     def set_dynamics_model(self, dynamics_model):
@@ -1132,7 +1132,6 @@ class WrappedEnv():
                 batch_pred_delta_ns, batch_disagreement = self.forward_multiple(A, S,
                                                                                 mean=True,
                                                                                 disagr=True)
-            # print(f"Time for inference {time.time()-start}")
             for i in range(len(ctrls)):
                 if not mean:
                     ## Don't use mean predictions and keep each particule trajectory
@@ -1222,8 +1221,6 @@ class WrappedEnv():
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
-            # print(f"s0 on GPU: {s_0.is_cuda}")
-            # print(f"a0 on GPU: {a_0.is_cuda}")
             return self.dynamics_model.output_pred_with_ts(
                     torch.cat((s_0, a_0), dim=-1),
                     mean=mean), [0]*len(s_0)
@@ -1232,8 +1229,6 @@ class WrappedEnv():
             a_0 = copy.deepcopy(A_0)
             s_0 = ptu.from_numpy(s_0)
             a_0 = ptu.from_numpy(a_0)
-            # print(f"s0 on GPU: {s_0.is_cuda}")
-            # print(f"a0 on GPU: {a_0.is_cuda}")
             return self.dynamics_model.output_pred(
                     torch.cat((s_0, a_0), dim=-1),
                     mean=mean), [0]*len(s_0)
@@ -1248,8 +1243,6 @@ class WrappedEnv():
 
         s_0 = ptu.from_numpy(s_0)
         a_0 = ptu.from_numpy(a_0)
-        # print(f"s0 on GPU: {s_0.is_cuda}")
-        # print(f"a0 on GPU: {a_0.is_cuda}")
 
         # a_0 = a_0.repeat(self._dynamics_model.ensemble_size,1)
 
@@ -1346,11 +1339,10 @@ class WrappedEnv():
                 bd = obs_wps[:,:,-6:].flatten()
             elif self._env_name == 'reacher':
                 ## BD is EE pos
-                ees = np.empty((obs_wps.shape[0], obs_wps.shape[1], 3))
-                for i in obs_wps.shape[0]:
-                    for j in obs_wps.shape[1]:
-                        ees[i,j] = self._env.get_EE_pos(obs_wps[i,j])
-                bd = ees.flatten()
+                ees = []
+                for i in range(obs_wps.shape[0]):
+                    ees.append(self._env.get_EE_pos(obs_wps[i]))
+                bd = np.array(ees).flatten()
             return bd
 
         if self._env_name == 'ball_in_cup':
@@ -1371,9 +1363,7 @@ class WrappedEnv():
             bd = obs_wps[:,-6:].flatten()
         elif self._env_name == 'reacher':
             ## BD is EE pos
-            ees = np.empty((obs_wps.shape[0], 3))
-            for i in obs_wps.shape[0]:
-                ees[i] = self._env.get_EE_pos(obs_wps[i])
+            ees = self._env.get_EE_pos(obs_wps)
             bd = ees.flatten()
         return bd
         
@@ -1663,7 +1653,7 @@ def get_env_params(args):
     elif args.environment == 'hexapod_omni':
         # from src.envs.hexapod_dart.hexapod_env import HexapodEnv ## Contains hexapod 
         env_params['is_local_env'] = True
-        max_step = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
+        env_params['max_step'] = 300 # ctrl_freq = 100Hz, sim_time = 3.0 seconds 
         env_params['state_dim'] = env_params['obs_dim'] = 48
         env_params['act_dim'] = 18
         env_params['a_min'] = np.array([-1]*env_params['act_dim'])
@@ -1682,7 +1672,7 @@ def get_env_params(args):
         env_params['bins'] = [50, 50]
     elif args.environment == 'cartpole':
         env_params['is_local_env'] = True
-        max_step = 200  
+        env_params['max_step'] = 200  
         env_params['state_dim'] = env_params['obs_dim'] = 4
         env_params['act_dim'] = 1
         env_params['a_min'] = np.array([-1]*env_params['act_dim'])
@@ -1695,7 +1685,7 @@ def get_env_params(args):
         env_params['bins'] = [50, 50]
     elif args.environment == 'pusher':
         env_params['is_local_env'] = True
-        max_step = 150
+        env_params['max_step'] = 150
         env_params['state_dim'] = env_params['obs_dim'] = 20
         env_params['act_dim'] = 7
         env_params['a_min'] = np.array([-1]*env_params['act_dim'])
@@ -1706,10 +1696,10 @@ def get_env_params(args):
         env_params['dim_map'] = 6
         env_params['bd_inds'] = [14, 15, 16, 17, 18, 19]
         env_params['bins'] = [50, 50]
-    elif args.environment == 'pusher':
+    elif args.environment == 'reacher':
         env_params['is_local_env'] = True
-        max_step = 150
-        env_params['state_dim'] = env_params['obs_dim'] = 20
+        env_params['max_step'] = 150
+        env_params['state_dim'] = env_params['obs_dim'] = 17
         env_params['act_dim'] = 7
         env_params['a_min'] = np.array([-1]*env_params['act_dim'])
         env_params['a_max'] = np.array([1]*env_params['act_dim'])
@@ -1720,7 +1710,7 @@ def get_env_params(args):
         env_params['bd_inds'] = [0, 1, 2] ## not right but bd not in obs
         env_params['bins'] = [50, 50]
     else:
-        raise ValueError(f"{args.environment} is not a defined environment")
+        raise ValueError("{} is not a defined environment".format(args.environment))
 
     return env_params
 
@@ -1834,7 +1824,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
                     ax2.plot(bd_traj[:,bd_inds[0]], bd_traj[:,bd_inds[1]], alpha=0.1, markersize=1)
             ax1.set_xlabel('x-axis')
             ax1.set_ylabel('y-axis')
-            ax1.set_title(f'Archive coverage on {loc_system_name}')
+            ax1.set_title('Archive coverage on {}'.format(loc_system_name))
             if 'real' in loc_system_name:
                 ax1.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
                 ax1.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
@@ -1848,7 +1838,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
 
             ax2.set_xlabel('x-axis')
             ax2.set_ylabel('y-axis')
-            ax2.set_title(f'Individuals trajectories on {loc_system_name}')
+            ax2.set_title('Individuals trajectories on {}'.format(loc_system_name))
             if 'real' in loc_system_name:
                 ax2.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
                 ax2.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
@@ -1865,7 +1855,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     fig1.tight_layout(pad=6.9)
     # fig1.suptitle('Archive coverage after DAB')
     fig1.suptitle('Archive coverage')
-    file_path = os.path.join(args.log_dir, f"{args.environment}_real_cov_{n_inds}")
+    file_path = os.path.join(args.log_dir, "{}_real_cov_{}".format(args.environment, n_inds))
     fig1.savefig(file_path,
                  dpi=300, bbox_inches='tight')
 
@@ -1873,7 +1863,7 @@ def plot_cov_and_trajs(all_bd_traj_data, args, params):
     fig2.tight_layout(pad=6.9)
     # fig2.suptitle('Individuals trajectories after DAB')
     fig2.suptitle('Individuals trajectories')
-    file_path = os.path.join(args.log_dir, f"{args.environment}_ind_trajs_{n_inds}")
+    file_path = os.path.join(args.log_dir, "{}_ind_trajs_{}".format(args.environment, n_inds))
     fig2.savefig(file_path,
                  dpi=300, bbox_inches='tight')
 
@@ -1881,14 +1871,14 @@ def get_data_bins(data, ss_min, ss_max, dim_map, bd_inds, nb_div):
     df_min = data.iloc[0].copy(); df_max = data.iloc[0].copy()
 
     for i in range(dim_map-1, dim_map-3, -1):
-        df_min[f'bd{i}'] = ss_min[bd_inds[i%len(bd_inds)]]
-        df_max[f'bd{i}'] = ss_max[bd_inds[i%len(bd_inds)]]
+        df_min['bd{}'.format(i)] = ss_min[bd_inds[i%len(bd_inds)]]
+        df_max['bd{}'.format(i)] = ss_max[bd_inds[i%len(bd_inds)]]
         ## Deprecated but oh well
     data = data.append(df_min, ignore_index = True)
     data = data.append(df_max, ignore_index = True)
 
     for i in range(dim_map-1, dim_map-3, -1):
-        data[f'{i}_bin'] = pd.cut(x = data[f'bd{i}'],
+        data['{}_bin'.format(i)] = pd.cut(x = data['bd{}'.format(i)],
                                   bins = nb_div, 
                                   labels = [p for p in range(nb_div)])
 
@@ -1925,7 +1915,7 @@ def save_archive_cov_by_gen(archive, args, px, params):
     b_size = px['batch_size']
     
     archive_cov_by_gen = []
-    bd_cols = [f'bd{i}' for i in range(dim_map)]
+    bd_cols = ['bd{}'.format(i) for i in range(dim_map)]
     bd_cols = bd_cols[-2:]
     gen_size = 0
     ## theorical ns gens
