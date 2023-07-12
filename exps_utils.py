@@ -1675,10 +1675,10 @@ def get_env_params(args):
         env_params['max_step'] = 200  
         env_params['state_dim'] = env_params['obs_dim'] = 4
         env_params['act_dim'] = 1
-        env_params['a_min'] = np.array([-1]*env_params['act_dim'])
-        env_params['a_max'] = np.array([1]*env_params['act_dim'])
-        env_params['obs_min'] = env_params['ss_min'] = np.array([-1.]*env_params['obs_dim'])
-        env_params['obs_max'] = env_params['ss_max'] = np.array([1.]*env_params['obs_dim'])
+        env_params['a_min'] = np.array([-3])
+        env_params['a_max'] = np.array([3])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-2.5, -8, -8, 15])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([2.5, 8, 8, 15])
         env_params['init_obs'] = np.zeros(4)
         env_params['dim_map'] = 2
         env_params['bd_inds'] = [0, 2]
@@ -1688,10 +1688,20 @@ def get_env_params(args):
         env_params['max_step'] = 150
         env_params['state_dim'] = env_params['obs_dim'] = 20
         env_params['act_dim'] = 7
-        env_params['a_min'] = np.array([-1]*env_params['act_dim'])
-        env_params['a_max'] = np.array([1]*env_params['act_dim'])
-        env_params['obs_min'] = env_params['ss_min'] = np.array([-1.]*env_params['obs_dim'])
-        env_params['obs_max'] = env_params['ss_max'] = np.array([1.]*env_params['obs_dim'])
+        env_params['a_min'] = np.array([-2]*env_params['act_dim'])
+        env_params['a_max'] = np.array([2]*env_params['act_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-2., -1.5, -1.5,
+                                                                 -2, -1.5, -1,
+                                                                 -1.5, -1.5,
+                                                                 -1.5, -8, -5,
+                                                                 -7, -5, -7, -1,
+                                                                 -1.5, -0.5, -1,
+                                                                 -1, -1])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([2., 1.5, 1.5, 2,
+                                                                 1.5, 1, 1.5, 1.5,
+                                                                 1.5, 8, 5, 7, 5,
+                                                                 7, 1, 1.5, 0.5,
+                                                                 1, 1, 1])
         env_params['init_obs'] = np.zeros(20)
         env_params['dim_map'] = 6
         env_params['bd_inds'] = [14, 15, 16, 17, 18, 19]
@@ -1701,10 +1711,18 @@ def get_env_params(args):
         env_params['max_step'] = 150
         env_params['state_dim'] = env_params['obs_dim'] = 17
         env_params['act_dim'] = 7
-        env_params['a_min'] = np.array([-1]*env_params['act_dim'])
-        env_params['a_max'] = np.array([1]*env_params['act_dim'])
-        env_params['obs_min'] = env_params['ss_min'] = np.array([-1.]*env_params['obs_dim'])
-        env_params['obs_max'] = env_params['ss_max'] = np.array([1.]*env_params['obs_dim'])
+        env_params['a_min'] = np.array([-2]*env_params['act_dim'])
+        env_params['a_max'] = np.array([2]*env_params['act_dim'])
+        env_params['obs_min'] = env_params['ss_min'] = np.array([-2., -1.5, -1.5,
+                                                                 -2, -1.5, -1,
+                                                                 -1.5, -1.5,
+                                                                 -1.5, -8, -5,
+                                                                 -7, -5, -7, -1,
+                                                                 -1.5, -0.5])
+        env_params['obs_max'] = env_params['ss_max'] = np.array([2., 1.5, 1.5, 2,
+                                                                 1.5, 1, 1.5, 1.5,
+                                                                 1.5, 8, 5, 7, 5,
+                                                                 7, 1, 1.5, 0.5])
         env_params['init_obs'] = np.zeros(17)
         env_params['dim_map'] = 3
         env_params['bd_inds'] = [0, 1, 2] ## not right but bd not in obs
@@ -1945,6 +1963,7 @@ def process_args(parser):
     # options are 'cvt', 'grid', 'unstructured' and 'fixed'
     parser.add_argument("--qd_type", type=str, default="unstructured")
     parser.add_argument("--adaptive-novl", action="store_true")
+    parser.add_argument("--novl", type=float, default=0.015)
     #---------------CPU usage-------------------#
     parser.add_argument("--parallel", action="store_true")
     parser.add_argument("--num_cores", type=int, default=8)
