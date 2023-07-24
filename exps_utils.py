@@ -116,22 +116,36 @@ def get_dynamics_model(params):
     if dynamics_model_type == "prob":
         layer_size = dynamics_model_params['layer_size'][0]
         from src.trainers.mbrl.mbrl import MBRLTrainer
+        ## OLD WAY, USES ALWAYS FIRST DIM OF HIDDEN SIZES AS ALL LAYER SIZES
+        # variant = dict(
+        #     mbrl_kwargs=dict(
+        #         ensemble_size=dynamics_model_params['ensemble_size'],
+        #         # layer_size=dynamics_model_params['layer_size'],
+        #         layer_size=layer_size,
+        #         learning_rate=dynamics_model_params['learning_rate'],
+        #         batch_size=dynamics_model_params['batch_size'],
+        #     )
+        # )
+        # M = variant['mbrl_kwargs']['layer_size']
+        # dynamics_model = ProbabilisticEnsemble(
+        #     ensemble_size=variant['mbrl_kwargs']['ensemble_size'],
+        #     obs_dim=obs_dim,
+        #     action_dim=action_dim,
+        #     hidden_sizes=[M, M]
+        # )
         variant = dict(
             mbrl_kwargs=dict(
-                ensemble_size=dynamics_model_params['ensemble_size'],
-                # layer_size=dynamics_model_params['layer_size'],
-                layer_size=layer_size,
                 learning_rate=dynamics_model_params['learning_rate'],
                 batch_size=dynamics_model_params['batch_size'],
             )
         )
-        M = variant['mbrl_kwargs']['layer_size']
         dynamics_model = ProbabilisticEnsemble(
-            ensemble_size=variant['mbrl_kwargs']['ensemble_size'],
+            ensemble_size=dynamics_model_params['ensemble_size'],
             obs_dim=obs_dim,
             action_dim=action_dim,
-            hidden_sizes=[M, M]
+            hidden_sizes=dynamics_model_params['layer_size']
         )
+        
         #dynamics_model.cuda()
         dynamics_model_trainer = MBRLTrainer(
             ensemble=dynamics_model,
