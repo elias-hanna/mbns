@@ -140,13 +140,16 @@ def get_cov_per_gen_safe(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, 
     gen_covs = []
     gen_evals = []
     step = 100
-    
+    gen = 1
     for (gen, n_evals) in zip(range(1, max_gen+1, max_gen//step), range(100, total_evals+total_evals//step, total_evals//step)):    
+    # for n_evals in range(100, total_evals+total_evals//step, total_evals//step):
+        print(gen, n_evals, step, total_evals)
         gen_bd_data = bds_per_gen[f'bd_{gen}']
         gen_bd_df = pd.DataFrame(gen_bd_data, columns=[f'bd{i}' for i in range(dim_map)])
         gen_cov = compute_cov(gen_bd_df, ss_min, ss_max, dim_map, bd_inds, nb_div)
         gen_covs.append(gen_cov)
         gen_evals.append(n_evals)
+        # gen += 1
 
     return gen_covs, gen_evals
 
@@ -165,6 +168,9 @@ def process_rep(var_tuple):
     # drop the last column which was made because there is a
     # comma after last value i a line
     archive_data = archive_data.iloc[:,:-1]
+
+    archive_size = len(archive_data)
+
     ## Compute coverage and save it
     final_cov = compute_cov(archive_data, ss_min,
                             ss_max, dim_map,
@@ -192,7 +198,7 @@ def process_rep(var_tuple):
     ## Get archive BDs array and save it
     archive_bds = archive_data[bd_cols].to_numpy()
 
-    return final_cov, gen_covs, gen_evals, archive_bds, final_qd_score
+    return final_cov, gen_covs, gen_evals, archive_bds, final_qd_score, archive_size
 
 def main(args):
     ## Process command-line args
@@ -230,8 +236,17 @@ def main(args):
         # ss_min[:] = 0
         # ss_max[:] = 1
 
-        ss_min[bd_inds[0]] = 0.15 ; ss_min[bd_inds[1]] = 0.2
-        ss_max[bd_inds[0]] = 0.86 ; ss_max[bd_inds[1]] = 0.82
+        ## Old work good
+        # ss_min[bd_inds[0]] = 0.15 ; ss_min[bd_inds[1]] = 0.2
+        # ss_max[bd_inds[0]] = 0.86 ; ss_max[bd_inds[1]] = 0.82
+
+        # ss_min[bd_inds[0]] = 0 ; ss_min[bd_inds[1]] = 0
+        # ss_max[bd_inds[0]] = 1 ; ss_max[bd_inds[1]] = 1
+
+        ss_min[bd_inds[0]] = 0.13 ; ss_min[bd_inds[1]] = 0.18
+        ss_max[bd_inds[0]] = 0.91 ; ss_max[bd_inds[1]] = 0.81
+
+
         # min mbns: [0.15273238 0.21077263]
         # max mbns: [0.85483918 0.81122953]
         
@@ -243,6 +258,8 @@ def main(args):
     coverages[:] = np.nan
     qd_scores = np.empty((n_ps_methods, n_reps))
     qd_scores[:] = np.nan
+    archive_sizes = np.empty((n_ps_methods, n_reps))
+    archive_sizes[:] = np.nan
 
     # Get current working dir (folder from which py script was executed)
     root_wd = os.getcwd()
@@ -317,9 +334,10 @@ def main(args):
         #     all_psm_bds[psm_cpt].append(archive_bds)
         #     rep_cpt += 1
     
-        for (final_cov, gen_covs, gen_evals, archive_bds, final_qd_score) in processed_results:
+        for (final_cov, gen_covs, gen_evals, archive_bds, final_qd_score, archive_size) in processed_results:
             coverages[psm_cpt, rep_cpt] = final_cov 
             qd_scores[psm_cpt, rep_cpt] = final_qd_score 
+            archive_sizes[psm_cpt, rep_cpt] = archive_size 
             covs_per_gen[psm_cpt].append(gen_covs)
             evals_per_gen[psm_cpt].append(gen_evals)
             all_psm_bds[psm_cpt].append(archive_bds)
@@ -333,9 +351,22 @@ def main(args):
     psm_n_evals_medians = []
     psm_covs_1qs = []
     psm_covs_3qs = []
+
+    mbns_psm_idx = None
+    daqd_psm_idx = None
+    ns_psm_idx = None
+    daqd_final_cov = None
+    ns_final_cov = None
     
     ## Reformat data to plot it properly per evals, only need to this for daqd
     for (ps_method, psm_idx) in zip(ps_methods, range(len(ps_methods))):
+        if 'mbns' in ps_method:
+            mbns_psm_idx = psm_idx
+        if ps_method == 'daqd' :
+            daqd_psm_idx = psm_idx
+        if ps_method == 'ns':
+            ns_psm_idx = psm_idx
+                
         max_gens = max([len(i) for i in covs_per_gen[psm_idx]])
         for (cov_per_gen, eval_per_gen) in zip(covs_per_gen[psm_idx], evals_per_gen[psm_idx]):
             if len(cov_per_gen) < max_gens:
@@ -348,6 +379,17 @@ def main(args):
         psm_n_evals_medians.append(np.nanmedian(evals_per_gen[psm_idx], axis=0))
         psm_covs_1qs.append(np.nanquantile(covs_per_gen[psm_idx], 1/4, axis=0))
         psm_covs_3qs.append(np.nanquantile(covs_per_gen[psm_idx], 3/4, axis=0))
+
+        ## Correct the psm covs to be only increasing
+        ## (fix needed because unstruct archive is can jump from cell to cell)
+        for gen in range(1, len(psm_covs_medians[-1])):
+            if psm_covs_medians[-1][gen-1] > psm_covs_medians[-1][gen]:
+                psm_covs_medians[-1][gen] = psm_covs_medians[-1][gen-1]
+            if psm_covs_1qs[-1][gen-1] > psm_covs_1qs[-1][gen]:
+                psm_covs_1qs[-1][gen] = psm_covs_1qs[-1][gen-1]
+            if psm_covs_3qs[-1][gen-1] > psm_covs_3qs[-1][gen]:
+                psm_covs_3qs[-1][gen] = psm_covs_3qs[-1][gen-1]
+        
         # if ps_method == 'daqd' or 'mbns' in ps_method:
         #     psm_n_evals_medians[-1] = np.array(psm_n_evals_medians[-1])
         #     # psm_covs_medians[-1] = np.array(psm_covs_medians[-1])
@@ -358,14 +400,81 @@ def main(args):
         #     psm_covs_1qs[-1] = psm_covs_1qs[-1][:len(psm_n_evals_medians)]
         #     psm_covs_3qs[-1] = psm_covs_3qs[-1][:len(psm_n_evals_medians)]
         
-        # import pdb; pdb.set_trace()
-        ax.plot(psm_n_evals_medians[psm_idx], psm_covs_medians[psm_idx],
-                label=ps_method)
-        ax.fill_between(psm_n_evals_medians[psm_idx],
-                        psm_covs_1qs[psm_idx],
-                        psm_covs_3qs[psm_idx],
-                        alpha=0.2)
+        cut_idx = -1
+        if args.environment == 'empty_maze':
+            cut_idx = np.where(psm_n_evals_medians[psm_idx] < 10000)[0][-1]
+        else:
+            cut_idx = np.where(psm_n_evals_medians[psm_idx] < 50000)[0][-1]
+        if cut_idx != -1:
+            ax.plot(psm_n_evals_medians[psm_idx][:cut_idx+1],
+                    psm_covs_medians[psm_idx][:cut_idx+1],
+                    label=ps_method)
+            ax.fill_between(psm_n_evals_medians[psm_idx][:cut_idx+1],
+                            psm_covs_1qs[psm_idx][:cut_idx+1],
+                            psm_covs_3qs[psm_idx][:cut_idx+1],
+                            alpha=0.2)
+        else:
+            ax.plot(psm_n_evals_medians[psm_idx],
+                    psm_covs_medians[psm_idx],
+                    label=ps_method)
+            ax.fill_between(psm_n_evals_medians[psm_idx],
+                            psm_covs_1qs[psm_idx],
+                            psm_covs_3qs[psm_idx],
+                            alpha=0.2)
 
+        if ps_method == 'daqd':
+            daqd_final_cov = psm_covs_medians[psm_idx][cut_idx]#[-1]
+        elif ps_method == 'ns':
+            ns_final_cov = psm_covs_medians[psm_idx][cut_idx]#[-1]
+        ## Plot hline for some baselines
+        # if ps_method == 'daqd' or ps_method == 'ns':
+        #     ax.axhline(y=psm_covs_medians[psm_idx][cut_idx],#[-1],
+        #                # xmin=int(psm_n_evals_medians[psm_idx][0]),
+        #                xmin=0,
+        #                xmax=int(psm_n_evals_medians[psm_idx][cut_idx]),#[-1]),
+        #                # xmax=50000,
+        #                linewidth=1, linestyle='--')#,
+        #                # label=ps_method+'_final_cov')
+
+    ## Get the idxs where crossing happens
+    mbns_x_daqd = np.argwhere(np.diff(
+        np.sign(psm_covs_medians[mbns_psm_idx]
+                - np.array([daqd_final_cov]*
+                           len(psm_covs_medians[mbns_psm_idx]))))).flatten()
+    mbns_x_ns = np.argwhere(np.diff(
+        np.sign(psm_covs_medians[mbns_psm_idx]
+                - np.array([ns_final_cov]*
+                           len(psm_covs_medians[mbns_psm_idx]))))).flatten()
+
+    # ## Plot vline for some baselines
+    # print(psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
+    #       0,
+    #       ns_final_cov,
+    #       mbns_x_ns)
+    # ax.axvline(x=psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
+    #            # ymin=0,
+    #            # ymax=ns_final_cov,
+    #            linewidth=1, linestyle='--')
+
+    # print(psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
+    #       0,
+    #       daqd_final_cov,
+    #       mbns_x_daqd)
+    # ax.axvline(x=psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
+    #            # ymin=0,
+    #            # ymax=daqd_final_cov,
+    #            linewidth=1, linestyle='--')
+
+    extraticks = [psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
+                  psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]]]
+
+    if args.environment == 'empty_maze':
+        plt.xticks(list(np.arange(0,11000,10000//5)) + extraticks)
+        ax.set_xlim(0, 10100)
+    else:
+        plt.xticks(list(np.arange(0,51000,50000//5)) + extraticks)
+        ax.set_xlim(0, 50100)
+        
     ax.set_xlabel("Number of evaluations")
     ax.set_ylabel("Archive coverage")
     
@@ -380,6 +489,7 @@ def main(args):
     # filter nan values
     all_psm_covs = []
     all_psm_qd_scores = []
+    all_psm_archive_sizes = []
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
         cov_vals = coverages[psm_cpt]
         if not np.isnan(cov_vals).all():
@@ -389,6 +499,10 @@ def main(args):
         if not np.isnan(qd_score_vals).all():
             filtered_qd_score_vals = qd_score_vals[~np.isnan(qd_score_vals)]
             all_psm_qd_scores.append(filtered_qd_score_vals)
+        archive_size_vals = archive_sizes[psm_cpt]
+        if not np.isnan(archive_size_vals).all():
+            filtered_archive_size_vals = archive_size_vals[~np.isnan(archive_size_vals)]
+            all_psm_archive_sizes.append(filtered_archive_size_vals)
         
     ## Figure for coverage boxplot of all methods on environment
     fig, ax = plt.subplots()
@@ -416,6 +530,19 @@ def main(args):
     fig.set_size_inches(28, 14)
     plt.savefig(f"{args.environment}_bp_qd_score")
     
+    ## Figure for archive size boxplot of all methods on environment
+    fig, ax = plt.subplots()
+    ## Add to the qd score boxplot the policy search method
+    ax.boxplot(all_psm_archive_sizes, 0, '') # don't show the outliers
+    # ax.boxplot(all_psm_archive_sizes)
+    ax.set_xticklabels(ps_methods)
+
+    ax.set_ylabel("Archive Size")
+
+    plt.title(f"Final archive size for each policy search method on {args.environment} environment")
+    fig.set_size_inches(28, 14)
+    plt.savefig(f"{args.environment}_bp_archive_size")
+
     
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
         ## Plot the cumulated (over repetitions) archives BDs
@@ -439,7 +566,6 @@ def main(args):
         plt.title(f"Cumulated coverage (over {n_reps} reps for {ps_method} on {args.environment} environment")
         fig.set_size_inches(28, 28)
         plt.savefig(f"{args.environment}_{ps_method}_cum_coverage")        
-        
         
 
 if __name__ == '__main__':

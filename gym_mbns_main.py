@@ -9,7 +9,7 @@ def main(args, pool):
         # arg for NS
         "pop_size": args.pop_size,
         # args for MBNS
-        "model_budget_gen": 10,
+        "model_budget_gen": 20,
         "adaptive_model_budget_gen": True,
         "model_ns_return": args.model_ns_return,
         "model_discard_out_of_bs": False,

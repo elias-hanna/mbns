@@ -36,8 +36,10 @@ import itertools
 import os, sys
 import argparse
 import matplotlib.pyplot as plt
-font = {'family' : 'normal',
-        'weight' : 'normal',
+# font = {'family' : 'normal',
+        # 'weight' : 'normal',
+        # 'size'   : 20}
+font = {'weight' : 'normal',
         'size'   : 20}
 
 plt.rc('font', **font)
@@ -716,7 +718,8 @@ class WrappedEnv():
             S = np.tile(obs, (1, 1))
             A = np.empty((1, self.controller.output_dim))
 
-        for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+        # for t in tqdm.tqdm(range(self._model_max_h), total=self._model_max_h):
+        for t in range(self._model_max_h):
             if not mean:
                 if self.time_open_loop:
                     if self._norm_c_input:

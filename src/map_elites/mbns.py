@@ -447,7 +447,7 @@ class ModelBasedNS():
 
                 tmp_archive = self.archive.copy() # tmp archive for stats of negatives
 
-                if ptu._use_gpu:
+                if ptu._use_gpu and params["model_variant"]=="all_dynamics":
                     ## Switch dynamics model to CPU
                     print("Switched dynamics model to CPU")
                     self.dynamics_model_gpu_mode(False)
@@ -855,7 +855,8 @@ class ModelBasedNS():
         real_pop = model_population.copy()
         params['on_model'] = True
         add_list_model_final = []
-        all_model_eval = []
+        all_model_evals = []
+        all_model_inds = []
         gen = 0
         # while len(add_list_model_final) < params['min_found_model']:
         #for i in range(5000): # 600 generations (500 gens = 100,000 evals)
@@ -891,6 +892,18 @@ class ModelBasedNS():
 
             if len(model_offspring) == 0:
                 continue
+            ## Pop individuals that are breaking the model and have nan descriptors (overflow)
+            to_del = []
+            for idx in range(len(model_offspring)):
+                # if np.isnan(model_offspring[idx].desc).any(): ## filter nan values
+                if not np.isfinite(model_offspring[idx].desc).all(): ## filter inf, -inf and nan values
+                    ## Remove ind from offspring
+                    to_del.append(idx)
+            ## Reverse array so we remove the last idxs first, helps the idxs right
+            to_del.reverse()
+            for idx in to_del:
+                model_offspring.pop(idx)
+            
             ## Update population nov (pop + offsprings)
             self.update_population_novelty(model_population,
                                            model_offspring,
@@ -914,7 +927,8 @@ class ModelBasedNS():
 
             ### Need to think of what individuals to select for transfer
             add_list_model_final += add_list_model
-            all_model_eval += to_model_evaluate # count all inds evaluated by model
+            all_model_evals += to_model_evaluate # count all inds evaluated by model
+            all_model_inds += model_offspring
             print(f'Individuals evaluated on model: {len(s_list_model)}\nCurrent valid population at gen {gen}: {len(add_list_model_final)}')
             gen += 1
 
@@ -926,13 +940,31 @@ class ModelBasedNS():
         if params['model_ns_return'] == 'archive':
             print(len([0 for i in self.model_archive if len(i.obs_traj.shape)>2])
                   /len(self.model_archive))
-            return self.model_archive, all_model_eval
+            return self.model_archive, all_model_evals
         elif params['model_ns_return'] == 'population':
             print(len([0 for i in model_population if len(i.obs_traj.shape)>2])
                   /len(model_population))
-            return model_population, all_model_eval
-        # return add_list_model_final, all_model_eval
-        # return model_population, all_model_eval
+            return model_population, all_model_evals
+        elif params['model_ns_return'] == 'average_nov':
+            ## Return the most nov individuals VS real archive across all evaluations
+            # Compute novelty
+            self.update_population_novelty([], ## No pop
+                                           all_model_inds, ## all inds
+                                           self.all_evals_archive,
+                                           params)
+            # Select the N most novel from all_model_inds
+            ## Update population
+            all_model_inds_sorted = sorted(all_model_inds,
+                                           key=lambda x:x.nov, reverse=True)
+            model_population = all_model_inds_sorted[:params['pop_size']]
+            return model_population, all_model_evals
+        
+        elif params['model_ns_return'] == 'kmeans':
+            ## Return well spread individuals across all model evaluations 
+            pass
+        
+        # return add_list_model_final, all_model_evals
+        # return model_population, all_model_evals
 
     def add_sa_to_buffer(self, s_list, replay_buffer):
         for sol in s_list:
