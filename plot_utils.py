@@ -141,7 +141,12 @@ def get_cov_per_gen_safe(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, 
     gen_evals = []
     step = 100
     gen = 1
-    for (gen, n_evals) in zip(range(1, max_gen+1, max_gen//step), range(100, total_evals+total_evals//step, total_evals//step)):    
+    range_step = max_gen // step if max_gen // step > 0 else 1
+    print(ps_method, max_gen, total_evals)
+    print(100, total_evals+total_evals//step, total_evals//step)
+    step = total_evals // max_gen
+    # for (gen, n_evals) in zip(range(1, max_gen+1, range_step), range(100, total_evals+total_evals//step, total_evals//step)):    
+    for (gen, n_evals) in zip(range(1, max_gen+1), range(100, total_evals+total_evals//step, step)):    
     # for n_evals in range(100, total_evals+total_evals//step, total_evals//step):
         print(gen, n_evals, step, total_evals)
         gen_bd_data = bds_per_gen[f'bd_{gen}']
@@ -402,7 +407,12 @@ def main(args):
         
         cut_idx = -1
         if args.environment == 'empty_maze':
-            cut_idx = np.where(psm_n_evals_medians[psm_idx] < 10000)[0][-1]
+            ## When we go up to 10k evals
+            # cut_idx = np.where(psm_n_evals_medians[psm_idx] < 10000)[0][-1]
+            ## When we go up to 5k evals
+            cut_idx = np.where(psm_n_evals_medians[psm_idx] < 5000)[0][-1]
+        elif args.environment == 'ball_in_cup':
+            cut_idx = np.where(psm_n_evals_medians[psm_idx] < 25000)[0][-1]            
         else:
             cut_idx = np.where(psm_n_evals_medians[psm_idx] < 50000)[0][-1]
         if cut_idx != -1:
@@ -469,8 +479,13 @@ def main(args):
                   psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]]]
 
     if args.environment == 'empty_maze':
-        plt.xticks(list(np.arange(0,11000,10000//5)) + extraticks)
-        ax.set_xlim(0, 10100)
+        # plt.xticks(list(np.arange(0,11000,10000//5)) + extraticks)
+        # ax.set_xlim(0, 10100)
+        plt.xticks(list(np.arange(0,5000,5000//5)) + extraticks)
+        ax.set_xlim(0, 5100)
+    elif args.environment == 'ball_in_cup':
+        plt.xticks(list(np.arange(0,26000,25000//5)) + extraticks)
+        ax.set_xlim(0, 25100)
     else:
         plt.xticks(list(np.arange(0,51000,50000//5)) + extraticks)
         ax.set_xlim(0, 50100)

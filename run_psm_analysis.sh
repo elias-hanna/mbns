@@ -11,8 +11,10 @@ reps=10
 ## Environments
 environments=(ball_in_cup hexapod_omni fastsim_maze fastsim_maze_traps empty_maze)
 # environments=(fastsim_maze_traps)
+
 # environments=(empty_maze)
-environments=(hexapod_omni)
+environments=(ball_in_cup)
+# environments=(hexapod_omni)
 
 ## considered policy search methods
 psms=(ns qd_grid qd_unstructured daqd)
@@ -24,7 +26,9 @@ psms=(ns mbns_population_novelty qd_grid qd_unstructured qd_unstructured_adaptiv
 
 # psms=(mbns_avnov_adaptative_20itr ns mbns_population_novelty qd_grid qd_unstructured daqd)
 # psms=(mbns_avnov_adaptative_20itr ns daqd)
-psms=(mbns_average_nov_novelty ns qd_unstructured daqd)
+
+# psms=(mbns_average_nov_novelty ns qd_unstructured daqd)
+psms=(mbns_population_novelty ns qd_unstructured daqd)
 
 
 # psms=(qd_grid)
@@ -35,10 +39,10 @@ psms=(mbns_average_nov_novelty ns qd_unstructured daqd)
 ## Other parameters
 # nb_div: grid shape per dim for cov computing
 nb_div=20 ## Good for hexapod, bic, empty
-nb_div=40 ## Good for mazes
+nb_div=40 ## Good for mazes, give good difference between plots on ball in cup but low cov
 nb_div=30 ## seems good for hexapod
 
-nb_divs=(20 20 20)
+nb_divs=(30 20 20)
 
 daqd_folder=~/src/daqd
 

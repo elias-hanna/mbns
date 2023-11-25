@@ -266,7 +266,7 @@ def main(args):
     {
         'obs_dim': state_dim,
         'action_dim': act_dim,
-        'layer_size': [500, 400],
+        'layer_size': [500, 500],
         # 'layer_size': 500,
         'batch_size': 512,
         'learning_rate': 1e-3,
