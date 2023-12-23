@@ -378,6 +378,8 @@ class ModelBasedNS():
         add_errors_medians = []; add_errors_1q = []; add_errors_3q = []
         discard_errors_medians = []; discard_errors_1q = []; discard_errors_3q = []
 
+        transfer_err_analysis_results = {}
+
         bds_per_gen = {}
         bds_per_gen_all_evals = {}
         # main loop
@@ -451,13 +453,15 @@ class ModelBasedNS():
                     ## Switch dynamics model to CPU
                     print("Switched dynamics model to CPU")
                     self.dynamics_model_gpu_mode(False)
-                
+
+                all_model_inds = []
                 if emitter == 0: 
-                    model_population, to_model_evaluate = self.novelty_search_emitter(
-                        to_model_evaluate,
-                        model_population,
-                        pool,
-                        params)
+                    model_population, to_model_evaluate, all_model_inds = \
+                        self.novelty_search_emitter(
+                            to_model_evaluate,
+                            model_population,
+                            pool,
+                            params)
                 if emitter == 1:
                     self.qd_type = 'unstructured'
                     model_population, to_model_evaluate = self.random_model_emitter(
@@ -465,7 +469,78 @@ class ModelBasedNS():
                         pool,
                         params)
                     self.qd_type = 'fixed'
+
+                ################################################################
+                #################### TRANSFER ERROR ANALYSIS ###################
+                ################################################################
+                if params['args'].transfer_err_analysis:
+                    print('Starting Transfer Error Analysis....')
+                    ## Separate SELECTED inds and NON SELECTED inds
+                    sel_inds = model_population
+                    non_sel_inds = [ind for ind in all_model_inds
+                                    if ind not in sel_inds]
+                    ## Gather individuals novelty on model
+                    sel_inds_model_nov = [ind.nov for ind in sel_inds]
+                    non_sel_inds_model_nov = [ind.nov for ind in non_sel_inds]
+                    ## Gather individuals descriptors on model
+                    sel_inds_model_desc = [ind.desc for ind in sel_inds]
+                    non_sel_inds_model_desc = [ind.desc for ind in non_sel_inds]
+                    ## Evaluate SELECTED individuals on real system
+                    ## real sys eval, force parallel, then revert to real value
+                    parallel = params['parallel']
+                    params['parallel'] =  True
+                    # SELECTED inds real sys evaluations
+                    to_evaluate = []
+                    for z in sel_inds: 
+                        to_evaluate += [(z.x, self.f_real)]
+                    sel_inds = cm.parallel_eval(evaluate_, to_evaluate,
+                                                pool, params)
+                    # NON SELECTED inds real sys evaluations
+                    to_evaluate = []
+                    for z in non_sel_inds: 
+                        to_evaluate += [(z.x, self.f_real)]
+                    non_sel_inds = cm.parallel_eval(evaluate_, to_evaluate,
+                                                    pool, params)
+                    params['parallel'] =  parallel
+                    ## Gather real individuals descriptors
+                    sel_inds_real_desc = [ind.desc for ind in sel_inds]
+                    non_sel_inds_real_desc = [ind.desc for ind in non_sel_inds]
+                    ## Compute descriptor estimation error
+                    sel_inds_desc_error = [np.linalg.norm(r_d-m_d) for (r_d,m_d)
+                                           in zip(sel_inds_real_desc,
+                                                  sel_inds_model_desc)]
+                    non_sel_inds_desc_error = [np.linalg.norm(r_d-m_d) for (r_d,m_d)
+                                               in zip(non_sel_inds_real_desc,
+                                                      non_sel_inds_model_desc)]
+                    ## Save this generation inds
+                    transfer_err_analysis_results[f'sel_inds_model_nov_{gen}'] = \
+                        sel_inds_model_nov
+                    transfer_err_analysis_results[f'sel_inds_model_desc_{gen}'] = \
+                        sel_inds_model_desc
+                    transfer_err_analysis_results[f'sel_inds_real_desc_{gen}'] = \
+                        sel_inds_real_desc
+                    transfer_err_analysis_results[f'sel_inds_desc_error_{gen}'] = \
+                        sel_inds_desc_error
+                    transfer_err_analysis_results[f'non_sel_inds_model_nov_{gen}'] = \
+                        non_sel_inds_model_nov
+                    transfer_err_analysis_results[f'non_sel_inds_model_desc_{gen}'] = \
+                        non_sel_inds_model_desc
+                    transfer_err_analysis_results[f'non_sel_inds_real_desc_{gen}'] = \
+                        non_sel_inds_real_desc
+                    transfer_err_analysis_results[f'non_sel_inds_desc_error_{gen}'] = \
+                        non_sel_inds_desc_error
+                    ## Dump inds model nov, real nov and desc err                    
+                    dump_path = os.path.join(self.log_dir, 'transfer_err_analysis_results.npz')
+                    np.savez(dump_path, **transfer_err_analysis_results)
+                    print('Finished Transfer Error Analysis....')
+
+                    if n_evals >= 5000: ## Stop at 5000 evals, whichever environment we are considering
+                        return self.archive, n_evals
                     
+                ################################################################
+                ################################################################
+                ################################################################
+
                 ## Filter out the individuals already evaluated that remained in population
                 # add_list_model = [ind for ind in model_population if ind not in population]
                 # add_list_model = [ind for ind in model_population if ind not in self.archive]
@@ -940,11 +1015,12 @@ class ModelBasedNS():
         if params['model_ns_return'] == 'archive':
             print(len([0 for i in self.model_archive if len(i.obs_traj.shape)>2])
                   /len(self.model_archive))
-            return self.model_archive, all_model_evals
+
+            return self.model_archive, all_model_evals, all_model_inds
         elif params['model_ns_return'] == 'population':
             print(len([0 for i in model_population if len(i.obs_traj.shape)>2])
                   /len(model_population))
-            return model_population, all_model_evals
+            return model_population, all_model_evals, all_model_inds
         elif params['model_ns_return'] == 'average_nov':
             ## Return the most nov individuals VS real archive across all evaluations
             # Compute novelty
@@ -957,7 +1033,7 @@ class ModelBasedNS():
             all_model_inds_sorted = sorted(all_model_inds,
                                            key=lambda x:x.nov, reverse=True)
             model_population = all_model_inds_sorted[:params['pop_size']]
-            return model_population, all_model_evals
+            return model_population, all_model_evals, all_model_inds
         
         elif params['model_ns_return'] == 'kmeans':
             ## Return well spread individuals across all model evaluations 

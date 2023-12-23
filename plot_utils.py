@@ -5,6 +5,9 @@ from exps_utils import get_env_params, process_args, plot_cov_and_trajs, \
 #----------Utils imports--------#
 import os, sys
 import argparse
+import matplotlib
+matplotlib.rcParams['pdf.fonttype'] = 42
+matplotlib.rcParams['ps.fonttype'] = 42
 import matplotlib.pyplot as plt
 from multiprocessing import Pool
 
@@ -142,13 +145,10 @@ def get_cov_per_gen_safe(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, 
     step = 100
     gen = 1
     range_step = max_gen // step if max_gen // step > 0 else 1
-    print(ps_method, max_gen, total_evals)
-    print(100, total_evals+total_evals//step, total_evals//step)
     step = total_evals // max_gen
     # for (gen, n_evals) in zip(range(1, max_gen+1, range_step), range(100, total_evals+total_evals//step, total_evals//step)):    
     for (gen, n_evals) in zip(range(1, max_gen+1), range(100, total_evals+total_evals//step, step)):    
     # for n_evals in range(100, total_evals+total_evals//step, total_evals//step):
-        print(gen, n_evals, step, total_evals)
         gen_bd_data = bds_per_gen[f'bd_{gen}']
         gen_bd_df = pd.DataFrame(gen_bd_data, columns=[f'bd{i}' for i in range(dim_map)])
         gen_cov = compute_cov(gen_bd_df, ss_min, ss_max, dim_map, bd_inds, nb_div)
@@ -157,6 +157,26 @@ def get_cov_per_gen_safe(bds_per_gen, ss_min, ss_max, dim_map, bd_inds, nb_div, 
         # gen += 1
 
     return gen_covs, gen_evals
+
+def get_err_per_gen_safe(errors_per_gen, total_evals, ps_method):
+    dict_vals = errors_per_gen.values()
+    max_gen = len(errors_per_gen['all_errors_medians'])
+    ## Extract all error data
+    all_errors_medians = errors_per_gen['all_errors_medians']
+    all_errors_1q = errors_per_gen['all_errors_1q']
+    all_errors_3q = errors_per_gen['all_errors_3q']
+    add_errors_medians = errors_per_gen['add_errors_medians']
+    add_errors_1q = errors_per_gen['add_errors_1q']
+    add_errors_3q = errors_per_gen['add_errors_3q']
+    discard_errors_medians = errors_per_gen['discard_errors_medians']
+    discard_errors_1q = errors_per_gen['discard_errors_1q']
+    discard_errors_3q = errors_per_gen['discard_errors_3q']
+    
+    gen_evals = np.linspace(100, total_evals, max_gen)
+    
+    return (all_errors_medians, all_errors_1q, all_errors_3q), \
+        (add_errors_medians, add_errors_1q, add_errors_3q), \
+        (discard_errors_medians, discard_errors_1q, discard_errors_3q), gen_evals
 
 
 def compute_qd_score(data):
@@ -200,10 +220,25 @@ def process_rep(var_tuple):
                                                    total_evals, ps_method)
     except Exception as e:
         print(f'Received error {e} when processing file: {bds_per_gen_fpath}')
+
+    ## Get desc error per gen (put it in perspective with evals)
+    if ps_method == 'daqd' or 'mbns' in ps_method:
+        errors_per_gen_fpath = os.path.join(rep_dir, 'desc_estimation_errors.npz')
+        try:
+            errors_per_gen = np.load(errors_per_gen_fpath)
+            total_evals = int(archive_fname.split('/')[-1].replace('.', '_').split('_')[1])
+            gen_all_err, gen_add_err, gen_discard_err, gen_evals_err = get_err_per_gen_safe(
+                errors_per_gen, total_evals, ps_method)
+        except Exception as e:
+            print(f'Received error {e} when processing file: {bds_per_gen_fpath}')
+    else:
+        gen_all_err, gen_add_err, gen_discard_err = (0,1,2), (0,1,2), (0,1,2)
+        gen_evals_err = []
     ## Get archive BDs array and save it
     archive_bds = archive_data[bd_cols].to_numpy()
 
-    return final_cov, gen_covs, gen_evals, archive_bds, final_qd_score, archive_size
+    return final_cov, gen_covs, gen_evals, archive_bds, final_qd_score, \
+        archive_size, gen_all_err, gen_add_err, gen_discard_err, gen_evals_err
 
 def main(args):
     ## Process command-line args
@@ -265,19 +300,28 @@ def main(args):
     qd_scores[:] = np.nan
     archive_sizes = np.empty((n_ps_methods, n_reps))
     archive_sizes[:] = np.nan
-
+    
     # Get current working dir (folder from which py script was executed)
     root_wd = os.getcwd()
 
     covs_per_gen = []
     evals_per_gen = []
 
+    all_errors_per_gen = []
+    add_errors_per_gen = []
+    discard_errors_per_gen = []
+    evals_per_gen_err = []
+    
     pool = Pool(10) ## use 10 cores (10 reps...)
     
     ## Go over methods (daqd, qd, qd_grid, ns)
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
         covs_per_gen.append([])
         evals_per_gen.append([])
+        all_errors_per_gen.append([])
+        add_errors_per_gen.append([])
+        discard_errors_per_gen.append([])
+        evals_per_gen_err.append([])
         
         print(f"Processing {ps_method} results on {args.environment}...")
         ## Go inside the policy search method folder
@@ -300,7 +344,7 @@ def main(args):
         rep_cpt = 0
         all_psm_bds.append([])
         ## Go over repetitions
-        
+
         processed_results = pool.imap(process_rep, zip(rep_dirs,
                                                        itertools.repeat(ps_method),
                                                        itertools.repeat(ss_min),
@@ -309,6 +353,15 @@ def main(args):
                                                        itertools.repeat(bd_inds),
                                                        itertools.repeat(nb_div),
                                                        itertools.repeat(bd_cols)))
+
+        ## Debug(not parallel)
+        # processed_results = []
+        # for rep_dir in rep_dirs:
+        #     processed_results.append(process_rep([rep_dir, ps_method, ss_min,
+        #                                          ss_max, dim_map, bd_inds,
+        #                                                nb_div, bd_cols]))
+        
+
         
         # for rep_dir in rep_dirs:
         #     ## get the last archive file name
@@ -339,13 +392,21 @@ def main(args):
         #     all_psm_bds[psm_cpt].append(archive_bds)
         #     rep_cpt += 1
     
-        for (final_cov, gen_covs, gen_evals, archive_bds, final_qd_score, archive_size) in processed_results:
+        for (final_cov, gen_covs, gen_evals, archive_bds, final_qd_score,
+             archive_size, gen_all_err, gen_add_err, gen_discard_err,
+             gen_evals_err) in processed_results:
+
             coverages[psm_cpt, rep_cpt] = final_cov 
             qd_scores[psm_cpt, rep_cpt] = final_qd_score 
             archive_sizes[psm_cpt, rep_cpt] = archive_size 
             covs_per_gen[psm_cpt].append(gen_covs)
             evals_per_gen[psm_cpt].append(gen_evals)
             all_psm_bds[psm_cpt].append(archive_bds)
+            all_errors_per_gen[psm_cpt].append(gen_all_err)
+            add_errors_per_gen[psm_cpt].append(gen_add_err)
+            discard_errors_per_gen[psm_cpt].append(gen_discard_err)
+            evals_per_gen_err[psm_cpt].append(gen_evals_err)
+    
             rep_cpt += 1
             
     pool.close()
@@ -371,6 +432,8 @@ def main(args):
             daqd_psm_idx = psm_idx
         if ps_method == 'ns':
             ns_psm_idx = psm_idx
+        if ps_method == 'mbns_population_novelty':
+            ps_method = 'mbns_average_nov_novelty'
                 
         max_gens = max([len(i) for i in covs_per_gen[psm_idx]])
         for (cov_per_gen, eval_per_gen) in zip(covs_per_gen[psm_idx], evals_per_gen[psm_idx]):
@@ -456,40 +519,91 @@ def main(args):
                 - np.array([ns_final_cov]*
                            len(psm_covs_medians[mbns_psm_idx]))))).flatten()
 
-    # ## Plot vline for some baselines
-    # print(psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
-    #       0,
-    #       ns_final_cov,
-    #       mbns_x_ns)
+    ## Plot vline for some baselines
+    print('NS FINAL COV REACHED: ',
+          psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
+          0,
+          ns_final_cov,
+          mbns_x_ns)
     # ax.axvline(x=psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
-    #            # ymin=0,
-    #            # ymax=ns_final_cov,
+    #            ymin=-0.02,
+    #            ymax=ns_final_cov*1/ax.get_ylim()[1],
     #            linewidth=1, linestyle='--')
 
-    # print(psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
-    #       0,
-    #       daqd_final_cov,
-    #       mbns_x_daqd)
+    print('DAQD FINAL COV REACHED: ',
+          psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
+          0,
+          daqd_final_cov,
+          mbns_x_daqd)
     # ax.axvline(x=psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
-    #            # ymin=0,
-    #            # ymax=daqd_final_cov,
+    #            ymin=-0.04,
+    #            ymax=daqd_final_cov*1/ax.get_ylim()[1],
     #            linewidth=1, linestyle='--')
 
+    ## Otherway to do it, better as it allow overlap
+    from matplotlib.lines import Line2D
+    x_ns,y_ns = np.array([[psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
+                           psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
+                           50000],
+                          [-0.02, ns_final_cov, ns_final_cov]])
+
+    x_daqd,y_daqd = np.array([[psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
+                               psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]],
+                               50000],
+                              [-0.04, daqd_final_cov, daqd_final_cov]])
+    
+    
     extraticks = [psm_n_evals_medians[mbns_psm_idx][mbns_x_ns[0]],
                   psm_n_evals_medians[mbns_psm_idx][mbns_x_daqd[0]]]
 
     if args.environment == 'empty_maze':
         # plt.xticks(list(np.arange(0,11000,10000//5)) + extraticks)
         # ax.set_xlim(0, 10100)
-        plt.xticks(list(np.arange(0,5000,5000//5)) + extraticks)
+        x_ns[2] = 5000; y_ns[0] = -0.025
+        x_daqd[2] = 5000; y_daqd[0] = -0.05
+        ticks_pos = list(np.arange(0,5000,5000//5)) + extraticks 
+        labels = [str(tick) for tick in ticks_pos]
+        labels[-2] = '\nFinal NS coverage reached'
+        labels[-1] = '\n\nFinal DAQD coverage reached'
+        plt.xticks(ticks_pos, labels)
+        plt.xticks()
         ax.set_xlim(0, 5100)
+        ax.set_ylim(0, 1.05)
     elif args.environment == 'ball_in_cup':
-        plt.xticks(list(np.arange(0,26000,25000//5)) + extraticks)
+        x_ns[2] = 25000; y_ns[0] = -0.005
+        x_daqd[2] = 25000; y_daqd[0] = -0.01
+        ticks_pos = list(np.arange(0,26000,25000//5)) + extraticks
+        labels = [str(tick) for tick in ticks_pos]
+        labels[-2] = '\nFinal NS coverage reached'
+        labels[-1] = '\n\nFinal DAQD coverage reached'
+        plt.xticks(ticks_pos, labels)
         ax.set_xlim(0, 25100)
+        ax.set_ylim(0, 0.2)
     else:
-        plt.xticks(list(np.arange(0,51000,50000//5)) + extraticks)
+        ticks_pos = list(np.arange(0,51000,50000//5)) + extraticks 
+        labels = [str(tick) for tick in ticks_pos]
+        labels[-2] = '\nFinal NS coverage reached'
+        labels[-1] = '\n\nFinal DAQD coverage reached'
+        plt.xticks(ticks_pos, labels)
         ax.set_xlim(0, 50100)
-        
+        ax.set_ylim(0, 0.7)
+        ## Change the rotation of the extraticks
+        # ticks = ax.get_xticklabels()
+        # ticks[-2].set_rotation(70) ## rotate the NS extratick label
+        # ticks[-2].set_text('Final NS coverage reached') # does not work
+        # ticks[-1].set_rotation(70) ## rotate the DAQD extratick label
+        # ticks[-1].set_text('Final DAQD coverage reached') # does not work
+
+    ## Set the NS lines for pretty fig
+    line = Line2D(x_ns, y_ns, linestyle='--', lw=2.5, color='orange', alpha=0.4)
+    line.set_clip_on(False)
+    ax.add_line(line)
+
+    ## Set the DAQD lines for pretty fig
+    line = Line2D(x_daqd, y_daqd, linestyle='--', lw=2.5, color='r', alpha=0.4)
+    line.set_clip_on(False)
+    ax.add_line(line)
+
     ax.set_xlabel("Number of evaluations")
     ax.set_ylabel("Archive coverage")
     
@@ -518,7 +632,10 @@ def main(args):
         if not np.isnan(archive_size_vals).all():
             filtered_archive_size_vals = archive_size_vals[~np.isnan(archive_size_vals)]
             all_psm_archive_sizes.append(filtered_archive_size_vals)
-        
+
+    # replace 
+    ps_methods = list(map(lambda x: x.replace('mbns_population_novelty', 'mbns_average_nov_novelty'), ps_methods))
+
     ## Figure for coverage boxplot of all methods on environment
     fig, ax = plt.subplots()
     ## Add to the coverage boxplot the policy search method
@@ -537,6 +654,7 @@ def main(args):
     ## Add to the qd score boxplot the policy search method
     ax.boxplot(all_psm_qd_scores, 0, '') # don't show the outliers
     # ax.boxplot(all_psm_qd_scores)
+
     ax.set_xticklabels(ps_methods)
 
     ax.set_ylabel("QD-Score")
@@ -558,8 +676,20 @@ def main(args):
     fig.set_size_inches(28, 14)
     plt.savefig(f"{args.environment}_bp_archive_size")
 
+
+    ### containers for (all) transfers median descriptor estimation errors
+    daqd_all_errors_medians = []
+    daqd_all_errors_1q = []
+    daqd_all_errors_3q = []
+    daqd_all_errors_evals = []
+    mbns_all_errors_medians = []
+    mbns_all_errors_1q = []
+    mbns_all_errors_evals = []
     
     for (ps_method, psm_cpt) in zip(ps_methods, range(len(ps_methods))):
+        if ps_method == 'mbns_population_novelty':
+            ps_method = 'mbns_average_nov_novelty'
+            
         ## Plot the cumulated (over repetitions) archives BDs
         fig, ax = plt.subplots()
 
@@ -578,9 +708,195 @@ def main(args):
 
         ax.set_xlim(ss_min[bd_inds[0]], ss_max[bd_inds[0]])
         ax.set_ylim(ss_min[bd_inds[1]], ss_max[bd_inds[1]])
-        plt.title(f"Cumulated coverage (over {n_reps} reps for {ps_method} on {args.environment} environment")
+        plt.title(f"Cumulated coverage over {n_reps} reps for {ps_method} on {args.environment} environment")
         fig.set_size_inches(28, 28)
-        plt.savefig(f"{args.environment}_{ps_method}_cum_coverage")        
+        plt.savefig(f"{args.environment}_{ps_method}_cum_coverage")
+
+
+        if ps_method == 'daqd' or 'mbns' in ps_method:
+
+            #### WARNING: ONLY FOR MB Methods ######
+            ## Plot descriptor estimation error at each generation
+            ## Plotting all inds error, added inds error and discarded inds error
+            ## Plotting median 1st and 3rd quartile for each
+            fig, ax = plt.subplots()
+
+            # gens = [gen+1 for gen in range(len(all_errors_medians))]
+
+            ## Reformat data to be easier to plot
+            all_errors_medians = []
+            all_errors_1q = []
+            all_errors_3q = []
+            add_errors_medians = []
+            add_errors_1q = []
+            add_errors_3q = []
+            discard_errors_medians = []
+            discard_errors_1q = []
+            discard_errors_3q = []
+            evals = []
+            
+            for rep_cpt in range(len(all_errors_per_gen[psm_cpt])):
+                ## remove spikes and replace with nan (only one or two in a few runs...)
+                if args.environment == 'hexapod_omni':
+                    thresh = 0.25 ## filter the spikes in daqd and mbns
+                elif args.environment == 'empty_maze':
+                    thresh = 600 ## doesn't filter anything
+                elif args.environment == 'ball_in_cup':
+                    thresh = 4.5 ## filter the initial spike in mbns 
+
+                for k in range(3):
+                    all_errors_per_gen[psm_cpt][rep_cpt][k]\
+                        [all_errors_per_gen[psm_cpt][rep_cpt][k] > thresh] = np.nan 
+                    add_errors_per_gen[psm_cpt][rep_cpt][k]\
+                        [add_errors_per_gen[psm_cpt][rep_cpt][k] > thresh] = np.nan
+                    discard_errors_per_gen[psm_cpt][rep_cpt][k]\
+                        [discard_errors_per_gen[psm_cpt][rep_cpt][k] > thresh] = np.nan
+
+                ## Format data
+                all_errors_medians.append(list(all_errors_per_gen[psm_cpt][rep_cpt][0]))
+                all_errors_1q.append(list(all_errors_per_gen[psm_cpt][rep_cpt][1]))
+                all_errors_3q.append(list(all_errors_per_gen[psm_cpt][rep_cpt][2]))
+                add_errors_medians.append(list(add_errors_per_gen[psm_cpt][rep_cpt][0]))
+                add_errors_1q.append(list(add_errors_per_gen[psm_cpt][rep_cpt][1]))
+                add_errors_3q.append(list(add_errors_per_gen[psm_cpt][rep_cpt][2]))
+                discard_errors_medians.append(list(discard_errors_per_gen[psm_cpt][rep_cpt][0]))
+                discard_errors_1q.append(list(discard_errors_per_gen[psm_cpt][rep_cpt][1]))
+                discard_errors_3q.append(list(discard_errors_per_gen[psm_cpt][rep_cpt][2]))
+                evals.append(list(evals_per_gen_err[psm_cpt][rep_cpt]))
+                
+            ## Harmonize the length by adding nans to the shorter runs (in terms of gens)
+            max_gens = max([len(i) for i in all_errors_medians])
+            for (all_err_median, all_err_1q, all_err_3q,
+                 add_err_median, add_err_1q, add_err_3q,
+                 disc_err_median, disc_err_1q, disc_err_3q, eval_per_gen_err) \
+                 in zip(all_errors_medians,
+                        all_errors_1q,
+                        all_errors_3q,
+                        add_errors_medians,
+                        add_errors_1q,
+                        add_errors_3q,
+                        discard_errors_medians,
+                        discard_errors_1q,
+                        discard_errors_3q,
+                        evals):
+
+                if len(all_err_median) < max_gens:
+                    for _ in range(max_gens-len(all_err_median)):
+                        all_err_median.append(np.nan)
+                        all_err_1q.append(np.nan)
+                        all_err_3q.append(np.nan)
+                        add_err_median.append(np.nan)
+                        add_err_1q.append(np.nan)
+                        add_err_3q.append(np.nan)
+                        disc_err_median.append(np.nan)
+                        disc_err_1q.append(np.nan)
+                        disc_err_3q.append(np.nan)
+                        eval_per_gen_err.append(np.nan)
+                        
+            all_errors_medians = np.nanmean(all_errors_medians, axis=0)
+            all_errors_1q = np.nanmean(all_errors_1q, axis=0)
+            all_errors_3q = np.nanmean(all_errors_3q, axis=0)
+            add_errors_medians = np.nanmean(add_errors_medians, axis=0)
+            add_errors_1q = np.nanmean(add_errors_1q, axis=0)
+            add_errors_3q = np.nanmean(add_errors_3q, axis=0)
+            discard_errors_medians = np.nanmean(discard_errors_medians, axis=0)
+            discard_errors_1q = np.nanmean(discard_errors_1q, axis=0)
+            discard_errors_3q = np.nanmean(discard_errors_3q, axis=0)
+            evals = np.nanmean(evals, axis=0)
+
+            if 'mbns' in ps_method:
+                mbns_all_errors_medians = all_errors_medians.copy() 
+                mbns_all_errors_1q = all_errors_1q.copy()
+                mbns_all_errors_3q = all_errors_3q.copy()
+                mbns_all_errors_evals = evals.copy()
+            elif 'daqd' in ps_method:
+                daqd_all_errors_medians = all_errors_medians.copy() 
+                daqd_all_errors_1q = all_errors_1q.copy()
+                daqd_all_errors_3q = all_errors_3q.copy()
+                daqd_all_errors_evals = evals.copy()
+            
+            ## plot all
+            ax.plot(evals, all_errors_medians,
+                    label='Median descriptor estimation error (all)',
+                    color='yellow')
+            ax.fill_between(evals,
+                            all_errors_1q,
+                            all_errors_3q,
+                            alpha=0.2,
+                            color='yellow')
+            ## plot added
+            ax.plot(evals, add_errors_medians,
+                    label='Median descriptor estimation error (add)',
+                    color='green')
+            ax.fill_between(evals,
+                            add_errors_1q,
+                            add_errors_3q,
+                            alpha=0.2,
+                            color='green')
+            ## plot discard
+            ax.plot(evals, discard_errors_medians,
+                    label='Median descriptor estimation error (discard)',
+                    color='red')
+            ax.fill_between(evals,
+                            discard_errors_1q,
+                            discard_errors_3q,
+                            alpha=0.2,
+                            color='red')
+            
+            if args.environment == 'empty_maze':
+                plt.xticks(list(np.arange(0,5000,5000//5)))
+                ax.set_xlim(0, 5100)
+            elif args.environment == 'ball_in_cup':
+                plt.xticks(list(np.arange(0,26000,25000//5)))
+                ax.set_xlim(0, 25100)
+            else:
+                plt.xticks(list(np.arange(0,51000,50000//5)))
+                ax.set_xlim(0, 50100)
+            
+            ax.set_title(f'Descriptor estimation error evolution of {ps_method} on {args.environment}')
+            ax.set_xlabel('Evaluations')
+            ax.set_ylabel('Distance between estimated and real descriptor (L2 norm)')
+            fig.set_size_inches(35, 14)
+            ax.legend()
+            fig.savefig(f"{args.environment}_{ps_method}_desc_error_by_gen",
+                        dpi=300, bbox_inches='tight')
+
+    ## plot all descriptor estimation error medians on same plot
+    fig, ax = plt.subplots()
+    ax.plot(mbns_all_errors_evals, mbns_all_errors_medians,
+            label='Median descriptor estimation error for MBNS',
+            color='Blue')
+    ax.fill_between(mbns_all_errors_evals,
+                    mbns_all_errors_1q,
+                    mbns_all_errors_3q,
+                    alpha=0.2,
+                    color='Blue')
+    ax.plot(daqd_all_errors_evals, daqd_all_errors_medians,
+            label='Median descriptor estimation error for DAQD',
+            color='Red')
+    ax.fill_between(daqd_all_errors_evals,
+                    daqd_all_errors_1q,
+                    daqd_all_errors_3q,
+                    alpha=0.2,
+                    color='Red')
+
+    if args.environment == 'empty_maze':
+        plt.xticks(list(np.arange(0,5000,5000//5)))
+        ax.set_xlim(0, 5100)
+    elif args.environment == 'ball_in_cup':
+        plt.xticks(list(np.arange(0,26000,25000//5)))
+        ax.set_xlim(0, 25100)
+    else:
+        plt.xticks(list(np.arange(0,51000,50000//5)))
+        ax.set_xlim(0, 50100)
+
+    ax.set_title(f'Descriptor estimation error evolution of MBNS and DAQD on {args.environment}')
+    ax.set_xlabel('Evaluations')
+    ax.set_ylabel('Distance between estimated and real descriptor (L2 norm)')
+    fig.set_size_inches(35, 14)
+    ax.legend()
+    fig.savefig(f"{args.environment}_mbns_vs_daqd_desc_error_by_gen",
+                dpi=300, bbox_inches='tight')
         
 
 if __name__ == '__main__':

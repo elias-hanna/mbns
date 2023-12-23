@@ -1989,6 +1989,7 @@ def process_args(parser):
     parser.add_argument("--log_dir", type=str)
     parser.add_argument('--log-ind-trajs', action="store_true") ## Store trajs during run
     parser.add_argument('--dump-ind-trajs', action="store_true") ## Dump traj in archive
+    parser.add_argument('--transfer-err-analysis', action="store_true") ## Dump traj in archive
     
     #-----------QD params for cvt or GRID---------------#
     # ONLY NEEDED FOR CVT OR GRID MAP ELITES - not needed for unstructured archive
