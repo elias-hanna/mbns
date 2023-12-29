@@ -11,6 +11,8 @@ def main(args, pool):
         # args for MBNS
         "model_budget_gen": 20,
         "adaptive_model_budget_gen": True,
+        # "model_budget_gen": 5,
+        # "adaptive_model_budget_gen": False,
         "model_ns_return": args.model_ns_return,
         "model_discard_out_of_bs": False,
         # more of this -> higher-quality CVT
@@ -349,6 +351,10 @@ def main(args, pool):
 
     # archive, n_evals = mbns.compute(pool, num_cores_set=args.num_cores, max_evals=args.max_evals)
     archive, n_evals = mbns.compute(pool, max_evals=args.max_evals)
+
+    if args.transfer_err_analysis:
+        print(f'Finished performing transfer error analysis successfully.')
+        exit(0)
     
     cm.save_archive(archive, f"{n_evals}_real_all", px, args.log_dir)
         

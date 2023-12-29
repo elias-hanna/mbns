@@ -12,9 +12,9 @@ reps=10
 environments=(ball_in_cup hexapod_omni fastsim_maze fastsim_maze_traps empty_maze)
 # environments=(fastsim_maze_traps)
 
-environments=(empty_maze)
+# environments=(empty_maze)
 # environments=(ball_in_cup)
-# environments=(hexapod_omni)
+environments=(hexapod_omni)
 # environments=(hexapod_omni empty_maze ball_in_cup)
 
 ## considered policy search methods
@@ -28,8 +28,8 @@ psms=(ns mbns_population_novelty qd_grid qd_unstructured qd_unstructured_adaptiv
 # psms=(mbns_avnov_adaptative_20itr ns mbns_population_novelty qd_grid qd_unstructured daqd)
 # psms=(mbns_avnov_adaptative_20itr ns daqd)
 
-# psms=(mbns_average_nov_novelty ns qd_unstructured daqd)
-psms=(mbns_population_novelty ns qd_unstructured daqd)
+psms=(mbns_average_nov_novelty ns qd_unstructured daqd)
+# psms=(mbns_population_novelty ns qd_unstructured daqd)
 # psms=(mbns_average_nov_novelty mbns_population_novelty ns qd_unstructured daqd)
 # psms=(mbns_population_novelty mbns_average_nov_novelty ns qd_unstructured daqd)
 
@@ -47,7 +47,7 @@ nb_div=30 ## seems good for hexapod -> thats the one for hexapod
 
 nb_divs=(30 20 40)
 
-nb_divs=(20 20 40)
+nb_divs=(30 20 40)
 
 daqd_folder=~/src/daqd
 

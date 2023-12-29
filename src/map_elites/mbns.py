@@ -535,6 +535,8 @@ class ModelBasedNS():
                     print('Finished Transfer Error Analysis....')
 
                     if n_evals >= 5000: ## Stop at 5000 evals, whichever environment we are considering
+                        pool.close()
+                        self.log_file.close()
                         return self.archive, n_evals
                     
                 ################################################################
