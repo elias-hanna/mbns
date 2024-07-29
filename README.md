@@ -1,68 +1,41 @@
-# Dynamics-Aware Quality-Diversity (DA-QD)
-Project repository for Dynamics-Aware Quality-Diversity (DA-QD).
+# Model-Based Novelty Search (MBNS)
 
-[Project Webpage](https://sites.google.com/view/da-qd/home)
+Warning: A cleanup of the repository needs to be performed, some environments dependancies are built upon private repositories that cannot be made public (will be changed)
 
-[Paper](https://arxiv.org/abs/2109.08522)
+This repository is built upon the Dynamics-Aware Quality-Diversity (DA-QD) [paper](https://arxiv.org/abs/2109.08522) original [repository](https://github.com/adaptive-intelligent-robotics/Dynamics-Aware_Quality-Diversity).
+This repository adds compatibility with [OpenAI gym](https://github.com/openai/gym) environments and integrates several of them (can be checked in the [exps_utils.py](https://github.com/elias-hanna/mbns/blob/master/exps_utils.py) file).
+This repository also adds an implementation of the Novelty Search algorithm, the Model-Based Novelty Search algorithm and the Zero-shot Diverse Archive Bootstrapping algorithm. It also contains drafts of other algorithms with local dynamics model approaches. 
 
+## External Package Dependancies
 
-Performing Quality-Diversity (QD) optimisation using learnt models, to reduce the number of evaluations/trials/samples needed during QD skill discovery.
-DA-QD allows QD to be performed in imagination, to discover and only executte novel or higher-performing skills.
+- [fastsim_gym](https://github.com/elias-hanna/fastsim_gym)
+- [mb_ge](https://github.com/elias-hanna/mb_ge)
+- [redundant_arm](https://github.com/elias-hanna/redundant_arm) 
+- diversity_algorithms_dev : to remove (private repository)
 
-## Dependencies and Installation
-We recommend using singularity containers to easily run this code. The singularity directory contains all the required files to build a container (i.e. singularity.def).
-The code and experiments in this repository uses the [DART](https://dartsim.github.io) physics simulator and [RobotDART](https://github.com/resibots/robot_dart) wrapper.
-If you want to build this without a singularity container, all the dependencies can be found in the singularity.def file. 
+## Run the code
 
-## How to run the code?
-1. Create a directory or identify directory in which to store results (i.e. $tmp_dir) 
-
-2. Run the line below for skill-discovery using DAQD on the hexapod robot:
-```
-python3 run_scripts/hexapod_omni_daqd_main.py --num_cores 30 --log_dir $tmp_dir --dump_period 5000
-```
-
-3. For analysis and visualization of results, use:
-```
-python3 vis_repertoire_hexapod.py --archive_519.dat --plot_type grid
-```
-This plots the resulting repertoire. This is also an interactive plot which shows the resulting skill/behaviour in a rendered simulation when you select a skill in the repertoire on the plot using the mouse.
-
-and
-```
-python3 analysis.py
-```
-This plots the performance curves for QD-score and coverage metrics. You will need to go into this file to specify the paths of the directories of the log_file.dat from your different variants of your experiments.
-
-
-## Documentation on code structure
-### Main algorithm class MBQD
-The main class `ModelBasedQD` (present in `src/map_elites/mbqd`) takes as argument all the components:
-  - Environment
-  - Direct Model, Direct Model Trainer
-  - Dynamics Model, Dynamics Model Trainer
-  - Replay Buffer
-
-Its `compute` method runs the main algorithm loop, consisting of:
-1. Initialization of the repertoire with random policies
-2. Copy this repertoire to produce an imagined repertoire.
-3. Performing QD in imagination with this imagined repertoire.
-4. Selection from the imagined repertoire.
-5. Act in environment - evaluate selected solutions.
-6. Update the skill repertoire.
-7. Update model/train model.
-8. Repeat step 2-7.
-
-## Some points about input dimensions of the models
-For Direct Neural Network Surrogate and Deterministic Dynamics Model:
-- inputs should be of shape [batch_size, input_dim]
-
-However, for probablistic ensemble which performs the ensemble in parallelized manner:
-- taken from the code repository of https://github.com/kzl/lifelong_rl
-- inputs should be of the shape [ensemble_size, batch_size, input_dim]
-- However, if there is only one observation input i.e [batch_size, input_dim], there is a conditional if check (if len(input.shape) < 3) to replicate the input across all models in the ensemble and reshape it to [ensemble_size, batch_size, input_dim].
-
-## Acknowledgements
-- The QD code is built and modified from the <https://github.com/resibots/pymap_elites> repository.
-- Code for dynamics models using probabalistic ensembles is built and modified from the <https://github.com/kzl/lifelong_rl> repository.
-
+1. Create a directory $logs to store the results of the run
+2. Run $algo on $env (on of the ones described in [exps_utils.py](https://github.com/elias-hanna/mbns/blob/master/exps_utils.py)) for $max_evals (real system evaluations):
+  ```
+  python3 gym_${algo}_main.py --log_dir $logs -e $env --max_evals $max_evals --num_cores 8 --dump_period 5000
+  ```
+3. Analyze results using the ```run_psm_analysis.sh``` script for policy search methods results (NS, MBNS, QD, DAQD), using the ```run_dab_analysis.sh``` script for 0-DAB results or using the ```run_transfer_analysis.sh``` script for model-based policy search methods transfer analysis results (MBNS, DAQD). Run from the results directory and change the variables inside the bash scripts to fit your architecture (results are printed over various repetitions by default).
+  ```
+  ./run_psm_analysis.sh
+  ```
+4. Other arguments:
+- ```--model-horizon``` : int, change the prediction horizon on the learned dynamics model. Default is -1, which uses the environment task horizon.
+- ```--n-waypoints``` : int, change the number of waypoints used in the behavioral descriptor of an individual, the last trajectory element projection in behavioral space is always used. Default is 1 (last trajectory element projection).
+- ```--model-type``` : [det, det_ens, srf_ens, prob], det uses a deterministic neural network as learned dynamics model. det_ens uses an ensemble of deterministic neural networks as learned dynamics model. srf_ens uses an ensemble of spatial random fields as dynamics model (only for 0-DAB experiments). prob uses an ensemble of probabilistic neural networks (output is a probability distribution, parameterized by mean and variance, for each predicted dimension) as learned dynamics model.
+- ```--ens-size``` : int, size of the dynamics model ensemble if one is used (det_ens, srf_ens and prob options for argument --model-type)
+- ```--norm-controller-input``` : [0, 1], used only when the controller is a neural network, 1 normalizes the input dimensions using min-max normalization given the task. 
+- ```--open-loop-control``` : [0, 1], used only when the controller is a neural network, 1 uses timesteps as an input to the controller.
+- ```--pop-size``` : int, population size for the Novelty Search and Model-Based Novelty Search algorithm.
+- ```--c-n-neurons``` : int, used only when the controller is a neural network, determines the number of neurons per hidden layer in controller (input layer dimension is always that of the state space, output laywer dimension is always that of the action space).
+- ```--c-n-layers``` : int, used only when the controller is a neural network, determines the number of hidden layers in the controller.
+- ```--c-type``` : [ffnn, rnn], used only when the controller is a neural network, ffnn uses a simple fully-connected feed-forward neural network as a controller, rnn uses a recurrent neural network.
+- ```--arch-sel``` : [random, nov], selects individuals to add to the Novelty Search or Model-Based Novelty Search archive either randomly (random) or depending on their novelty (nov). 
+- ```--model-ns-return``` : [archive, population, average_nov], selects the individuals to transfer onto the real system at the end of the model loop in Model-Based Novelty Search. archive returns the individuals added to the model archive, population returns the final population and average_nov returns the estimated most novel individuals on the model obtained throughout the whole model loop. 
+- ```--adaptive-novl``` : change dynamically the novl parameter for the [Iso+Line](https://arxiv.org/pdf/1804.03906) mutation operator
+- ```--transfer-err-analysis``` : run complementary analysis for behavioral descriptor estimation error
